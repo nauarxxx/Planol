@@ -30,3 +30,8 @@ L'app queda a https://nauarxxx.github.io/Planol/
 L'app fa servir Firebase Auth amb Google i desa el plànol a Firestore, al document `planta3d/estado`.
 Només hi entren els comptes de `js/config.js` amb el correu verificat. La regla de Firestore és a `firestore.rules`.
 Mentre `js/config.js` no tingui el `firebaseConfig`, l'app funciona sense inici de sessió i desa només al navegador.
+
+
+## App instal·lable (PWA)
+
+L’app té `manifest.webmanifest` i `sw.js`: es pot instal·lar al PC (Chrome/Edge → Instal·la), a Android (botó Instal·la) i a l’iPhone (Safari → Compartir → Afegeix a la pantalla d’inici), i obre sense connexió. Els fitxers propis es guarden a la memòria cau i s’actualitzen en segon pla; Firebase sempre va per xarxa.

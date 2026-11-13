@@ -2,9 +2,17 @@
 <html lang="ca">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Planta 3D Mobles</title>
-  <link rel="stylesheet" href="css/style.css?v=15" />
+  <meta name="theme-color" content="#b5652f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Planta 3D" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="stylesheet" href="css/style.css?v=16" />
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.js", "three/addons/OrbitControls.js": "./vendor/OrbitControls.js" } }
   </script>
@@ -54,6 +62,9 @@
           <button id="undo" title="Desfés (Ctrl+Z)">↶</button>
           <button id="redo" title="Refés (Ctrl+Y)">↷</button>
         </div>
+        <div class="group" id="install-group" hidden>
+          <button id="install" title="Instal·la l’app al dispositiu">⬇ Instal·la</button>
+        </div>
       </div>
       <div id="canvas-wrap"></div>
       <div id="props" hidden></div>
@@ -67,12 +78,19 @@
       <div id="hint">Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar</div>
     </main>
   </div>
+  <div id="install-help" class="modal" hidden>
+    <div class="gate-card">
+      <h1>Instal·la l’app</h1>
+      <div class="modal-body"></div>
+      <button class="btn secondary" id="install-close">Tanca</button>
+    </div>
+  </div>
   <div id="gate" hidden>
     <div class="gate-card">
       <h1>Planta 3D</h1>
       <div class="gate-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=15"></script>
+  <script type="module" src="js/main.js?v=16"></script>
 </body>
 </html>

@@ -39,6 +39,7 @@ function migratePlan(s) {
 let state = migratePlan(loadState());
 const ui = { selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false };
 const isMobile = () => window.matchMedia('(max-width: 800px)').matches;
+let installPrompt = null; // event d'instal·lació de la PWA (Chrome/Edge/Android)
 const history = { past: [], future: [] };
 
 let cloudBase = null; // últim estat confirmat al núvol (per fusionar canvis simultanis)
@@ -1199,6 +1200,9 @@ function renderDatos() {
       <label class="btn secondary" style="display:inline-block">Importa<input type="file" id="x-import" accept="application/json,.json" hidden /></label>
       <button class="btn secondary" id="x-png">Captura (.png)</button>
     </div>
+    <h2>Instal·la l’app</h2>
+    <div id="x-install-status">${installStatusHtml()}</div>
+    <div class="btns"><button class="btn" id="x-install" ${isStandalone() ? 'disabled' : ''}>⬇ Instal·la al dispositiu</button></div>
     <h2>Restableix</h2>
     <div class="btns">
       <button class="btn danger" id="x-clear">Treu tots els mobles</button>
@@ -1229,6 +1233,7 @@ function renderDatos() {
     const a = document.createElement('a');
     a.href = renderer.domElement.toDataURL('image/png'); a.download = 'planta-3d.png'; a.click();
   });
+  $('#x-install').addEventListener('click', () => installApp());
   $('#x-clear').addEventListener('click', () => { commit(); state.items = []; ui.selected = null; afterStateReplace(); });
   $('#x-reset').addEventListener('click', () => { commit(); state = clone(DEFAULT_PLAN); ui.selected = null; afterStateReplace(); frameCamera(); });
 }
@@ -1304,6 +1309,42 @@ if (cloudEnabled) {
   }).catch((e) => showGate(`<p class="gate-err">Error en carregar Firebase: ${esc(e.message)}</p>`));
   document.getElementById('signout').addEventListener('click', () => signOutUser());
 }
+
+// ---------------------------------------------------------------- app instal·lable (PWA)
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => { /* sense SW */ }));
+}
+function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
+function isIOS() { return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; updateInstallUI(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; updateInstallUI(); });
+function updateInstallUI() {
+  document.getElementById('install-group').hidden = isStandalone();
+  const d = $('#x-install-status');
+  if (d) d.innerHTML = installStatusHtml();
+}
+function installStatusHtml() {
+  if (isStandalone()) return '<p class="note">✅ Ja la fas servir com a app instal·lada.</p>';
+  if (installPrompt) return '<p class="note">Prem <b>Instal·la</b> i l’app quedarà a l’escriptori o a la pantalla d’inici, amb la seva icona i sense la barra del navegador.</p>';
+  if (isIOS()) return '<p class="note">A l’iPhone s’instal·la des de Safari: prem <b>Compartir</b> (el quadrat amb la fletxa) i després <b>Afegeix a la pantalla d’inici</b>.</p>';
+  return '<p class="note">Obre-la amb Chrome o Edge i prem <b>Instal·la</b>. Si el botó no surt, al menú del navegador (⋮) tria <b>Instal·la l’app</b> o <b>Afegeix a la pantalla d’inici</b>.</p>';
+}
+async function installApp() {
+  if (installPrompt) {
+    installPrompt.prompt();
+    try { await installPrompt.userChoice; } catch (e) { /* res */ }
+    installPrompt = null; updateInstallUI();
+    return;
+  }
+  const m = document.getElementById('install-help');
+  m.querySelector('.modal-body').innerHTML = isIOS()
+    ? `<p>A l’iPhone o l’iPad, des de <b>Safari</b>:</p><ol><li>Prem el botó <b>Compartir</b> (el quadrat amb una fletxa cap amunt).</li><li>Tria <b>Afegeix a la pantalla d’inici</b>.</li><li>Prem <b>Afegeix</b>. Ja tens la icona Planta 3D.</li></ol>`
+    : `<p>Des de <b>Chrome</b> o <b>Edge</b>:</p><ol><li>Obre el menú del navegador (⋮ o ⋯).</li><li>Tria <b>Instal·la l’app</b> o <b>Afegeix a la pantalla d’inici</b>.</li><li>Confirma. Ja tens la icona Planta 3D.</li></ol>`;
+  m.hidden = false;
+}
+document.getElementById('install').addEventListener('click', installApp);
+document.getElementById('install-close').addEventListener('click', () => { document.getElementById('install-help').hidden = true; });
+updateInstallUI();
 
 // Acceso para depuración desde la consola.
 window.planta3d = {
