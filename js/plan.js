@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 16, // v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 17, // v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -35,12 +35,12 @@ export const DEFAULT_PLAN = {
     {
       id: 'salon', name: 'Menjador', kind: 'room', color: '#c89b6a',
       x: 0, z: 380, w: 270, d: 440,
-      notes: 'Menjador 270 × 440 segons les cotes del croquis (440 de llarg per la paret exterior, 270 d’ample; paret de la tele 275). Entrada des del replà, a la paret de la tele. Sense finestra: la llum entra per la porta de vidre doble de la terrassa (≈160, estimada). Sostre inclinat que baixa cap a la terrassa.',
+      notes: 'Menjador 270 × 440 segons les cotes del croquis (440 de llarg per la paret exterior, 270 d’ample; paret de la tele 275). Entrada des del replà, a la paret de la tele. Sense finestra: la llum entra per la porta de vidre doble de la terrassa (164, confirmada). Sostre inclinat que baixa cap a la terrassa.',
       estimated: false,
       openings: [
         { wall: 'E', offset: 15, width: 85, type: 'puerta' },
         { wall: 'E', offset: 275, width: 90, type: 'paso' },
-        { wall: 'S', offset: 55, width: 160, type: 'ventanal' },
+        { wall: 'S', offset: 53, width: 164, type: 'ventanal' },
       ],
     },
     {
@@ -98,11 +98,11 @@ export const DEFAULT_PLAN = {
     {
       id: 'dormitorio', name: 'Dormitori', kind: 'room', color: '#c08e5e',
       x: 535, z: 755, w: 310, d: 310,
-      notes: 'Dormitori 310 × 310 (confirmat). Finestral doble de terra a sostre, a la part dreta de la paret; amplada (150) i posició estimades a partir de la foto. Sostre inclinat que baixa cap al finestral.',
+      notes: 'Dormitori 310 × 310 (confirmat). Finestral doble de terra a sostre de 164 (confirmat), a la part dreta de la paret; la posició és estimada a partir de la foto. Sostre inclinat que baixa cap al finestral.',
       estimated: false,
       openings: [
         { wall: 'N', offset: 30, width: 80, type: 'puerta' },
-        { wall: 'S', offset: 120, width: 150, type: 'ventanal' },
+        { wall: 'S', offset: 110, width: 164, type: 'ventanal' },
       ],
     },
   ],
