@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Planta 3D Muebles</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js", "three/addons/OrbitControls.js": "./vendor/OrbitControls.js" } }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <header class="brand">
+        <h1>Planta 3D</h1>
+        <span class="sub">Muebles a medida</span>
+      </header>
+      <nav class="tabs" role="tablist">
+        <button data-tab="muebles" class="active">Muebles</button>
+        <button data-tab="distribuir">Distribuir</button>
+        <button data-tab="plano">Plano</button>
+        <button data-tab="datos">Datos</button>
+      </nav>
+      <section id="tab-muebles" class="tab active"></section>
+      <section id="tab-distribuir" class="tab"></section>
+      <section id="tab-plano" class="tab"></section>
+      <section id="tab-datos" class="tab"></section>
+    </aside>
+    <main id="viewport">
+      <div id="toolbar">
+        <div class="group">
+          <button data-view="3d" class="active" title="Vista 3D">3D</button>
+          <button data-view="top" title="Vista en planta">Planta</button>
+        </div>
+        <div class="group">
+          <label>Paredes
+            <select id="wallMode">
+              <option value="low" selected>Bajas</option>
+              <option value="full">Completas</option>
+              <option value="none">Ocultas</option>
+            </select>
+          </label>
+        </div>
+        <div class="group">
+          <label><input type="checkbox" id="snap" checked /> Imán 5 cm</label>
+          <label><input type="checkbox" id="labels" checked /> Etiquetas</label>
+        </div>
+        <div class="group" id="account" hidden>
+          <span class="who"></span><span id="sync" class="sync"></span>
+          <button id="signout" title="Cerrar sesión">Salir</button>
+        </div>
+        <div class="group">
+          <button id="undo" title="Deshacer (Ctrl+Z)">↶</button>
+          <button id="redo" title="Rehacer (Ctrl+Y)">↷</button>
+        </div>
+      </div>
+      <div id="canvas-wrap"></div>
+      <div id="props" hidden></div>
+      <div id="hint">Arrastra un mueble para moverlo · R / Shift+R girar · Supr borrar · Ctrl+D duplicar</div>
+    </main>
+  </div>
+  <div id="gate" hidden>
+    <div class="gate-card">
+      <h1>Planta 3D</h1>
+      <div class="gate-body"></div>
+    </div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
