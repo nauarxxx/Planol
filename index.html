@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="es">
+<html lang="ca">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Planta 3D Muebles</title>
+  <title>Planta 3D Mobles</title>
   <link rel="stylesheet" href="css/style.css?v=11" />
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.js", "three/addons/OrbitControls.js": "./vendor/OrbitControls.js" } }
@@ -14,13 +14,13 @@
     <aside id="sidebar">
       <header class="brand">
         <h1>Planta 3D</h1>
-        <span class="sub">Muebles a medida</span>
+        <span class="sub">Mobles a mida</span>
       </header>
       <nav class="tabs" role="tablist">
-        <button data-tab="muebles" class="active">Muebles</button>
+        <button data-tab="muebles" class="active">Mobles</button>
         <button data-tab="distribuir">Distribuir</button>
-        <button data-tab="plano">Plano</button>
-        <button data-tab="datos">Datos</button>
+        <button data-tab="plano">Plànol</button>
+        <button data-tab="datos">Dades</button>
       </nav>
       <section id="tab-muebles" class="tab active"></section>
       <section id="tab-distribuir" class="tab"></section>
@@ -34,30 +34,30 @@
           <button data-view="top" title="Vista en planta">Planta</button>
         </div>
         <div class="group">
-          <label>Paredes
+          <label>Parets
             <select id="wallMode">
-              <option value="low" selected>Bajas</option>
-              <option value="full">Completas</option>
-              <option value="none">Ocultas</option>
+              <option value="low" selected>Baixes</option>
+              <option value="full">Completes</option>
+              <option value="none">Amagades</option>
             </select>
           </label>
         </div>
         <div class="group">
-          <label><input type="checkbox" id="snap" checked /> Imán 5 cm</label>
-          <label><input type="checkbox" id="labels" checked /> Etiquetas</label>
+          <label><input type="checkbox" id="snap" checked /> Imant 5 cm</label>
+          <label><input type="checkbox" id="labels" checked /> Etiquetes</label>
         </div>
         <div class="group" id="account" hidden>
           <span class="who"></span><span id="sync" class="sync"></span>
-          <button id="signout" title="Cerrar sesión">Salir</button>
+          <button id="signout" title="Tanca la sessió">Surt</button>
         </div>
         <div class="group">
-          <button id="undo" title="Deshacer (Ctrl+Z)">↶</button>
-          <button id="redo" title="Rehacer (Ctrl+Y)">↷</button>
+          <button id="undo" title="Desfés (Ctrl+Z)">↶</button>
+          <button id="redo" title="Refés (Ctrl+Y)">↷</button>
         </div>
       </div>
       <div id="canvas-wrap"></div>
       <div id="props" hidden></div>
-      <div id="hint">Arrastra un mueble para moverlo · R / Shift+R girar · Supr borrar · Ctrl+D duplicar</div>
+      <div id="hint">Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar</div>
     </main>
   </div>
   <div id="gate" hidden>
@@ -66,6 +66,6 @@
       <div class="gate-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=13"></script>
+  <script type="module" src="js/main.js?v=14"></script>
 </body>
 </html>

@@ -10,22 +10,22 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 13, // v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 14, // v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
   rooms: [
     {
-      id: 'terraza-cocina', name: 'Terraza cocina', kind: 'terrace', color: '#b8673f',
+      id: 'terraza-cocina', name: 'Terrassa cuina', kind: 'terrace', color: '#b8673f',
       x: 10, z: 0, w: 335, d: 120, d2: 40,
-      notes: 'Terraza sobre la cocina con el borde exterior en diagonal: 120 de fondo a la izquierda y 40 a la derecha (≈2,7 m²). Las dos terrazas suman 8,25 m².',
+      notes: 'Terrassa de la cuina amb la vora exterior en diagonal: 120 de fons a l’esquerra i 40 a la dreta (≈2,7 m²). Les dues terrasses sumen 8,25 m².',
       estimated: true,
       openings: [],
     },
     {
-      id: 'cocina', name: 'Cocina', kind: 'room', color: '#d9c7a3',
+      id: 'cocina', name: 'Cuina', kind: 'room', color: '#d9c7a3',
       x: 10, z: 120, w: 260, d: 260,
-      notes: 'Zona de cocina abierta al comedor (estar-menjador-cuina: 26,80 m² en total). Encimera de 55 de fondo (cota del croquis). Largo y ancho estimados.',
+      notes: 'Cuina oberta al menjador (estar-menjador-cuina: 26,80 m² en total). Taulell de 55 de fons (cota del croquis). Llargada i amplada estimades.',
       estimated: true,
       openings: [
         { wall: 'N', offset: 60, width: 90, type: 'puerta' },
@@ -33,9 +33,9 @@ export const DEFAULT_PLAN = {
       ],
     },
     {
-      id: 'salon', name: 'Salón-comedor', kind: 'room', color: '#c89b6a',
+      id: 'salon', name: 'Sala-menjador', kind: 'room', color: '#c89b6a',
       x: 0, z: 380, w: 270, d: 440,
-      notes: 'Salón-comedor 270 × 440 según las cotas del croquis (440 de largo por la pared exterior, 270 de ancho; pared de la tele 275). Entrada desde el rellano. Sin ventana: la luz entra por la terraza.',
+      notes: 'Sala-menjador 270 × 440 segons les cotes del croquis (440 de llarg per la paret exterior, 270 d’ample; paret de la tele 275). Entrada des del replà. Sense finestra: la llum entra per la terrassa.',
       estimated: false,
       openings: [
         { wall: 'E', offset: 15, width: 85, type: 'puerta' },
@@ -44,37 +44,37 @@ export const DEFAULT_PLAN = {
       ],
     },
     {
-      id: 'terraza', name: 'Terraza', kind: 'terrace', color: '#b8673f',
+      id: 'terraza', name: 'Terrassa', kind: 'terrace', color: '#b8673f',
       x: 0, z: 820, w: 268, d: 130,
-      notes: 'Terraza del salón: 268 × 130 según el croquis (≈3,5 m²).',
+      notes: 'Terrassa de la sala: 268 × 130 segons el croquis (≈3,5 m²).',
       estimated: false,
       openings: [],
     },
     {
-      id: 'bano', name: 'Baño', kind: 'room', color: '#9aa3a8',
+      id: 'bano', name: 'Bany 1', kind: 'room', color: '#9aa3a8',
       x: 655, z: 465, w: 190, d: 190,
-      notes: 'Baño 1: 190 × 190 según el croquis (bañera, inodoro y bidé). Encima del tramo final del pasillo; la puerta está en el rincón donde acaba el pasillo.',
+      notes: 'Bany 1: 190 × 190 segons el croquis (banyera, vàter i bidet). Damunt del tram final del passadís; la porta és al racó on acaba el passadís.',
       estimated: false,
       openings: [{ wall: 'S', offset: 110, width: 70, type: 'puerta' }],
     },
     {
-      id: 'bano2', name: 'Baño 2', kind: 'room', color: '#a7b1b6',
+      id: 'bano2', name: 'Bany 2', kind: 'room', color: '#a7b1b6',
       x: 845, z: 620, w: 107, d: 145,
-      notes: 'Baño 2: 107 × 145 según el croquis (145 a lo largo, 107 de fondo). Se entra por la pared del fondo del pasillo, al lado de la puerta del baño 1.',
+      notes: 'Bany 2: 107 × 145 segons el croquis (145 de llarg, 107 de fons). S’hi entra per la paret del fons del passadís, al costat de la porta del bany 1.',
       estimated: false,
       openings: [{ wall: 'W', offset: 45, width: 70, type: 'puerta' }],
     },
     {
-      id: 'distribuidor', name: 'Pasillo', kind: 'room', color: '#c89b6a',
+      id: 'distribuidor', name: 'Passadís', kind: 'room', color: '#c89b6a',
       x: 270, z: 655, w: 575, d: 100,
-      notes: 'Pasillo que une el salón con el baño, el baño 2, el lavadero y el dormitorio. 4,60 m² en el proyecto.',
+      notes: 'Passadís que uneix la sala amb el bany 1, el bany 2, l’office i el dormitori. 4,60 m² al projecte.',
       estimated: true,
       openings: [],
     },
     {
       id: 'office', name: 'Office', kind: 'room', color: '#c9b9a0',
       x: 270, z: 755, w: 205, d: 275,
-      notes: 'Office: 205 (pared de la ventana) × 275 (croquis). Ventana simple de 107: 36 hasta la pared de 275 y 60 hasta el armario.',
+      notes: 'Office: 205 (paret de la finestra) × 275 (croquis). Finestra simple de 107: 36 fins a la paret de 275 i 60 fins a l’armari.',
       estimated: false,
       openings: [
         { wall: 'N', offset: 110, width: 80, type: 'puerta' },
@@ -82,23 +82,23 @@ export const DEFAULT_PLAN = {
       ],
     },
     {
-      id: 'armario-dorm', name: 'Armario dormitorio', kind: 'room', color: '#bfb3a0',
+      id: 'armario-dorm', name: 'Armari dormitori', kind: 'room', color: '#bfb3a0',
       x: 475, z: 755, w: 60, d: 195,
-      notes: 'Armario empotrado del dormitorio: 60 de fondo (cota del croquis); el largo (195) es estimado.',
+      notes: 'Armari encastat del dormitori: 60 de fons (cota del croquis); la llargada (195) és estimada.',
       estimated: true,
       openings: [{ wall: 'E', offset: 10, width: 175, type: 'paso' }],
     },
     {
-      id: 'armario-office', name: 'Armario office', kind: 'room', color: '#bfb3a0',
+      id: 'armario-office', name: 'Armari office', kind: 'room', color: '#bfb3a0',
       x: 475, z: 950, w: 60, d: 80,
-      notes: 'Pequeño armario del office, junto a la ventana, en el extremo de la columna de armarios. Estimado.',
+      notes: 'Armari petit de l’office, al costat de la finestra, a l’extrem de la columna d’armaris. Estimat.',
       estimated: true,
       openings: [{ wall: 'W', offset: 5, width: 70, type: 'paso' }],
     },
     {
-      id: 'dormitorio', name: 'Dormitorio', kind: 'room', color: '#c08e5e',
+      id: 'dormitorio', name: 'Dormitori', kind: 'room', color: '#c08e5e',
       x: 535, z: 755, w: 310, d: 310,
-      notes: 'Dormitorio 310 × 310 (confirmado). Ventanal doble de suelo a techo; su ancho (200) es estimado.',
+      notes: 'Dormitori 310 × 310 (confirmat). Finestral doble de terra a sostre; l’amplada (200) és estimada.',
       estimated: false,
       openings: [
         { wall: 'N', offset: 30, width: 80, type: 'puerta' },

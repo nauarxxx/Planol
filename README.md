@@ -1,32 +1,32 @@
-# Planta 3D · Muebles a medida
+# Planta 3D · Mobles a mida
 
-Web app estática para ver el piso en 3D a escala, crear muebles con medidas personalizadas, colocarlos en cada habitación y pedir propuestas automáticas de distribución.
+Web app estàtica per veure el pis en 3D a escala, crear mobles amb mides personalitzades, col·locar-los a cada habitació i demanar propostes automàtiques de distribució.
 
-## Uso
+## Ús
 
-- **Muebles:** elige tipo (silla, mesa, TV, sofá, cama, armario...), ajusta ancho, fondo, alto, elevación y color, y añádelo a una habitación.
-- **Mover:** arrastra el mueble con el ratón. R gira 90°, Q/E giran 15°, las flechas lo mueven 1 cm (Shift: 10 cm), Supr lo borra, Ctrl+D lo duplica y Ctrl+Z deshace.
-- **Distribuir:** elige una habitación y pulsa *Generar propuestas*. Haz clic en una propuesta para aplicarla. Los muebles marcados como *Fijo* no se mueven.
-- **Plano:** todas las medidas de las habitaciones, la altura del techo y las puertas y ventanas se pueden editar. Las medidas que no salían en el plano original están marcadas como *estimadas*.
-- **Datos:** todo se guarda en el navegador. Se puede exportar e importar un `.json` y sacar una captura.
+- **Mobles:** tria el tipus (cadira, taula, TV, sofà, llit, armari...), ajusta amplada, fons, alçada, elevació i color, i afegeix-lo a una habitació.
+- **Moure:** arrossega el moble amb el ratolí. R gira 90°, Q/E giren 15°, les fletxes el mouen 1 cm (Maj: 10 cm), Supr l'esborra, Ctrl+D el duplica i Ctrl+Z desfà.
+- **Distribuir:** tria una habitació i prem *Genera propostes*. Fes clic en una proposta per aplicar-la. Els mobles marcats com a *Fix* no es mouen.
+- **Plànol:** totes les mides de les habitacions, l'alçada del sostre i les portes i finestres es poden editar. Les mides que no sortien al plànol original estan marcades com a *estimades*.
+- **Dades:** tot es desa al navegador i al núvol. Es pot exportar i importar un `.json` i treure una captura.
 
-## Publicar en GitHub Pages
+## Publicar a GitHub Pages
 
-No necesita compilación. En el repositorio: *Settings → Pages → Deploy from a branch → `main` / raíz*.
-La app queda en https://nauarxxx.github.io/Planol/
+No necessita compilació. Al repositori: *Settings → Pages → Deploy from a branch → `main` / arrel*.
+L'app queda a https://nauarxxx.github.io/Planol/
 
 ## Estructura
 
 - `index.html`, `css/style.css`
-- `js/plan.js`: plano por defecto (medidas en cm)
-- `js/furniture.js`: catálogo y modelos 3D de los muebles
-- `js/layout.js`: generador de distribuciones
-- `js/geom.js`: geometría 2D (choques, huecos)
-- `js/main.js`: escena 3D, interacción e interfaz
-- `vendor/`: Three.js r169 (licencia MIT)
+- `js/plan.js`: plànol per defecte (mides en cm)
+- `js/furniture.js`: catàleg i models 3D dels mobles
+- `js/layout.js`: generador de distribucions
+- `js/geom.js`: geometria 2D (xocs, buits)
+- `js/main.js`: escena 3D, interacció i interfície
+- `vendor/`: Three.js r169 (llicència MIT)
 
-## Inicio de sesión (Firebase)
+## Inici de sessió (Firebase)
 
-La app usa Firebase Auth con Google y guarda el plano en Firestore, en el documento `planta3d/estado`.
-Solo entran las cuentas de `js/config.js` con el correo verificado. La regla de Firestore está en `firestore.rules`.
-Mientras `js/config.js` no tenga el `firebaseConfig`, la app funciona sin inicio de sesión y guarda solo en el navegador.
+L'app fa servir Firebase Auth amb Google i desa el plànol a Firestore, al document `planta3d/estado`.
+Només hi entren els comptes de `js/config.js` amb el correu verificat. La regla de Firestore és a `firestore.rules`.
+Mentre `js/config.js` no tingui el `firebaseConfig`, l'app funciona sense inici de sessió i desa només al navegador.

@@ -32,7 +32,7 @@ export async function initCloud({ onSignedIn, onSignedOut, onDenied, onRemoteSta
       const snap = await fb.getDoc(ref);
       if (snap.exists() && snap.data().json) initial = JSON.parse(snap.data().json);
     } catch (e) {
-      return onDenied(u.email, 'No se ha podido leer la base de datos: ' + e.message);
+      return onDenied(u.email, 'No s’ha pogut llegir la base de dades: ' + e.message);
     }
     onSignedIn(u, initial);
     unsub = fb.onSnapshot(ref, (snap) => {

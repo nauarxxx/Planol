@@ -46,7 +46,7 @@ function save(remote = true) {
 function setSync(st) {
   const el = document.getElementById('sync');
   if (!el) return;
-  el.textContent = st === 'guardado' ? 'Guardado en la nube' : st === 'pendiente' ? 'Guardando…' : st.startsWith('error') ? 'Error al guardar' : st;
+  el.textContent = st === 'guardado' ? 'Desat al núvol' : st === 'pendiente' ? 'Desant…' : st.startsWith('error') ? 'Error en desar' : st;
   el.title = st;
   el.className = st.startsWith('error') ? 'sync bad' : 'sync';
 }
@@ -295,7 +295,7 @@ function rebuildPlan() {
       rail(r.x + r.w, r.z + r.d - r.d2, r.x + r.w, r.z + r.d);
       rail(r.x, r.z + r.d, r.x + r.w, r.z + r.d);
       if (ui.labels) {
-        const l = makeLabel([r.name, `${r.w} × ${r.d} / ${r.d2} cm`, 'borde en diagonal'], r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.8, r.d * 0.6);
+        const l = makeLabel([r.name, `${r.w} × ${r.d} / ${r.d2} cm`, 'vora en diagonal'], r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.8, r.d * 0.6);
         l.position.set(r.x + r.w * 0.45, 0.6, r.z + r.d * 0.6);
         planGroup.add(l);
       }
@@ -369,7 +369,7 @@ function rebuildPlan() {
 
     if (ui.labels) {
       const lines = [r.name, `${r.w} × ${r.d} cm`];
-      if (r.estimated) lines.push('medidas estimadas');
+      if (r.estimated) lines.push('mides estimades');
       const l = makeLabel(lines, r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.85, r.d * 0.6);
       l.position.set(r.x + r.w / 2, 0.6, r.z + r.d / 2);
       planGroup.add(l);
@@ -426,7 +426,7 @@ function conflicts() {
   const solid = state.items.filter((i) => i.type !== 'alfombra');
   for (const it of solid) {
     const r = roomById(it.roomId);
-    if (r && outsideAmount(innerRect(r, t), aabb(it)) > 1) bad.set(it.id, 'Sale de la habitación');
+    if (r && outsideAmount(innerRect(r, t), aabb(it)) > 1) bad.set(it.id, 'Surt de l’habitació');
   }
   for (let a = 0; a < solid.length; a++) for (let b = a + 1; b < solid.length; b++) {
     const A = solid[a], B = solid[b];
@@ -435,8 +435,8 @@ function conflicts() {
     const isSeatTable = (x, y) => x.type === 'silla' && ['mesa', 'escritorio'].includes(y.type);
     if (isSeatTable(A, B) || isSeatTable(B, A)) continue; // las sillas pueden meterse bajo la mesa
     if (overlaps(A, B, -1)) {
-      bad.set(A.id, 'Choca con ' + B.name);
-      bad.set(B.id, 'Choca con ' + A.name);
+      bad.set(A.id, 'Xoca amb ' + B.name);
+      bad.set(B.id, 'Xoca amb ' + A.name);
     }
   }
   return bad;
@@ -642,25 +642,25 @@ function renderMuebles() {
   const f = addForm;
   if (!roomById(f.roomId)) f.roomId = usableRooms()[0]?.id;
   el.innerHTML = `
-    <h2>Crear mueble</h2>
+    <h2>Crea un moble</h2>
     <div class="row c2">
-      <label>Tipo<select id="f-type">${Object.entries(CATALOG).map(([k, v]) => `<option value="${k}" ${k === f.type ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
-      <label>Nombre<input type="text" id="f-name" value="${esc(f.name)}" /></label>
+      <label>Tipus<select id="f-type">${Object.entries(CATALOG).map(([k, v]) => `<option value="${k}" ${k === f.type ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
+      <label>Nom<input type="text" id="f-name" value="${esc(f.name)}" /></label>
     </div>
     <div class="row c3">
-      <label>Ancho (cm)<input type="number" id="f-w" min="1" value="${f.w}" /></label>
-      <label>Fondo (cm)<input type="number" id="f-d" min="1" value="${f.d}" /></label>
-      <label>Alto (cm)<input type="number" id="f-h" min="1" value="${f.h}" /></label>
+      <label>Amplada (cm)<input type="number" id="f-w" min="1" value="${f.w}" /></label>
+      <label>Fons (cm)<input type="number" id="f-d" min="1" value="${f.d}" /></label>
+      <label>Alçada (cm)<input type="number" id="f-h" min="1" value="${f.h}" /></label>
     </div>
     <div class="row c3">
-      <label>Elevación<input type="number" id="f-elev" min="0" value="${f.elev || 0}" title="Altura desde el suelo, por ejemplo una TV colgada" /></label>
+      <label>Elevació<input type="number" id="f-elev" min="0" value="${f.elev || 0}" title="Alçada des del terra, per exemple una TV penjada" /></label>
       <label>Color<input type="color" id="f-color" value="${f.color}" /></label>
-      <label>Cantidad<input type="number" id="f-qty" min="1" max="30" value="${f.qty}" /></label>
+      <label>Quantitat<input type="number" id="f-qty" min="1" max="30" value="${f.qty}" /></label>
     </div>
-    <div class="row"><label>Habitación<select id="f-room">${roomOptions(f.roomId)}</select></label></div>
-    <div class="btns"><button class="btn" id="f-add">Añadir al plano</button></div>
-    <p class="note">Ejemplo rápido: <button class="btn secondary small" id="f-example">2 sillas + 2 mesas + TV</button> en la habitación elegida.</p>
-    <h2>En el plano</h2>
+    <div class="row"><label>Habitació<select id="f-room">${roomOptions(f.roomId)}</select></label></div>
+    <div class="btns"><button class="btn" id="f-add">Afegeix al plànol</button></div>
+    <p class="note">Exemple ràpid: <button class="btn secondary small" id="f-example">2 cadires + 2 taules + TV</button> a l’habitació triada.</p>
+    <h2>Al plànol</h2>
     <div id="item-list"></div>`;
   const read = () => {
     f.name = $('#f-name').value; f.w = +$('#f-w').value || 1; f.d = +$('#f-d').value || 1; f.h = +$('#f-h').value || 1;
@@ -679,9 +679,9 @@ function renderMuebles() {
   $('#f-example').addEventListener('click', () => {
     read();
     const room = f.roomId;
-    addItems('mesa', { name: 'Mesa' }, 2, room);
-    addItems('silla', { name: 'Silla' }, 2, room);
-    addItems('tv', { name: 'Televisión' }, 1, room);
+    addItems('mesa', { name: 'Taula' }, 2, room);
+    addItems('silla', { name: 'Cadira' }, 2, room);
+    addItems('tv', { name: 'Televisor' }, 1, room);
   });
   renderItemList();
 }
@@ -689,7 +689,7 @@ function renderMuebles() {
 function renderItemList() {
   const el = $('#item-list');
   if (!el) return;
-  if (!state.items.length) { el.innerHTML = '<p class="note">Todavía no hay muebles. Crea uno arriba y aparecerá en la habitación elegida.</p>'; return; }
+  if (!state.items.length) { el.innerHTML = '<p class="note">Encara no hi ha mobles. Crea’n un a dalt i apareixerà a l’habitació triada.</p>'; return; }
   const bad = ui.conflicts || new Map();
   el.innerHTML = usableRooms().map((r) => {
     const its = state.items.filter((i) => i.roomId === r.id);
@@ -698,10 +698,10 @@ function renderItemList() {
       <li data-id="${i.id}" class="${i.id === ui.selected ? 'sel' : ''}">
         <span class="sw" style="background:${esc(i.color)}"></span>
         <span class="nm">${esc(i.name)}${i.locked ? ' 🔒' : ''}</span>
-        ${bad.has(i.id) ? `<span class="badge bad" title="${esc(bad.get(i.id))}">choque</span>` : ''}
+        ${bad.has(i.id) ? `<span class="badge bad" title="${esc(bad.get(i.id))}">xoc</span>` : ''}
         <span class="dm">${i.w}×${i.d}×${i.h}</span>
       </li>`).join('')}</ul>`;
-  }).join('') + (state.items.some((i) => !roomById(i.roomId)) ? '<p class="note">Hay muebles fuera de cualquier habitación.</p>' : '');
+  }).join('') + (state.items.some((i) => !roomById(i.roomId)) ? '<p class="note">Hi ha mobles fora de qualsevol habitació.</p>' : '');
   el.querySelectorAll('li[data-id]').forEach((li) => li.addEventListener('click', () => select(li.dataset.id)));
 }
 
@@ -718,32 +718,32 @@ function renderProps(onlyPos = false) {
   el.dataset.id = it.id;
   const bad = ui.conflicts?.get(it.id);
   el.innerHTML = `
-    <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(it.color)}"></span>${esc(it.name)} ${bad ? `<span class="badge bad">${esc(bad)}</span>` : ''}<button class="close" id="p-close" title="Cerrar">×</button></h3>
+    <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(it.color)}"></span>${esc(it.name)} ${bad ? `<span class="badge bad">${esc(bad)}</span>` : ''}<button class="close" id="p-close" title="Tanca">×</button></h3>
     <div class="row c2">
-      <label>Nombre<input type="text" id="p-name" value="${esc(it.name)}" /></label>
-      <label>Tipo<select id="p-type">${Object.entries(CATALOG).map(([k, v]) => `<option value="${k}" ${k === it.type ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
+      <label>Nom<input type="text" id="p-name" value="${esc(it.name)}" /></label>
+      <label>Tipus<select id="p-type">${Object.entries(CATALOG).map(([k, v]) => `<option value="${k}" ${k === it.type ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
     </div>
     <div class="row c3">
-      <label>Ancho<input type="number" id="p-w" min="1" value="${it.w}" /></label>
-      <label>Fondo<input type="number" id="p-d" min="1" value="${it.d}" /></label>
-      <label>Alto<input type="number" id="p-h" min="1" value="${it.h}" /></label>
+      <label>Amplada<input type="number" id="p-w" min="1" value="${it.w}" /></label>
+      <label>Fons<input type="number" id="p-d" min="1" value="${it.d}" /></label>
+      <label>Alçada<input type="number" id="p-h" min="1" value="${it.h}" /></label>
     </div>
     <div class="row c4">
       <label>X<input type="number" id="p-x" value="${it.x}" /></label>
       <label>Z<input type="number" id="p-z" value="${it.z}" /></label>
-      <label>Giro °<input type="number" id="p-rot" step="15" value="${it.rot}" /></label>
+      <label>Gir °<input type="number" id="p-rot" step="15" value="${it.rot}" /></label>
       <label>Elev.<input type="number" id="p-elev" min="0" value="${it.elev || 0}" /></label>
     </div>
     <div class="row c2">
       <label>Color<input type="color" id="p-color" value="${it.color}" /></label>
-      <label>Habitación<select id="p-room">${roomOptions(it.roomId)}</select></label>
+      <label>Habitació<select id="p-room">${roomOptions(it.roomId)}</select></label>
     </div>
-    <label style="flex-direction:row;align-items:center;gap:6px;margin:4px 0 8px"><input type="checkbox" id="p-lock" ${it.locked ? 'checked' : ''}/> Fijo (no se mueve en las propuestas)</label>
+    <label style="flex-direction:row;align-items:center;gap:6px;margin:4px 0 8px"><input type="checkbox" id="p-lock" ${it.locked ? 'checked' : ''}/> Fix (no es mou a les propostes)</label>
     <div class="btns">
       <button class="btn secondary small" id="p-rl">⟲ 90°</button>
       <button class="btn secondary small" id="p-rr">⟳ 90°</button>
-      <button class="btn secondary small" id="p-dup">Duplicar</button>
-      <button class="btn danger small" id="p-del">Eliminar</button>
+      <button class="btn secondary small" id="p-dup">Duplica</button>
+      <button class="btn danger small" id="p-del">Elimina</button>
     </div>`;
   const num = (id) => +$(id).value;
   const apply = (fn, rebuild) => { commit(); fn(); save(); updateItem(it, rebuild); renderProps(); renderItemList(); };
@@ -779,13 +779,13 @@ function renderDistribuir() {
   const its = state.items.filter((i) => i.roomId === ui.layoutRoom);
   const locked = its.filter((i) => i.locked).length;
   el.innerHTML = `
-    <h2>Propuestas de distribución</h2>
-    <div class="row"><label>Habitación<select id="d-room">${roomOptions(ui.layoutRoom)}</select></label></div>
-    <p class="note">${its.length ? `${its.length} muebles en ${esc(room.name)}${locked ? `, ${locked} fijos` : ''}.` : 'Esta habitación no tiene muebles. Añádelos en la pestaña Muebles.'}
-    La app prueba cientos de colocaciones (TV en pared, sofá frente a la TV, sillas alrededor de la mesa, cama contra la pared, paso libre delante de las puertas) y te enseña las mejores.</p>
+    <h2>Propostes de distribució</h2>
+    <div class="row"><label>Habitació<select id="d-room">${roomOptions(ui.layoutRoom)}</select></label></div>
+    <p class="note">${its.length ? `${its.length} mobles a ${esc(room.name)}${locked ? `, ${locked} de fixos` : ''}.` : 'Aquesta habitació no té mobles. Afegeix-los a la pestanya Mobles.'}
+    L’app prova centenars de col·locacions (TV a la paret, sofà davant de la TV, cadires al voltant de la taula, llit contra la paret, pas lliure davant de les portes) i t’ensenya les millors.</p>
     <div class="btns">
-      <button class="btn" id="d-gen" ${its.length ? '' : 'disabled'}>Generar propuestas</button>
-      <button class="btn secondary" id="d-focus">Ver habitación</button>
+      <button class="btn" id="d-gen" ${its.length ? '' : 'disabled'}>Genera propostes</button>
+      <button class="btn secondary" id="d-focus">Mostra l’habitació</button>
     </div>
     <div class="layouts" id="d-cards"></div>`;
   $('#d-room').addEventListener('change', (e) => { ui.layoutRoom = e.target.value; ui.proposals = []; renderDistribuir(); });
@@ -806,7 +806,7 @@ function renderProposals(room) {
       <canvas width="320" height="240"></canvas>
       <div class="t">${esc(p.name)}</div>
       <div class="r">${esc(p.rating)}</div>
-      <div class="btns"><button class="btn small" data-apply="${i}">Aplicar</button></div>
+      <div class="btns"><button class="btn small" data-apply="${i}">Aplica</button></div>
     </div>`).join('');
   el.querySelectorAll('.layout-card').forEach((card) => {
     const p = ui.proposals[+card.dataset.i];
@@ -884,20 +884,20 @@ function renderPlano() {
   el.innerHTML = `
     <h2>General</h2>
     <div class="row c2">
-      <label>Altura del techo (cm) ${state.ceilingEstimated ? '<span class="badge">estimada</span>' : ''}<input type="number" id="g-ceil" min="150" max="500" value="${state.ceiling}" /></label>
-      <label>Grosor de pared (cm)<input type="number" id="g-wall" min="4" max="40" value="${state.wallThickness}" /></label>
+      <label>Alçada del sostre (cm) ${state.ceilingEstimated ? '<span class="badge">estimada</span>' : ''}<input type="number" id="g-ceil" min="150" max="500" value="${state.ceiling}" /></label>
+      <label>Gruix de paret (cm)<input type="number" id="g-wall" min="4" max="40" value="${state.wallThickness}" /></label>
     </div>
-    <p class="note">Las medidas son interiores, en centímetros. X va de izquierda a derecha y Z de arriba abajo en la vista en planta. Las marcadas como <span class="badge">estimadas</span> no aparecen en el plano: corrígelas cuando las midas.</p>
-    <h2>Habitaciones</h2>
+    <p class="note">Les mides són interiors, en centímetres. X va d’esquerra a dreta i Z de dalt a baix a la vista en planta. Les marcades com a <span class="badge">estimades</span> no surten al plànol: corregeix-les quan les mesuris.</p>
+    <h2>Habitacions</h2>
     <div id="rooms"></div>
-    <div class="btns"><button class="btn secondary" id="g-addroom">+ Añadir habitación</button></div>`;
+    <div class="btns"><button class="btn secondary" id="g-addroom">+ Afegeix una habitació</button></div>`;
   $('#g-ceil').addEventListener('change', (e) => { commit(); state.ceiling = Math.max(150, +e.target.value || 250); state.ceilingEstimated = false; save(); rebuildPlan(); renderPlano(); });
   $('#g-wall').addEventListener('change', (e) => { commit(); state.wallThickness = Math.max(4, +e.target.value || 10); save(); rebuildPlan(); updateOverlays(); });
   $('#g-addroom').addEventListener('click', () => {
     commit();
     const b = planBounds();
     const id = 'r' + Math.random().toString(36).slice(2, 7);
-    state.rooms.push({ id, name: 'Nueva habitación', kind: 'room', color: '#c89b6a', x: b.x1, z: b.z0, w: 300, d: 300, estimated: true, openings: [] });
+    state.rooms.push({ id, name: 'Habitació nova', kind: 'room', color: '#c89b6a', x: b.x1, z: b.z0, w: 300, d: 300, estimated: true, openings: [] });
     ui.addRoom = id;
     save(); rebuildPlan(); renderAll();
   });
@@ -907,39 +907,39 @@ function renderPlano() {
       <summary><span class="sw" style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${esc(r.color)}"></span>${esc(r.name)} ${r.estimated ? '<span class="badge">estimada</span>' : ''}<span class="dm">${r.w} × ${r.d}</span></summary>
       <div style="margin-top:10px">
         <div class="row c2">
-          <label>Nombre<input type="text" data-k="name" value="${esc(r.name)}" /></label>
-          <label>Tipo<select data-k="kind">
-            <option value="room" ${r.kind === 'room' ? 'selected' : ''}>Habitación</option>
-            <option value="terrace" ${r.kind === 'terrace' ? 'selected' : ''}>Terraza</option>
-            <option value="void" ${r.kind === 'void' ? 'selected' : ''}>Hueco (no habitable)</option>
+          <label>Nom<input type="text" data-k="name" value="${esc(r.name)}" /></label>
+          <label>Tipus<select data-k="kind">
+            <option value="room" ${r.kind === 'room' ? 'selected' : ''}>Habitació</option>
+            <option value="terrace" ${r.kind === 'terrace' ? 'selected' : ''}>Terrassa</option>
+            <option value="void" ${r.kind === 'void' ? 'selected' : ''}>Buit (no habitable)</option>
           </select></label>
         </div>
         <div class="row c4">
-          <label>Ancho<input type="number" data-k="w" min="20" value="${r.w}" /></label>
-          <label>Fondo<input type="number" data-k="d" min="20" value="${r.d}" /></label>
-          ${r.kind === 'terrace' ? `<label title="Fondo en el extremo derecho si el borde exterior va en diagonal (0 = recto)">Fondo dcha.<input type="number" data-k="d2" min="0" value="${r.d2 || 0}" /></label>` : ''}
+          <label>Amplada<input type="number" data-k="w" min="20" value="${r.w}" /></label>
+          <label>Fons<input type="number" data-k="d" min="20" value="${r.d}" /></label>
+          ${r.kind === 'terrace' ? `<label title="Fons a l’extrem dret si la vora exterior va en diagonal (0 = recta)">Fons dreta<input type="number" data-k="d2" min="0" value="${r.d2 || 0}" /></label>` : ''}
           <label>X<input type="number" data-k="x" value="${r.x}" /></label>
           <label>Z<input type="number" data-k="z" value="${r.z}" /></label>
         </div>
         <div class="row c2">
-          <label>Color del suelo<input type="color" data-k="color" value="${esc(r.color)}" /></label>
-          <label style="flex-direction:row;align-items:center;gap:6px;margin-top:18px"><input type="checkbox" data-k="estimated" ${r.estimated ? 'checked' : ''}/> Medidas estimadas</label>
+          <label>Color del terra<input type="color" data-k="color" value="${esc(r.color)}" /></label>
+          <label style="flex-direction:row;align-items:center;gap:6px;margin-top:18px"><input type="checkbox" data-k="estimated" ${r.estimated ? 'checked' : ''}/> Mides estimades</label>
         </div>
         ${r.notes ? `<p class="note">${esc(r.notes)}</p>` : ''}
         <div class="openings">
-          <label>Puertas, ventanas y pasos (pared, desde la esquina, ancho, tipo)</label>
+          <label>Portes, finestres i passos (paret, des de la cantonada, amplada, tipus)</label>
           ${(r.openings || []).map((o, k) => `
             <div class="op-row" data-op="${k}">
-              <select data-ok="wall">${['N', 'S', 'E', 'W'].map((w) => `<option ${o.wall === w ? 'selected' : ''} value="${w}">${{ N: 'Arriba', S: 'Abajo', E: 'Dcha', W: 'Izq' }[w]}</option>`).join('')}</select>
-              <input type="number" data-ok="offset" value="${o.offset}" title="Distancia desde la esquina superior o izquierda" />
-              <input type="number" data-ok="width" value="${o.width}" title="Ancho del hueco" />
-              <select data-ok="type">${[['puerta', 'puerta'], ['ventana', 'ventana'], ['ventanal', 'ventanal (suelo-techo, doble)'], ['paso', 'paso']].map(([t, lb]) => `<option value="${t}" ${o.type === t ? 'selected' : ''}>${lb}</option>`).join('')}</select>
-              <button data-del-op="${k}" title="Quitar">×</button>
+              <select data-ok="wall">${['N', 'S', 'E', 'W'].map((w) => `<option ${o.wall === w ? 'selected' : ''} value="${w}">${{ N: 'Dalt', S: 'Baix', E: 'Dreta', W: 'Esq.' }[w]}</option>`).join('')}</select>
+              <input type="number" data-ok="offset" value="${o.offset}" title="Distància des de la cantonada superior o esquerra" />
+              <input type="number" data-ok="width" value="${o.width}" title="Amplada del buit" />
+              <select data-ok="type">${[['puerta', 'porta'], ['ventana', 'finestra'], ['ventanal', 'finestral (terra-sostre, doble)'], ['paso', 'pas']].map(([t, lb]) => `<option value="${t}" ${o.type === t ? 'selected' : ''}>${lb}</option>`).join('')}</select>
+              <button data-del-op="${k}" title="Treu">×</button>
             </div>`).join('')}
           <div class="btns">
-            <button class="btn secondary small" data-add-op>+ Hueco</button>
-            <button class="btn secondary small" data-focus>Ver</button>
-            <button class="btn danger small" data-del-room>Eliminar habitación</button>
+            <button class="btn secondary small" data-add-op>+ Buit</button>
+            <button class="btn secondary small" data-focus>Mostra</button>
+            <button class="btn danger small" data-del-room>Elimina l’habitació</button>
           </div>
         </div>
       </div>
@@ -988,22 +988,22 @@ function renderPlano() {
 function renderDatos() {
   const el = $('#tab-datos');
   el.innerHTML = `
-    <h2>Guardar y compartir</h2>
-    <p class="note">Todo se guarda automáticamente en este navegador. Para pasarlo a otro ordenador, exporta el archivo y luego impórtalo allí.</p>
+    <h2>Desa i comparteix</h2>
+    <p class="note">Tot es desa automàticament en aquest navegador i al núvol. Per passar-ho a un altre ordinador, exporta el fitxer i després importa’l allà.</p>
     <div class="btns">
-      <button class="btn" id="x-export">Exportar (.json)</button>
-      <label class="btn secondary" style="display:inline-block">Importar<input type="file" id="x-import" accept="application/json,.json" hidden /></label>
+      <button class="btn" id="x-export">Exporta (.json)</button>
+      <label class="btn secondary" style="display:inline-block">Importa<input type="file" id="x-import" accept="application/json,.json" hidden /></label>
       <button class="btn secondary" id="x-png">Captura (.png)</button>
     </div>
-    <h2>Restablecer</h2>
+    <h2>Restableix</h2>
     <div class="btns">
-      <button class="btn danger" id="x-clear">Quitar todos los muebles</button>
-      <button class="btn danger" id="x-reset">Volver al plano original</button>
+      <button class="btn danger" id="x-clear">Treu tots els mobles</button>
+      <button class="btn danger" id="x-reset">Torna al plànol original</button>
     </div>
-    <h2>Atajos</h2>
+    <h2>Dreceres</h2>
     <p class="note">
-      Arrastrar: mover el mueble · R: girar 90° · Shift+R: girar −90° · Q / E: girar 15° · Flechas: mover 1 cm (Shift: 10 cm) ·
-      Supr: eliminar · Ctrl+D: duplicar · Ctrl+Z / Ctrl+Y: deshacer / rehacer · Rueda: zoom · Botón derecho: desplazar la vista.
+      Arrossegar: moure el moble · R: girar 90° · Maj+R: girar −90° · Q / E: girar 15° · Fletxes: moure 1 cm (Maj: 10 cm) ·
+      Supr: eliminar · Ctrl+D: duplicar · Ctrl+Z / Ctrl+Y: desfer / refer · Roda: zoom · Botó dret: desplaçar la vista.
     </p>`;
   $('#x-export').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -1018,7 +1018,7 @@ function renderDatos() {
       const s = JSON.parse(await file.text());
       if (!Array.isArray(s.rooms) || !Array.isArray(s.items)) throw new Error('formato');
       commit(); state = s; afterStateReplace(); frameCamera();
-    } catch (err) { el.insertAdjacentHTML('beforeend', '<p class="note" style="color:var(--bad)">El archivo no es válido.</p>'); }
+    } catch (err) { el.insertAdjacentHTML('beforeend', '<p class="note" style="color:var(--bad)">El fitxer no és vàlid.</p>'); }
   });
   $('#x-png').addEventListener('click', () => {
     renderer.render(scene, camera);
@@ -1062,19 +1062,19 @@ function showGate(html) {
   const b = g.querySelector('#gate-login');
   if (b) b.addEventListener('click', async () => {
     b.disabled = true;
-    try { await signIn(); } catch (e) { showGate(loginHtml('No se ha podido iniciar sesión: ' + esc(e.message))); }
+    try { await signIn(); } catch (e) { showGate(loginHtml('No s’ha pogut iniciar la sessió: ' + esc(e.message))); }
   });
 }
 const loginHtml = (err = '') => `
-  <p>Esta app es privada. Entra con una de las cuentas de Google autorizadas.</p>
+  <p>Aquesta app és privada. Entra amb un dels comptes de Google autoritzats.</p>
   ${err ? `<p class="gate-err">${err}</p>` : ''}
-  <button class="btn" id="gate-login">Entrar con Google</button>`;
+  <button class="btn" id="gate-login">Entra amb Google</button>`;
 
 if (cloudEnabled) {
-  showGate('<p>Comprobando la sesión…</p>');
+  showGate('<p>Comprovant la sessió…</p>');
   initCloud({
     onSignedOut: () => showGate(loginHtml()),
-    onDenied: (email, msg) => showGate(loginHtml(msg ? esc(msg) : `La cuenta <b>${esc(email || '')}</b> no tiene acceso. Usa una cuenta autorizada con el correo verificado.`)),
+    onDenied: (email, msg) => showGate(loginHtml(msg ? esc(msg) : `El compte <b>${esc(email || '')}</b> no té accés. Fes servir un compte autoritzat amb el correu verificat.`)),
     onSignedIn: (u, initial) => {
       document.getElementById('gate').hidden = true;
       const acc = document.getElementById('account');
@@ -1083,8 +1083,8 @@ if (cloudEnabled) {
       if (initial) { history.past = []; history.future = []; const v = initial.version || 1; state = migratePlan(initial); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
       else save();
     },
-    onRemoteState: (s, by) => { state = migratePlan(s); afterStateReplace(false); setSync('Actualizado por ' + by); },
-  }).catch((e) => showGate(`<p class="gate-err">Error al cargar Firebase: ${esc(e.message)}</p>`));
+    onRemoteState: (s, by) => { state = migratePlan(s); afterStateReplace(false); setSync('Actualitzat per ' + by); },
+  }).catch((e) => showGate(`<p class="gate-err">Error en carregar Firebase: ${esc(e.message)}</p>`));
   document.getElementById('signout').addEventListener('click', () => signOutUser());
 }
 

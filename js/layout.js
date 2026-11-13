@@ -101,16 +101,16 @@ export function generateLayouts(room, roomItems, allRooms, opts = {}) {
     score: c.score,
     rating: rate(c.score, c.debug),
     placements: c.pl.placements,
-    name: `Propuesta ${i + 1}`,
+    name: `Proposta ${i + 1}`,
   }));
 }
 
 function rate(score, dbg) {
   const sum = (pre, min = 0) => Object.entries(dbg).filter(([k, v]) => k.startsWith(pre) && v > min).length;
-  if (sum('choque:') || sum('fuera:', 5)) return 'Hay choques: no cabe todo';
-  if (sum('puerta:')) return 'Buena, pero algo roza una puerta o ventana';
-  if (score < 250) return 'Muy buena';
-  return 'Buena';
+  if (sum('choque:') || sum('fuera:', 5)) return 'Hi ha xocs: no hi cap tot';
+  if (sum('puerta:')) return 'Bona, però alguna cosa frega una porta o finestra';
+  if (score < 250) return 'Molt bona';
+  return 'Bona';
 }
 
 function difference(a, b, items) {
