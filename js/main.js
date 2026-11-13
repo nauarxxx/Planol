@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=21';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=22';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
@@ -100,6 +100,11 @@ function afterStateReplace(remote = true) {
   save(remote); rebuildPlan(); rebuildItems(); renderAll();
 }
 
+// Longituds segons les unitats triades a la configuració (cm o m).
+function fmtLen(cm, unit = +prefs.unitLabel) {
+  if (prefs.units === 'm') return (cm / 100).toLocaleString('ca', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + (unit ? ' m' : '');
+  return Math.round(cm) + (unit ? ' cm' : '');
+}
 const roomById = (id) => state.rooms.find((r) => r.id === id);
 const itemById = (id) => state.items.find((i) => i.id === id);
 const usableRooms = () => state.rooms.filter((r) => r.kind !== 'void');
@@ -136,7 +141,7 @@ let controls = controls3d;
 scene.add(new THREE.HemisphereLight(0xfff6ea, 0xb0a898, 2.6));
 const sun = new THREE.DirectionalLight(0xfff1dc, 1.6);
 sun.castShadow = true;
-sun.shadow.mapSize.set(cfgGet('shadow'), cfgGet('shadow'));
+{ const sh = state.cfg?.shadow ? cfgGet('shadow') : (window.matchMedia('(max-width: 800px)').matches ? 2048 : 4096); sun.shadow.mapSize.set(sh, sh); }
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 1.5;
 scene.add(sun, sun.target);
@@ -182,7 +187,21 @@ function fitOrtho(target) {
   ortho.updateProjectionMatrix();
 }
 
+// Càmera: desar i recuperar la vista actual (per a les vistes desades de la configuració).
+function getCamera() {
+  return { view: ui.view === 'walk' ? '3d' : ui.view, pos: persp.position.toArray(), target: controls3d.target.toArray(), tpos: ortho.position.toArray(), ttarget: controlsTop.target.toArray(), zoom: ortho.zoom };
+}
+function applyCamera(c) {
+  if (!c || !c.pos) return false;
+  persp.position.fromArray(c.pos); controls3d.target.fromArray(c.target); controls3d.update();
+  if (c.tpos) { ortho.position.fromArray(c.tpos); controlsTop.target.fromArray(c.ttarget); ortho.zoom = c.zoom || 1; ortho.updateProjectionMatrix(); controlsTop.update(); }
+  if (c.view && c.view !== ui.view && ui.view !== 'walk') setView(c.view);
+  requestRender();
+  return true;
+}
 function frameCamera(room) {
+  const saved = prefs.cams?.[room ? room.id : '_all'];
+  if (saved && applyCamera(saved)) return;
   const b = planBounds();
   const cx = room ? room.x + room.w / 2 : b.cx;
   const cz = room ? room.z + room.d / 2 : b.cz;
@@ -369,13 +388,39 @@ const windowMat = new THREE.MeshStandardMaterial({ color: 0x6fb1d6, roughness: 0
 const railMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.5, roughness: 0.4 });
 const voidMat = new THREE.MeshStandardMaterial({ color: 0x5b6066, roughness: 0.8 });
 const swingMat = new THREE.LineBasicMaterial({ color: 0x8a6a4a });
+// Portes: 1 = oberta, 0 = tancada (per defecte obertes, com al plànol). En tocar-ne una, s'obre o es tanca amb animació.
+const doors = {};
+const doorAnims = new Map();
+function doorAngle(d, t) {
+  let delta = d.open - d.closed;
+  while (delta > Math.PI) delta -= 2 * Math.PI;
+  while (delta < -Math.PI) delta += 2 * Math.PI;
+  return d.closed + delta * t;
+}
+function toggleDoor(key) {
+  const to = (doors[key] ?? 1) > 0.5 ? 0 : 1;
+  doorAnims.set(key, { from: doors[key] ?? 1, to, t0: performance.now() });
+  if (+prefs.vib) navigator.vibrate?.(8);
+  requestRender();
+}
+function stepDoors(now) {
+  if (!doorAnims.size) return false;
+  for (const [key, a] of doorAnims) {
+    const k = Math.min(1, (now - a.t0) / 650);
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    doors[key] = a.from + (a.to - a.from) * e;
+    if (k >= 1) doorAnims.delete(key);
+  }
+  planGroup.traverse((o) => { if (o.userData.door && o.userData.door.key !== undefined && doors[o.userData.door.key] !== undefined) o.rotation.y = doorAngle(o.userData.door, doors[o.userData.door.key]); });
+  return true;
+}
 const doorMat = new THREE.MeshStandardMaterial({ color: 0xa98562, roughness: 0.7 });
 const doorSwingOf = (room, op) => doorSwing(room, op);
 
 function disposeGroup(g) {
   g.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
-    if (o.material && !Array.isArray(o.material) && o.material.map) { o.material.map.dispose(); o.material.dispose(); }
+    if (o.material && !Array.isArray(o.material) && o.material.userData.own) { o.material.map?.dispose(); o.material.dispose(); } // només els materials propis (etiquetes); els compartits (parets, terra) es queden
   });
   g.clear();
 }
@@ -437,6 +482,7 @@ function makeLabel(lines, color = '#2b2926', bg = 'rgba(255,255,255,0.82)', maxW
   tex.anisotropy = 4;
   const scale = Math.min(0.32 * cfgGet('labelScale') / 100, maxW / c.width, maxH / c.height);
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(c.width * scale, c.height * scale), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  mesh.material.userData.own = true;
   mesh.rotation.x = -Math.PI / 2;
   mesh.renderOrder = 2;
   return mesh;
@@ -458,7 +504,7 @@ function rebuildPlan() {
       m.castShadow = true;
       planGroup.add(m);
       if (ui.labels) {
-        const l = makeLabel([r.name, `${r.w} × ${r.d}`], '#ffffff', 'rgba(40,40,40,0.75)', r.w * 0.85, r.d * 0.6);
+        const l = makeLabel([r.name, `${fmtLen(r.w, 0)} × ${fmtLen(r.d)}`], '#ffffff', 'rgba(40,40,40,0.75)', r.w * 0.85, r.d * 0.6);
         l.position.set(r.x + r.w / 2, H + 1, r.z + r.d / 2);
         planGroup.add(l);
       }
@@ -490,7 +536,7 @@ function rebuildPlan() {
       rail(r.x + r.w, r.z + r.d - r.d2, r.x + r.w, r.z + r.d);
       rail(r.x, r.z + r.d, r.x + r.w, r.z + r.d);
       if (ui.labels) {
-        const l = makeLabel([r.name, `${r.w} × ${r.d} / ${r.d2} cm`, 'vora en diagonal'], r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.8, r.d * 0.6);
+        const l = makeLabel([r.name, `${fmtLen(r.w, 0)} × ${fmtLen(r.d, 0)} / ${fmtLen(r.d2, 1)}`, 'vora en diagonal'], r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.8, r.d * 0.6);
         l.position.set(r.x + r.w * 0.45, 0.6, r.z + r.d * 0.6);
         planGroup.add(l);
       }
@@ -565,16 +611,24 @@ function rebuildPlan() {
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
       planGroup.add(new THREE.LineSegments(geo, swingMat));
       if (H > 20) {
-        // la fulla oberta, com una llesca prima
-        const leaf = new THREE.Mesh(new THREE.BoxGeometry(sw.ix ? 3 : sw.r, Math.min(H, 205), sw.ix ? sw.r : 3), doorMat);
-        leaf.position.set(sw.hx + sw.ix * sw.r / 2, Math.min(H, 205) / 2, sw.hz + sw.iz * sw.r / 2);
+        // la fulla, penjada de la frontissa: gira entre tancada (seguint la paret) i oberta (cap a dins)
+        const key = r.id + '|' + (r.openings || []).indexOf(op);
+        const h = Math.min(H, 205);
+        const pivot = new THREE.Group();
+        pivot.position.set(sw.hx, 0, sw.hz);
+        const leaf = new THREE.Mesh(new THREE.BoxGeometry(sw.r, h, 3), doorMat);
+        leaf.position.set(sw.r / 2, h / 2, 0);
         leaf.castShadow = true;
-        planGroup.add(leaf);
+        leaf.userData.door = key;
+        pivot.add(leaf);
+        pivot.userData.door = { key, closed: Math.atan2(-sw.wz, sw.wx), open: Math.atan2(-sw.iz, sw.ix) };
+        pivot.rotation.y = doorAngle(pivot.userData.door, doors[key] ?? 1);
+        planGroup.add(pivot);
       }
     }
 
     if (ui.labels) {
-      const lines = [r.name, `${r.w} × ${r.d} cm`];
+      const lines = [r.name, `${fmtLen(r.w, 0)} × ${fmtLen(r.d, 1)}`];
       if (r.estimated) lines.push('mides estimades');
       const l = makeLabel(lines, r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.85, r.d * 0.6);
       l.position.set(r.x + r.w / 2, 0.6, r.z + r.d / 2);
@@ -655,6 +709,19 @@ function conflicts() {
 }
 
 let conflictLines = null;
+// So curt d'avís (dues notes baixes) quan apareix un conflicte nou.
+let beepCtx = null, lastBeep = 0;
+function warnBeep() {
+  const now = Date.now(); if (now - lastBeep < 700) return; lastBeep = now;
+  try {
+    beepCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const g = beepCtx.createGain(); g.gain.value = 0.0001; g.connect(beepCtx.destination);
+    const t0 = beepCtx.currentTime;
+    [[330, 0, 0.09], [262, 0.1, 0.14]].forEach(([f, d, len]) => { const o = beepCtx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.connect(g); o.start(t0 + d); o.stop(t0 + d + len); });
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.26);
+    if (+prefs.vib) navigator.vibrate?.([30, 40, 30]);
+  } catch (e) { /* sense so */ }
+}
 function updateOverlays() {
   requestRender();
   const sel = itemById(ui.selected);
@@ -670,7 +737,9 @@ function updateOverlays() {
   if (conflictLines) { overlayGroup.remove(conflictLines); conflictLines.geometry.dispose(); }
   const bad = conflicts();
   const pts = [];
-  for (const id of bad.keys()) pts.push(...footprintLines(itemById(id), 2, 1));
+  const visual = prefs.warn === 'both' || prefs.warn === 'visual';
+  if (visual) for (const id of bad.keys()) pts.push(...footprintLines(itemById(id), 2, 1));
+  if ((prefs.warn === 'both' || prefs.warn === 'sound') && [...bad.keys()].some((id) => !(ui.conflicts || new Map()).has(id))) warnBeep();
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   conflictLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xd32f2f }));
@@ -739,7 +808,7 @@ function updateMeasures(sel) {
       if (s.tick === 'z') pts.push(p[0], y, p[1] - t, p[0], y, p[1] + t);
       else pts.push(p[0] - t, y, p[1], p[0] + t, y, p[1]);
     }
-    const l = measureLabel(Math.round(s.v) + ' cm');
+    const l = measureLabel(fmtLen(s.v));
     l.position.set((s.a[0] + s.c[0]) / 2, y + 0.5, (s.a[1] + s.c[1]) / 2);
     if (s.tick === 'z') l.position.z -= 14; else l.position.x += 0;
     measureGroup.add(l);
@@ -788,8 +857,10 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     controls.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
   } else {
-    const wh = raycaster.intersectObjects(planGroup.children, false).find((h) => h.object.userData.wall);
-    drag = { empty: true, x: e.clientX, y: e.clientY, wall: wh ? wh.object.userData.wall : null };
+    const ph = raycaster.intersectObjects(planGroup.children, true);
+    const dh = ph.find((h) => typeof h.object.userData.door === 'string');
+    const wh = ph.find((h) => h.object.userData.wall);
+    drag = { empty: true, x: e.clientX, y: e.clientY, wall: wh ? wh.object.userData.wall : null, door: dh && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null };
   }
 });
 
@@ -801,7 +872,7 @@ function showWallMeasure(w) {
   if (!w) { requestRender(); return; }
   const len = Math.round(w.b - w.a), H = state.ceiling || 250, t = state.wallThickness || 10;
   const ops = allOpenings(state.rooms).filter((o) => o.axis === w.axis && Math.abs(o.line - w.line) <= 1 && o.b > w.a && o.a < w.b);
-  const lines = [`${len} cm`, `${w.room.name} · paret ${w.side} · alçada ${H} · gruix ${t}`];
+  const lines = [fmtLen(len, 1), `${w.room.name} · paret ${w.side} · alçada ${fmtLen(H, 1)} · gruix ${fmtLen(t, 1)}`];
   if (ops.length) lines.push(ops.map((o) => `${o.type === 'puerta' ? 'porta' : o.type === 'paso' ? 'pas' : o.type === 'ventanal' ? 'finestral' : 'finestra'} ${Math.round(Math.min(o.b, w.b) - Math.max(o.a, w.a))} cm a ${Math.round(Math.max(o.a, w.a) - w.a)} de l’extrem`).join(' · '));
   wallLabel = makeLabel(lines, '#ffffff', 'rgba(181,101,47,0.92)', len * 1.4 + 120, 1e9);
   const mid = (w.a + w.b) / 2, off = 26;
@@ -837,7 +908,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (drag && drag.look) { drag = null; return; }
   if (drag && drag.empty) {
-    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (drag.wall) showWallMeasure(drag.wall); }
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (drag.door) toggleDoor(drag.door); else if (drag.wall) showWallMeasure(drag.wall); }
   } else if (drag) {
     const it = itemById(drag.id);
     if (drag.moved) {
@@ -845,6 +916,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
       const r = roomAt(state.rooms, it.x, it.z);
       if (r) it.roomId = r.id;
       save(); renderAll();
+      if (+prefs.vib) navigator.vibrate?.(12);
     }
     controls.enabled = true;
   }
@@ -1366,23 +1438,6 @@ function renderDistribuir() {
   }
 }
 
-function renderProposals(room) {
-  const el = $('#d-cards');
-  if (!el) return;
-  el.innerHTML = ui.proposals.map((p, i) => `
-    <div class="layout-card" data-i="${i}">
-      <canvas width="320" height="240"></canvas>
-      <div class="t">${esc(p.name)}</div>
-      <div class="r">${esc(p.rating)}</div>
-      <div class="btns"><button class="btn small" data-apply="${i}">Aplica</button></div>
-    </div>`).join('');
-  el.querySelectorAll('.layout-card').forEach((card) => {
-    const p = ui.proposals[+card.dataset.i];
-    drawPreview(card.querySelector('canvas'), room, p);
-    card.addEventListener('click', () => applyProposal(room, p));
-  });
-}
-
 function applyProposal(room, p) {
   commit();
   for (const [id, pos] of Object.entries(p.placements)) {
@@ -1712,21 +1767,57 @@ rebuildPlan();
 rebuildItems();
 frameCamera();
 renderAll();
+if (location.search.includes('sim=1')) document.body.classList.add('sim');
 
 controls3d.addEventListener('change', requestRender);
 controlsTop.addEventListener('change', requestRender);
-function loop() {
+let perfMode = false, lastFrame = 0;
+function loop(now = 0) {
+  requestAnimationFrame(loop);
+  if (perfMode && now - lastFrame < 31) return; // ~30 fps en mode rendiment
   let moved = controls.update();
   if (ui.view === 'walk') { if (walkStep(performance.now())) moved = true; }
+  if (stepDoors(now)) moved = true;
   if (moved || needsRender) {
-    needsRender = false;
+    needsRender = false; lastFrame = now;
     renderer.render(scene, camera);
   }
-  requestAnimationFrame(loop);
 }
 loop();
 
 // ---------------------------------------------------------------- inicio de sesión (Firebase)
+// Sincronitza ara: baixa l'estat del núvol, el fusiona amb els canvis d'aquí, el puja i comprova si hi ha una versió nova de l'app.
+let syncing = false;
+async function syncNow() {
+  if (syncing) return;
+  const b = document.getElementById('sync-btn');
+  syncing = true; b.classList.add('spin'); setSync('Sincronitzant…');
+  try {
+    if (!navigator.onLine) throw new Error('sense connexió');
+    const r = await loadRemote();
+    if (r) {
+      cloudCount('reads');
+      const merged = mergeStates(cloudBase, state, r.state);
+      cloudBase = clone(r.state);
+      const changed = JSON.stringify(merged) !== JSON.stringify(state);
+      state = migratePlan(merged);
+      afterStateReplace(true);
+      toast(changed ? `↻ Canvis rebuts del núvol (${r.by.split('@')[0] || 'altre dispositiu'}).` : '↻ Tot al dia: no hi havia canvis nous.');
+    } else { save(true); toast('↻ Pujat al núvol.'); }
+    // versió nova de l'app?
+    const html = await fetch('./index.html', { cache: 'no-store' }).then((x) => x.text());
+    const m = /main\.js\?v=(\d+)/.exec(html);
+    const cur = /main\.js\?v=(\d+)/.exec(document.querySelector('script[type=module]')?.getAttribute('src') || '');
+    if (m && cur && m[1] !== cur[1]) {
+      toast(`⬇ Versió nova de l’app (v${m[1]}): actualitzant…`);
+      try { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); const regs = await navigator.serviceWorker?.getRegistrations(); for (const reg of regs || []) await reg.unregister(); } catch (e) { /* res */ }
+      setTimeout(() => location.reload(), 900);
+      return;
+    }
+    navigator.serviceWorker?.getRegistration?.().then((reg) => reg?.update()).catch(() => {});
+  } catch (e) { setSync('error: ' + e.message); toast('⚠️ No s’ha pogut sincronitzar: ' + e.message); }
+  finally { syncing = false; b.classList.remove('spin'); }
+}
 function showGate(html) {
   const g = document.getElementById('gate');
   g.hidden = false;
@@ -1769,6 +1860,7 @@ if (cloudEnabled) {
     },
   }).catch((e) => showGate(`<p class="gate-err">Error en carregar Firebase: ${esc(e.message)}</p>`));
   document.getElementById('signout').addEventListener('click', () => signOutUser());
+  document.getElementById('sync-btn').addEventListener('click', syncNow);
 }
 
 // ---------------------------------------------------------------- app instal·lable (PWA)
@@ -1810,7 +1902,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v21',
+  version: 'v22',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -1852,11 +1944,16 @@ const api = {
   setWallMode: (v) => { ui.wallMode = v; const sel = $('#wallMode'); if (sel) sel.value = v; rebuildPlan(); },
   setToggle: (what, on) => { const cb = $('#' + what); if (cb) { cb.checked = on; cb.dispatchEvent(new Event('change')); } },
   setView: (v) => setView(v),
+  sync: syncNow, toggleDoor,
   setShadows: (on) => { if (renderer.shadowMap.enabled !== on) { renderer.shadowMap.enabled = on; scene.traverse((o) => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach((m) => { m.needsUpdate = true; }); } }); requestRender(); } },
   renderDades: (el) => renderDatos(el),
+  getCamera, applyCamera, simulate,
+  applyUnits: () => { rebuildPlan(); updateOverlays(); renderAll(); },
+  voices: () => assistant.voices(),
+  pickVoice: () => assistant.pickVoice(),
   cloud: { enabled: () => cloudEnabled, user: () => (currentUserEmail() ? { email: currentUserEmail() } : null), backupList, backupSave, backupLoad, backupDelete },
-  setScenePrefs: ({ wall, bg }) => {
-    try { if (wall) wallMat.color.set(wall); if (bg) scene.background.set(bg); } catch (e) { /* color no vàlid */ }
+  setScenePrefs: ({ wall, bg, ground: g }) => {
+    try { if (wall) wallMat.color.set(wall); if (bg) scene.background.set(bg); if (g) ground.material.color.set(g); } catch (e) { /* color no vàlid */ }
     requestRender();
   },
   cloudInfo: () => { const bk = api.dev?.bkList?.() || []; return { enabled: cloudEnabled, bytes: JSON.stringify(state).length, writes: cloudStats.day === today() ? cloudStats.writes : 0, reads: cloudStats.day === today() ? cloudStats.reads : 0, items: state.items.length, rooms: state.rooms.length, bkCount: bk.length, bkBytes: bk.reduce((a, b) => a + (b.bytes || 0), 0) }; },
@@ -1872,7 +1969,26 @@ function toast(msg) {
   toastT = setTimeout(() => { el.hidden = true; }, 3500);
 }
 // Aplica els ajustos avançats que no es llegeixen al moment.
-function applyCfg() { setSaveDelay(cfgGet('saveDelay')); rebuildPlan(); }
+function applyCfg() {
+  setSaveDelay(cfgGet('saveDelay'));
+  perfMode = cfgGet('perf') === 1;
+  renderer.setPixelRatio(perfMode ? 1 : Math.min(window.devicePixelRatio, cfgGet('pixelRatio')));
+  api.setShadows(!perfMode && !!+prefs.shadows);
+  document.body.classList.toggle('perf', perfMode);
+  rebuildPlan();
+}
+// Simulador de pantalla: l'app dins d'un marc de la mida d'un mòbil (té el seu propi viewport, així que el disseny mòbil s'aplica de debò).
+function simulate(w, h, name) {
+  const m = document.getElementById('sim');
+  m.querySelector('h1').textContent = `${name} · ${w} × ${h}`;
+  const fr = m.querySelector('iframe');
+  fr.style.width = w + 'px'; fr.style.height = h + 'px';
+  const k = Math.min(1, (window.innerHeight - 90) / h, (window.innerWidth - 40) / w);
+  fr.style.transform = `scale(${k})`; fr.parentElement.style.width = Math.round(w * k) + 'px'; fr.parentElement.style.height = Math.round(h * k) + 'px';
+  fr.src = location.pathname + '?sim=1';
+  m.hidden = false;
+}
+document.getElementById('sim-close').addEventListener('click', () => { const m = document.getElementById('sim'); m.hidden = true; m.querySelector('iframe').src = 'about:blank'; });
 api.dev = initDevCfg(api);
 const assistant = initAssistant(api);
 applyPrefs(api);

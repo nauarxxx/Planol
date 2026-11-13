@@ -14,23 +14,24 @@ export const CFGD = {
   lowWall: 100,                                 // alçada de les parets «baixes» (cm)
   shadow: 4096, pixelRatio: 2,                  // resolució de les ombres i píxels per punt màxims
   labelScale: 100,                              // mida de les etiquetes del plànol (%)
-  bkMax: 10, bkAuto: 0,                         // còpies que es guarden · dies entre còpies automàtiques (0 = mai)
+  bkMax: 15, bkAuto: 0, bkDays: 15,             // còpies que es guarden · dies entre còpies automàtiques (0 = mai) · dies fins que caduca una còpia (0 = mai)
+  perf: 0,                                      // mode rendiment (menys píxels, sense ombres, 30 fps)
   catalogPhoto: 180,                            // mida de les fotos del catàleg (px)
 };
 export const CFGR = {
   tap: [400, 3000], aiwait: [200, 1000], coin: [1000, 10000], wgap: [500, 10000], histMax: [10, 500], saveDelay: [200, 5000],
   tries: [200, 10000], count: [2, 8], clear: [40, 100], gapMin: [40, 120], walkSpeed: [50, 400], eyeHeight: [100, 200], snap: [1, 20],
-  lowWall: [20, 250], shadow: [1024, 8192], pixelRatio: [1, 3], labelScale: [50, 200], bkMax: [1, 50], bkAuto: [0, 60], catalogPhoto: [80, 600],
+  lowWall: [20, 250], shadow: [1024, 8192], pixelRatio: [1, 3], labelScale: [50, 200], bkMax: [1, 50], bkAuto: [0, 60], bkDays: [0, 365], perf: [0, 1], catalogPhoto: [80, 600],
 };
 export const CFG_LABEL = {
   tap: 'Temps del triple toc', aiwait: 'Espera del toc simple', coin: 'Segons abans de bloquejar la moneda', wgap: 'Repetició mínima del so de WALL-E',
   histMax: 'Passos que guarda Desfés', saveDelay: 'Retard del desat al núvol', tries: 'Intents del generador de propostes', count: 'Propostes que es mostren',
   clear: 'Pas lliure mínim per arribar a un moble', gapMin: 'Pas mínim entre mobles', walkSpeed: 'Velocitat del passeig', eyeHeight: 'Alçada dels ulls al passeig',
   snap: 'Imant', lowWall: 'Alçada de les parets baixes', shadow: 'Resolució de les ombres', pixelRatio: 'Píxels per punt (màxim)', labelScale: 'Mida de les etiquetes',
-  bkMax: 'Còpies de seguretat que es guarden', bkAuto: 'Dies entre còpies automàtiques', catalogPhoto: 'Mida de les fotos del catàleg',
+  bkMax: 'Còpies de seguretat que es guarden', bkAuto: 'Dies entre còpies automàtiques', bkDays: 'Dies fins que caduca una còpia', perf: 'Mode rendiment (0 = no, 1 = sí)', catalogPhoto: 'Mida de les fotos del catàleg',
 };
 const SEC = new Set(['tap', 'aiwait', 'coin', 'wgap', 'saveDelay']); // es mostren en segons
-const UNIT = { tap: 's', aiwait: 's', coin: 's', wgap: 's', histMax: 'passos', saveDelay: 's', tries: 'intents', count: 'propostes', clear: 'cm', gapMin: 'cm', walkSpeed: 'cm/s', eyeHeight: 'cm', snap: 'cm', lowWall: 'cm', shadow: 'px', pixelRatio: '×', labelScale: '%', bkMax: 'còpies', bkAuto: 'dies', catalogPhoto: 'px' };
+const UNIT = { tap: 's', aiwait: 's', coin: 's', wgap: 's', histMax: 'passos', saveDelay: 's', tries: 'intents', count: 'propostes', clear: 'cm', gapMin: 'cm', walkSpeed: 'cm/s', eyeHeight: 'cm', snap: 'cm', lowWall: 'cm', shadow: 'px', pixelRatio: '×', labelScale: '%', bkMax: 'còpies', bkAuto: 'dies', bkDays: 'dies', perf: '', catalogPhoto: 'px' };
 
 export function cfgClean(c) {
   const out = {};
@@ -70,12 +71,13 @@ export function initDevCfg(api) {
         <p class="cfn">Versió del plànol: v${st.version || 1} · app ${esc(api.version)} · ${c.enabled ? 'núvol actiu' : 'sense núvol'} · ${api.standalone ? 'instal·lada' : 'al navegador'}.</p>
       </div>
       <div class="cfg"><h3>💾 Còpies de seguretat</h3>
-        <p class="cfn">Es guarden al núvol (col·lecció <b>planta3d</b>, documents <b>bk_…</b>). Abans de restaurar-ne una es crea una còpia de l’estat actual, per poder tornar enrere.</p>
+        <p class="cfn">Són manuals, com a la web inventari: es guarden al núvol (col·lecció <b>planta3d</b>, documents <b>bk_…</b>) i <b>caduquen als ${cfgGet('bkDays') || '∞'} dies</b> per estalviar espai. Abans de restaurar-ne una es crea una còpia de l’estat actual, per poder tornar enrere.</p>
         <div class="bkbar"><input type="text" id="bk-name" placeholder="Nom de la còpia (opcional)" /><button class="btn primary" id="bk-create">💾 Crea una còpia</button></div>
         <div class="progress" id="bk-prog" hidden><div class="bar"></div><span></span></div>
         <ul class="bklist" id="bk-list"><li class="bkempty">Carregant…</li></ul>
         ${row('bkMax', 's’esborra la més antiga')}
-        ${row('bkAuto', '0 = desactivada; es fa en obrir l’app si toca')}
+        ${row('bkDays', '0 = no caduquen; s’esborren en obrir les eines o en crear-ne una')}
+        ${row('bkAuto', '0 = desactivada (manual); si toca, es fa en obrir l’app o en tancar-la')}
       </div>
       <div class="cfg"><h3>⏱️ Funcionament</h3><p class="cfn">Temps en segons. Si poses un valor fora del rang, el camp es marca en vermell.</p>
         ${row('tap')}${row('aiwait')}${row('coin')}${row('wgap')}${row('histMax')}${row('saveDelay')}${row('snap')}
@@ -84,7 +86,7 @@ export function initDevCfg(api) {
         ${row('tries', 'més intents = millors propostes però més lent')}${row('count')}${row('clear')}${row('gapMin')}
       </div>
       <div class="cfg"><h3>🖼️ 3D i passeig</h3>
-        ${row('lowWall')}${row('labelScale')}${row('shadow', 'cal recarregar')}${row('pixelRatio', 'cal recarregar')}${row('walkSpeed')}${row('eyeHeight')}${row('catalogPhoto')}
+        ${row('perf', 'píxels a 1×, sense ombres i 30 fps: per a mòbils lents')}${row('lowWall')}${row('labelScale')}${row('shadow', 'cal recarregar')}${row('pixelRatio', 'cal recarregar')}${row('walkSpeed')}${row('eyeHeight')}${row('catalogPhoto')}
       </div>
       <div class="cfg"><h3>🧪 Estat (JSON)</h3>
         <p class="cfn">L’estat sencer tal com es desa. Pots editar-lo i aplicar-lo (es valida abans; queda a ↶ Desfés). Útil per retocar coses que la interfície no deixa.</p>
@@ -97,6 +99,15 @@ export function initDevCfg(api) {
           <button class="btn" id="dev-migrate">🔁 Torna a aplicar el plànol per defecte (mantén els mobles)</button>
           <button class="btn" id="dev-resave">☁️ Força el desat al núvol</button>
           <button class="btn" id="dev-log">📋 Mostra el registre</button>
+          <button class="btn" id="dev-cfg-export">⬇ Exporta els ajustos (.json)</button>
+          <label class="btn" style="display:inline-block">⬆ Importa els ajustos<input type="file" id="dev-cfg-import" accept="application/json,.json" hidden /></label>
+        </div>
+        <h3>📱 Simulador de pantalla</h3>
+        <p class="cfn">Obre l’app en una finestra de la mida d’un mòbil per provar el disseny des del PC (cal tenir la sessió iniciada).</p>
+        <div class="btns">
+          <button class="btn" data-sim="375x812xiPhone 13 mini">iPhone 13 mini (375 × 812)</button>
+          <button class="btn" data-sim="412x915xOnePlus 8T">OnePlus 8T (412 × 915)</button>
+          <button class="btn" data-sim="820x1180xiPad">iPad (820 × 1180)</button>
         </div>
         <pre id="dev-logbox" hidden></pre>
       </div>`;
@@ -118,6 +129,16 @@ export function initDevCfg(api) {
     body.querySelector('#dev-migrate').addEventListener('click', () => { api.remigrate(); api.toast('Plànol per defecte aplicat.'); render(); });
     body.querySelector('#dev-resave').addEventListener('click', () => { api.save(); api.toast('Desant…'); });
     body.querySelector('#dev-log').addEventListener('click', () => { const p = body.querySelector('#dev-logbox'); p.hidden = !p.hidden; p.textContent = api.log().join('\n') || '(buit)'; });
+    body.querySelector('#dev-cfg-export').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify({ app: 'planta3d', version: api.version, ts: Date.now(), cfg: cfgClean(api.cfg()) }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'planta3d-ajustos.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+    body.querySelector('#dev-cfg-import').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try { const j = JSON.parse(await f.text()); const c = cfgClean(j.cfg || j); api.setCfg(c); api.toast(`✓ ${Object.keys(c).length} ajustos importats.`); render(); }
+      catch (err) { api.toast('⚠️ El fitxer no és vàlid.'); }
+    });
+    body.querySelectorAll('[data-sim]').forEach((b) => b.addEventListener('click', () => { const [w, h, name] = b.dataset.sim.split('x'); close(); api.simulate(+w, +h, name); }));
     bkRender();
   }
 
@@ -152,7 +173,15 @@ export function initDevCfg(api) {
   const progHide = (ms) => setTimeout(() => { const el = body.querySelector('#bk-prog'); if (el && !bkBusy) el.hidden = true; }, ms || 0);
   async function bkLoad() {
     if (!api.cloud.enabled()) { bkLoaded = true; BK = []; return; }
-    try { BK = (await api.cloud.backupList()).sort((a, b) => b.ts - a.ts); bkLoaded = true; } catch (e) { BK = []; bkLoaded = true; api.toast('⚠️ No s’han pogut llegir les còpies: ' + e.message); }
+    try { BK = (await api.cloud.backupList()).sort((a, b) => b.ts - a.ts); bkLoaded = true; await bkExpire(); } catch (e) { BK = []; bkLoaded = true; api.toast('⚠️ No s’han pogut llegir les còpies: ' + e.message); }
+  }
+  // Caducitat: les còpies més velles que «bkDays» s'esborren per estalviar espai (com a la web inventari).
+  async function bkExpire() {
+    const days = cfgGet('bkDays'); if (days <= 0 || !navigator.onLine) return 0;
+    const lim = Date.now() - days * 864e5;
+    const old = BK.filter((b) => b.ts < lim);
+    for (const b of old) { try { await api.cloud.backupDelete(b.id); BK = BK.filter((x) => x.id !== b.id); } catch (e) { /* ho tornarà a provar */ } }
+    return old.length;
   }
   function bkRender() {
     const ul = body.querySelector('#bk-list'); if (!ul) return;
@@ -197,7 +226,7 @@ export function initDevCfg(api) {
       if (!bkLoaded) await bkLoad();
       const b = await bkMake(name, o.kind || 'manual');
       BK.unshift(b);
-      prog('Netejant còpies velles…', 1); await bkPrune(b, o.protect);
+      prog('Netejant còpies velles…', 1); await bkPrune(b, o.protect); await bkExpire();
       prog('✓ Còpia creada', 1);
       if (!o.quiet) api.toast(`✓ Còpia creada: ${b.nItems} mobles.`);
       return b;
@@ -230,14 +259,20 @@ export function initDevCfg(api) {
     finally { bkBusy = false; progHide(2500); bkRender(); }
   }
   let autoDone = false;
+  const bkDue = () => { const days = cfgGet('bkAuto'); return days > 0 && Date.now() - (BK.length ? BK[0].ts : 0) >= days * 864e5; };
   async function bkAutoCheck() {
     if (autoDone || !api.cloud.enabled() || !api.cloud.user()) return;
-    const days = cfgGet('bkAuto'); if (days <= 0) return;
+    if (cfgGet('bkAuto') <= 0) return;
     autoDone = true;
     if (!bkLoaded) await bkLoad();
-    const due = () => Date.now() - (BK.length ? BK[0].ts : 0) >= days * 864e5;
-    if (due()) setTimeout(() => { if (due() && !bkBusy) bkCreate('Còpia automàtica', { kind: 'auto', quiet: true }); }, 2000 + Math.random() * 3000);
+    if (bkDue()) setTimeout(() => { if (bkDue() && !bkBusy) bkCreate('Còpia automàtica', { kind: 'auto', quiet: true }); }, 2000 + Math.random() * 3000);
   }
+  // També en tancar o amagar l'app, si toca una còpia automàtica i hi ha canvis des de l'última.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden || bkBusy || !bkLoaded || !api.cloud.enabled() || !api.cloud.user()) return;
+    const st = api.state();
+    if (bkDue() && (!BK.length || BK[0].nItems !== st.items.length || BK[0].bytes !== JSON.stringify(st).length)) bkCreate('Còpia automàtica (en tancar)', { kind: 'auto', quiet: true });
+  });
 
   async function open() {
     modal.hidden = false; render();
