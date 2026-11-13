@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=5';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=6';
 import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado

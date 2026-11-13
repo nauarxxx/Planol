@@ -9,7 +9,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 3, // v3: medidas ajustadas a las superficies del proyecto
+  version: 4, // v4: sin ascensor, segundo baño al final del pasillo
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -51,13 +51,6 @@ export const DEFAULT_PLAN = {
       openings: [],
     },
     {
-      id: 'ascensor', name: 'Ascensor', kind: 'void', color: '#555a60',
-      x: 360, z: 475, w: 160, d: 226,
-      notes: 'Hueco del ascensor (fuera de la vivienda). Lado de 226.',
-      estimated: true,
-      openings: [],
-    },
-    {
       id: 'bano', name: 'Baño', kind: 'room', color: '#9aa3a8',
       x: 520, z: 475, w: 280, d: 180,
       notes: 'Bañera, inodoro y bidé. 5,00 m² en el proyecto.',
@@ -65,16 +58,16 @@ export const DEFAULT_PLAN = {
       openings: [{ wall: 'S', offset: 150, width: 75, type: 'puerta' }],
     },
     {
-      id: 'trastero', name: 'Trastero', kind: 'room', color: '#bfb3a0',
-      x: 800, z: 510, w: 145, d: 145,
-      notes: 'Trastero pequeño al final del pasillo. 2,10 m² en el proyecto.',
+      id: 'bano2', name: 'Baño 2', kind: 'room', color: '#a7b1b6',
+      x: 800, z: 510, w: 145, d: 245,
+      notes: 'Segundo baño al final del pasillo (en el proyecto original eran dos trasteros pequeños). Medidas estimadas.',
       estimated: true,
-      openings: [{ wall: 'S', offset: 20, width: 70, type: 'puerta' }],
+      openings: [{ wall: 'W', offset: 155, width: 80, type: 'puerta' }],
     },
     {
       id: 'distribuidor', name: 'Pasillo', kind: 'room', color: '#c89b6a',
-      x: 360, z: 655, w: 540, d: 100,
-      notes: 'Pasillo que une el salón con el baño, el trastero, el lavadero y el dormitorio. 4,60 m² en el proyecto.',
+      x: 360, z: 655, w: 440, d: 100,
+      notes: 'Pasillo que une el salón con el baño, el baño 2, el lavadero y el dormitorio. 4,60 m² en el proyecto.',
       estimated: true,
       openings: [],
     },
