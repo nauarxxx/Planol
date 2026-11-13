@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=11';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=16';
+import { mergeStates } from './merge.js';
 import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado
@@ -40,11 +41,13 @@ const ui = { selected: null, view: '3d', wallMode: 'low', snap: true, labels: tr
 const isMobile = () => window.matchMedia('(max-width: 800px)').matches;
 const history = { past: [], future: [] };
 
+let cloudBase = null; // últim estat confirmat al núvol (per fusionar canvis simultanis)
 function save(remote = true) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignorar */ }
-  if (remote) saveRemote(state, setSync);
+  if (remote) saveRemote(() => state, setSync);
 }
-function setSync(st) {
+function setSync(st, json) {
+  if (st === 'guardado' && json) cloudBase = JSON.parse(json);
   const el = document.getElementById('sync');
   if (!el) return;
   el.textContent = st === 'guardado' ? 'Desat al núvol' : st === 'pendiente' ? 'Desant…' : st.startsWith('error') ? 'Error en desar' : st;
@@ -1286,10 +1289,18 @@ if (cloudEnabled) {
       const acc = document.getElementById('account');
       acc.hidden = false;
       acc.querySelector('.who').textContent = u.email;
-      if (initial) { history.past = []; history.future = []; const v = initial.version || 1; state = migratePlan(initial); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
+      if (initial) { history.past = []; history.future = []; const v = initial.version || 1; cloudBase = clone(initial); state = migratePlan(initial); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
       else save();
     },
-    onRemoteState: (s, by) => { state = migratePlan(s); afterStateReplace(false); setSync('Actualitzat per ' + by); },
+    onRemoteState: (s, by) => {
+      // Fusió amb els canvis locals que encara no s'han desat: no es perd res de cap dels dos.
+      const merged = mergeStates(cloudBase, state, s);
+      cloudBase = clone(s);
+      const needsResave = JSON.stringify(merged) !== JSON.stringify(s);
+      state = migratePlan(merged);
+      afterStateReplace(needsResave);
+      if (!needsResave) setSync('Actualitzat per ' + by);
+    },
   }).catch((e) => showGate(`<p class="gate-err">Error en carregar Firebase: ${esc(e.message)}</p>`));
   document.getElementById('signout').addEventListener('click', () => signOutUser());
 }
