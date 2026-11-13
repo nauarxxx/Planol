@@ -19,6 +19,7 @@ const TYPES = [
   ['muebleTv', ['moble tv', 'moble de tv', 'moble de la tele', 'moble del televisor', 'mueble tv', 'mueble de tv', 'mueble de la tele']],
   ['mesita', ['tauleta de nit', 'tauletes de nit', 'mesita de noche', 'mesitas de noche', 'mesilla', 'mesillas', 'tauleta', 'tauletes']],
   ['escritorio', ['taula d estudi', 'escriptori', 'escriptoris', 'escritorio', 'escritorios']],
+  ['cockpit', ['simulador cockpit', 'cockpit', 'cockpits', 'simulador', 'simuladors', 'simuladores']],
   ['lampara', ['lampada de peu', 'lampada', 'lampades', 'lampara', 'lamparas', 'llum de peu']],
   ['mesa', ['taula', 'taules', 'mesa', 'mesas']],
   ['silla', ['cadira', 'cadires', 'silla', 'sillas']],
@@ -502,7 +503,7 @@ export function initAssistant(api) {
 🧹 ALTRES · «treu la taula del menjador» · «mou el sofà al dormitori» · «què hi ha al dormitori?» · «quant fa la cuina?» · «mostra el llit» · «desfés»
 Les mides van en cm (o en metres si són petites, com 2x1).`;
 
-  function roomsOf() { return api.rooms().filter((r) => r.kind !== 'void'); }
+  function roomsOf() { return api.rooms().filter((r) => !['void', 'pillar', 'beam'].includes(r.kind)); }
   function itemsIn(room) { return api.items().filter((i) => i.roomId === room.id); }
   function typeLabel(key, qty = 1) { const l = CATALOG[key]?.label || key; return qty > 1 ? `${qty} ${l.toLowerCase()}s` : l.toLowerCase(); }
   function specOf(m) { const c = CATALOG[m.key] || CATALOG.caja; return { w: m.dims.w || c.w, d: m.dims.d || c.d, h: m.dims.h || c.h }; }

@@ -20,6 +20,7 @@ export const CATALOG = {
   alfombra:   { label: 'Catifa',           w: 200, d: 140, h: 1,   color: '#4a4f57', role: 'rug' },
   lampara:    { label: 'Làmpada de peu',   w: 35,  d: 35,  h: 165, color: '#d8c9a0', role: 'corner' },
   planta:     { label: 'Planta',           w: 40,  d: 40,  h: 110, color: '#3f7a3a', role: 'corner' },
+  cockpit:    { label: 'Simulador cockpit', w: 150, d: 90, h: 120, color: '#2a2a2e', role: 'desk' },
   caja:       { label: 'Objecte genèric',  w: 60,  d: 60,  h: 60,  color: '#8899aa', role: 'wall' },
 };
 

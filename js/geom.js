@@ -69,7 +69,7 @@ export function roomAt(rooms, x, z) {
   // La habitación más pequeña que contiene el punto (por si se solapan).
   let best = null;
   for (const r of rooms) {
-    if (r.kind === 'void') continue;
+    if (r.kind === 'void' || r.kind === 'pillar' || r.kind === 'beam') continue;
     if (x >= r.x && x <= r.x + r.w && z >= r.z && z <= r.z + r.d) {
       if (!best || r.w * r.d < best.w * best.d) best = r;
     }
