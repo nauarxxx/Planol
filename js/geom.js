@@ -28,6 +28,9 @@ function project(cs, ax) {
 
 // Separating Axis Theorem entre dos rectángulos orientados. Devuelve true si se solapan.
 export function overlaps(a, b, pad = 0) {
+  // Descarte ràpid: si les caixes envolvents no es toquen, no cal el SAT.
+  const ra = (Math.hypot(a.w, a.d) / 2 + pad), rb = (Math.hypot(b.w, b.d) / 2 + pad);
+  if (Math.abs(a.x - b.x) > ra + rb || Math.abs(a.z - b.z) > ra + rb) return false;
   const ca = corners(a, pad), cb = corners(b, pad);
   for (const cs of [ca, cb]) {
     for (let i = 0; i < 2; i++) {

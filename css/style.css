@@ -27,7 +27,7 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
-#app { display: flex; height: 100vh; }
+#app { display: flex; height: 100vh; height: 100dvh; }
 #sidebar { width: 360px; min-width: 300px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
 .brand { padding: 14px 16px 6px; display: flex; align-items: baseline; gap: 8px; }
 .brand h1 { font-size: 18px; margin: 0; }
@@ -70,6 +70,9 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .openings { margin-top: 6px; }
 .op-row { display: grid; grid-template-columns: 52px 1fr 1fr 1fr 28px; gap: 4px; margin-bottom: 4px; align-items: end; }
 .op-row button { background: none; border: 0; color: var(--bad); cursor: pointer; font-size: 16px; }
+.progress { position: relative; height: 22px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin: 8px 0; background: var(--bg); }
+.progress .bar { position: absolute; inset: 0 auto 0 0; background: var(--soft); transition: width .15s; }
+.progress span { position: relative; font-size: 12px; color: var(--muted); line-height: 22px; padding-left: 8px; }
 .layouts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .layout-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; cursor: pointer; background: var(--bg); }
 .layout-card:hover { border-color: var(--accent); }
@@ -89,19 +92,75 @@ input[type="checkbox"] { accent-color: var(--accent); }
 #props h3 { margin: 0 0 10px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
 #props h3 .close { margin-left: auto; background: none; border: 0; font-size: 18px; cursor: pointer; color: var(--muted); }
 #hint { position: absolute; left: 10px; bottom: 10px; font-size: 12px; color: var(--muted); background: var(--panel); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); }
+#selbar { display: none; position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 4; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.14); }
+#selbar button { min-width: 48px; height: 44px; border: 0; border-radius: 8px; background: var(--soft); color: var(--ink); font-size: 20px; cursor: pointer; padding: 0 12px; }
+#selbar button[data-act="props"] { font-size: 14px; font-weight: 600; }
+#selbar button.danger { color: var(--bad); }
+#selbar button.on { background: var(--accent); color: var(--accent-ink); }
+#selbar[hidden] { display: none; }
+#props .dist { font-size: 12px; color: var(--muted); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
+#props .dist b { color: var(--ink); font-weight: 600; }
 @media (max-width: 800px) {
-  #app { flex-direction: column-reverse; height: auto; min-height: 100vh; }
+  #app { flex-direction: column-reverse; height: auto; min-height: 100vh; min-height: 100dvh; }
   #sidebar { width: 100%; min-width: 0; border-right: 0; border-top: 1px solid var(--line); }
   .tab { overflow: visible; }
-  #viewport { height: 62vh; flex: none; }
-  #props { left: 10px; right: 10px; width: auto; bottom: 10px; max-height: 55%; }
+  #viewport { height: 62vh; height: 62dvh; flex: none; }
+  #toolbar { gap: 6px; }
+  #toolbar button, #toolbar select { min-height: 36px; }
+  #toolbar label { min-height: 36px; }
+  #account .who { display: none; }
+  #props { left: 10px; right: 10px; width: auto; bottom: 68px; max-height: 60%; }
+  #ai-fab { bottom: max(10px, env(safe-area-inset-bottom)); right: 10px; width: 50px; height: 50px; }
+  #ai-panel { left: 10px; right: 10px; width: auto; bottom: 70px; height: min(60%, 460px); }
+  #selbar { left: 10px; transform: none; }
+  #props.collapsed { display: none; }
+  #selbar:not([hidden]) { display: flex; }
   #hint { display: none; }
+  input[type="number"], input[type="text"], select { min-height: 38px; }
+  .btn { min-height: 40px; }
 }
 #account .who { font-size: 13px; padding: 0 6px; }
 .sync { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .sync.bad { color: var(--bad); }
 #gate { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #gate[hidden] { display: none; }
+.modal { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal[hidden] { display: none; }
+.modal .gate-card { text-align: left; }
+.modal ol { padding-left: 20px; line-height: 1.6; color: var(--ink); }
+.modal .btn { margin-top: 8px; }
+.gate-card.wide { max-width: 560px; max-height: calc(100dvh - 32px); overflow-y: auto; text-align: left; padding: 20px 22px; }
+.modal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.modal-head h1 { margin: 0; font-size: 20px; flex: 1; }
+.modal-head .close { background: none; border: 0; font-size: 24px; cursor: pointer; color: var(--muted); }
+.meter { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin: 2px 0 10px; }
+.meter .fill { height: 100%; background: var(--ok); border-radius: 4px; }
+.meter .fill.warn { background: var(--bad); }
+.stat { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; margin-top: 6px; }
+.stat b { font-weight: 600; text-align: right; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+/* Assistent WALL-E */
+#ai-fab { position: absolute; right: 14px; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 6; width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--panel); color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+#ai-fab[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink); }
+#ai-fab[aria-expanded="true"] circle, #ai-fab[aria-expanded="true"] rect[fill] { fill: var(--panel); }
+#ai-panel { position: absolute; right: 14px; bottom: 80px; z-index: 7; width: min(400px, calc(100% - 28px)); height: min(520px, calc(100% - 100px)); display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.22); overflow: hidden; }
+#ai-panel[hidden] { display: none; }
+.ai-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.ai-head h3 { margin: 0; font-size: 15px; flex: 1; }
+.ai-close { background: none; border: 0; font-size: 22px; cursor: pointer; color: var(--muted); }
+.ai-msgs { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ai-m { max-width: 92%; padding: 8px 11px; border-radius: 12px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+.ai-m.bot { background: var(--soft); align-self: flex-start; border-bottom-left-radius: 4px; }
+.ai-m.me { background: var(--accent); color: var(--accent-ink); align-self: flex-end; border-bottom-right-radius: 4px; }
+.ai-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+.ai-form textarea { flex: 1; font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); resize: none; min-height: 40px; max-height: 110px; }
+.ai-mic { flex: none; width: 42px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.ai-mic.on { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .6; } }
+#props { right: 80px; }
+/* Marges segurs en mòbils amb osca (iPhone) quan s'obre com a app */
+#toolbar { top: max(10px, env(safe-area-inset-top)); }
+#selbar { bottom: max(10px, env(safe-area-inset-bottom)); }
 .gate-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
 .gate-card h1 { margin: 0 0 12px; font-size: 22px; }
 .gate-card p { color: var(--muted); line-height: 1.5; }

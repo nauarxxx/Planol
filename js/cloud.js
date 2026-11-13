@@ -67,19 +67,21 @@ export function currentUser() {
 }
 
 // Guarda con un pequeño retardo para no escribir en cada movimiento.
+// `state` pot ser una funció que retorna l'estat actual, així es desa sempre l'últim i no un de vell.
 export function saveRemote(state, onStatus) {
   if (!cloudEnabled || !isAllowed(user)) return;
   clearTimeout(saveTimer);
   onStatus?.('pendiente');
   saveTimer = setTimeout(async () => {
+    const json = JSON.stringify(typeof state === 'function' ? state() : state);
     try {
       await fb.setDoc(fb.doc(db, ...STATE_DOC), {
-        json: JSON.stringify(state),
+        json,
         by: user.email,
         session: SESSION,
         updatedAt: fb.serverTimestamp(),
       });
-      onStatus?.('guardado');
+      onStatus?.('guardado', json);
     } catch (e) {
       onStatus?.('error: ' + e.message);
     }
