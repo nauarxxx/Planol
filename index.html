@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-192.png" type="image/png" />
-  <link rel="stylesheet" href="css/style.css?v=23" />
+  <link rel="stylesheet" href="css/style.css?v=24" />
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.js", "three/addons/OrbitControls.js": "./vendor/OrbitControls.js" } }
   </script>
@@ -28,6 +28,7 @@
         <button data-tab="muebles" class="active">Mobles</button>
         <button data-tab="distribuir">Propostes</button>
         <button data-tab="plano">Plànol</button>
+        <button id="side-toggle" type="button" class="side-toggle" title="Plega o desplega el panell" aria-label="Plega o desplega el panell">▾</button>
       </nav>
       <section id="tab-muebles" class="tab active"></section>
       <section id="tab-distribuir" class="tab"></section>
@@ -37,11 +38,12 @@
       <div id="toolbar">
         <div class="group">
           <button data-view="3d" class="active" title="Vista 3D">3D</button>
-          <button data-view="top" title="Vista en planta">Planta</button>
-          <button data-view="walk" title="Passeja pel pis en primera persona">Passeig</button>
+          <button data-view="top" title="Vista en planta (2D)"><span class="tx">Planta</span><span class="ic">2D</span></button>
+          <button data-view="walk" title="Passeja pel pis en primera persona"><span class="tx">Passeig</span><span class="ic">🚶</span></button>
         </div>
         <div class="group">
-          <label>Parets
+          <button id="wallBtn" class="mob" type="button" title="Parets: baixes, completes o amagades" aria-label="Parets">🧱</button>
+          <label class="desk">Parets
             <select id="wallMode">
               <option value="low" selected>Baixes</option>
               <option value="full">Completes</option>
@@ -50,8 +52,10 @@
           </label>
         </div>
         <div class="group">
-          <label><input type="checkbox" id="labels" checked /> Etiquetes</label>
-          <label><input type="checkbox" id="measures" checked /> Cotes</label>
+          <button id="labelsBtn" class="mob active" type="button" title="Etiquetes de les habitacions" aria-label="Etiquetes" aria-pressed="true">🏷</button>
+          <button id="measBtn" class="mob active" type="button" title="Cotes (mides)" aria-label="Cotes" aria-pressed="true">📏</button>
+          <label class="desk"><input type="checkbox" id="labels" checked /> Etiquetes</label>
+          <label class="desk"><input type="checkbox" id="measures" checked /> Cotes</label>
         </div>
         <div class="group" id="account" hidden>
           <span id="sync" class="sync"></span>
@@ -150,6 +154,6 @@
       <div class="gate-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=23"></script>
+  <script type="module" src="js/main.js?v=24"></script>
 </body>
 </html>

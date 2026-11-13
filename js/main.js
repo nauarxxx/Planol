@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=23';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=24';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
@@ -77,6 +77,8 @@ function setSync(st, json) {
   el.textContent = st === 'guardado' ? 'Desat al núvol' : st === 'pendiente' ? 'Desant…' : st.startsWith('error') ? 'Error en desar' : st;
   el.title = st;
   el.className = st.startsWith('error') ? 'sync bad' : 'sync';
+  const btn = document.getElementById('sync-btn');
+  if (btn) { btn.dataset.st = st.startsWith('error') ? 'bad' : st === 'pendiente' ? 'pending' : 'ok'; btn.title = el.textContent + ' · toca per sincronitzar'; }
 }
 function commit() {
   history.past.push(JSON.stringify(state));
@@ -238,7 +240,7 @@ function setView(v) {
   controls = v === 'top' ? controlsTop : v === 'walk' ? noControls : controls3d;
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
   document.getElementById('walkbar').hidden = v !== 'walk';
-  document.getElementById('hint').textContent = v === 'walk' ? 'Arrossega per mirar · fletxes / WASD o els botons per caminar · 🧭 per mirar movent el mòbil' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
+  document.getElementById('hint').textContent = v === 'walk' ? 'Arrossega per mirar · toca una porta, una finestra o un moble · fletxes / WASD o els botons per caminar · 🧭 per mirar movent el mòbil' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
   if (v === 'walk' && was !== 'walk') {
     select(null);
     const r = api.currentRoom() || usableRooms()[0];
@@ -399,8 +401,9 @@ function doorAngle(d, t) {
   return d.closed + delta * t;
 }
 function toggleDoor(key) {
-  const to = (doors[key] ?? 1) > 0.5 ? 0 : 1;
-  doorAnims.set(key, { from: doors[key] ?? 1, to, t0: performance.now() });
+  const def = key.includes('|w') ? 0 : 1; // finestres (clau "…|wN") tancades per defecte
+  const to = (doors[key] ?? def) > 0.5 ? 0 : 1;
+  doorAnims.set(key, { from: doors[key] ?? def, to, t0: performance.now() });
   if (+prefs.vib) navigator.vibrate?.(8);
   requestRender();
 }
@@ -417,6 +420,34 @@ function stepDoors(now) {
 }
 const doorMat = new THREE.MeshStandardMaterial({ color: 0xa98562, roughness: 0.7 });
 const doorSwingOf = (room, op) => doorSwing(room, op);
+const frameMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.6 });
+// Fulles de finestra: penjades d'una frontissa a cada extrem, giren cap a dins de l'habitació en tocar-les (clau "habitació|wN").
+function windowLeaves(r, o, e, a, b, y0, y1, n) {
+  const idx = (r.openings || []).indexOf(o);
+  const key = r.id + '|w' + (idx < 0 ? Math.round(a) : idx);
+  const inward = e.axis === 'x' ? (e.line === r.z ? 1 : -1) : (e.line === r.x ? 1 : -1);
+  const ix = e.axis === 'x' ? 0 : inward, iz = e.axis === 'x' ? inward : 0;
+  const h = y1 - y0, lw = (b - a) / n;
+  for (let k = 0; k < n; k++) {
+    // frontissa a l'extrem exterior de cada fulla; la fulla s'estén cap al centre de l'obertura
+    const hinge = n === 1 ? a : k === 0 ? a : b;
+    const dir = n === 1 ? 1 : k === 0 ? 1 : -1;
+    const wx = e.axis === 'x' ? dir : 0, wz = e.axis === 'x' ? 0 : dir;
+    const pivot = new THREE.Group();
+    if (e.axis === 'x') pivot.position.set(hinge, y0, e.line); else pivot.position.set(e.line, y0, hinge);
+    const leaf = new THREE.Group();
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(Math.max(4, lw - 6), Math.max(4, h - 6), 1.5), glassMat);
+    glass.position.set(lw / 2, h / 2, 0);
+    leaf.add(glass);
+    const bars = [[lw, 3, lw / 2, 1.5], [lw, 3, lw / 2, h - 1.5], [3, h, 1.5, h / 2], [3, h, lw - 1.5, h / 2]];
+    for (const [bw, bh, cx, cy] of bars) { const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, 3), frameMat); m.position.set(cx, cy, 0); leaf.add(m); }
+    leaf.traverse((m) => { m.userData.door = key; });
+    pivot.add(leaf);
+    pivot.userData.door = { key: key, closed: Math.atan2(-wz, wx), open: Math.atan2(-(iz * 0.94 + wz * 0.34), ix * 0.94 + wx * 0.34), k };
+    pivot.rotation.y = doorAngle(pivot.userData.door, doors[key] ?? 0);
+    planGroup.add(pivot);
+  }
+}
 
 function disposeGroup(g) {
   g.traverse((o) => {
@@ -587,17 +618,17 @@ function rebuildPlan() {
         const top = o.type === 'paso' ? 220 : o.type === 'ventanal' ? Math.min(H, 240) : 210;
         if (H > top) wallPiece(e.axis, e.line, a, b, top, H, t, wallMat);
         if (o.type === 'ventanal') {
-          // ventanal doble de suelo a techo: cristal entero con un montante en medio
-          wallPiece(e.axis, e.line, a, b, 0, top, 2, glassMat, false);
+          // finestral de terra a sostre: dues fulles de vidre que s'obren cap a dins en tocar-les, amb un muntant al mig
           const mid = (a + b) / 2;
           wallPiece(e.axis, e.line, mid - 2, mid + 2, 0, top, t, wallTopMat, false);
           wallPiece(e.axis, e.line, a, b, 0, 4, t, wallTopMat, false);
+          windowLeaves(r, o, e, a, b, 4, top, 2);
         }
         if (o.type === 'ventana') {
-          // antepecho de 90; con paredes bajas se dibuja más bajo para que el cristal se vea desde arriba
+          // ampit de 90; amb parets baixes es dibuixa més avall perquè el vidre es vegi des de dalt
           const sill = H > 150 ? 90 : Math.round(H * 0.4);
           wallPiece(e.axis, e.line, a, b, 0, Math.min(sill, H), t, wallMat);
-          if (H > sill) wallPiece(e.axis, e.line, a, b, sill, Math.min(210, H), 2, glassMat, false);
+          if (H > sill + 10) windowLeaves(r, o, e, a, b, sill, Math.min(210, H), b - a > 130 ? 2 : 1);
         }
         if (o.type === 'ventana' || o.type === 'ventanal') {
           // franja azul en el suelo para que la ventana se vea también en la vista en planta
@@ -869,7 +900,17 @@ function floorPoint() {
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
-  if (ui.view === 'walk') { drag = { look: true, x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); return; }
+  if (ui.view === 'walk') {
+    // Al passeig tot és interactiu: un toc obre o tanca portes i finestres, selecciona mobles i mostra mides de parets; arrossegar = mirar.
+    setPointer(e);
+    const ih = raycaster.intersectObjects(itemsGroup.children, true).find((h) => h.object.userData.itemId);
+    const ph = raycaster.intersectObjects(planGroup.children, true);
+    const dh = ph.find((h) => typeof h.object.userData.door === 'string');
+    const wh = ph.find((h) => h.object.userData.wall);
+    const near = (h) => h && h.distance < 420; // només el que tens a l'abast (uns 4 m)
+    drag = { look: true, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, item: near(ih) && (!dh || ih.distance <= dh.distance) ? ih.object.userData.itemId : null, door: near(dh) && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null, wall: near(wh) ? wh.object.userData.wall : null };
+    renderer.domElement.setPointerCapture(e.pointerId); return;
+  }
   setPointer(e);
   const hits = raycaster.intersectObjects(itemsGroup.children, true);
   const hit = hits.find((h) => h.object.userData.itemId);
@@ -932,7 +973,14 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 });
 
 renderer.domElement.addEventListener('pointerup', (e) => {
-  if (drag && drag.look) { drag = null; return; }
+  if (drag && drag.look) {
+    if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) {
+      if (drag.item) { select(drag.item); if (+prefs.vib) navigator.vibrate?.(8); }
+      else if (drag.door) toggleDoor(drag.door);
+      else if (drag.wall) showWallMeasure(drag.wall);
+    }
+    drag = null; return;
+  }
   if (drag && drag.empty) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (drag.door) toggleDoor(drag.door); else if (drag.wall) showWallMeasure(drag.wall); }
   } else if (drag) {
@@ -1067,16 +1115,40 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const roomOptions = (sel) => usableRooms().map((r) => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${esc(r.name)}</option>`).join('');
 
-document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
-  document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
+// Panell lateral (a sota al mòbil): plegable perquè el mapa ocupi tota la pantalla. Tocar la pestanya activa el plega; qualsevol pestanya el desplega.
+function setSideCollapsed(on) {
+  document.body.classList.toggle('side-collapsed', !!on);
+  try { localStorage.setItem('planta3d-side', on ? '1' : '0'); } catch (e) { /* res */ }
+  requestAnimationFrame(resize);
+}
+let sideSaved = null;
+try { sideSaved = localStorage.getItem('planta3d-side'); } catch (e) { /* res */ }
+if (isMobile() && sideSaved !== '0') document.body.classList.add('side-collapsed');
+document.getElementById('side-toggle')?.addEventListener('click', () => setSideCollapsed(!document.body.classList.contains('side-collapsed')));
+document.querySelectorAll('.tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => {
+  if (isMobile() && b.classList.contains('active') && !document.body.classList.contains('side-collapsed')) { setSideCollapsed(true); return; }
+  document.querySelectorAll('.tabs button[data-tab]').forEach((x) => x.classList.toggle('active', x === b));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
+  if (document.body.classList.contains('side-collapsed')) setSideCollapsed(false);
 }));
 
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
-$('#wallMode').addEventListener('change', (e) => { ui.wallMode = e.target.value; rebuildPlan(); });
+$('#wallMode').addEventListener('change', (e) => { ui.wallMode = e.target.value; rebuildPlan(); syncMobileBar(); });
 $('#snap')?.addEventListener('change', (e) => { ui.snap = e.target.checked; }); // l'imant de 5 cm queda actiu sense botó
-$('#labels').addEventListener('change', (e) => { ui.labels = e.target.checked; rebuildPlan(); });
-$('#measures').addEventListener('change', (e) => { ui.measures = e.target.checked; updateOverlays(); });
+$('#labels').addEventListener('change', (e) => { ui.labels = e.target.checked; rebuildPlan(); syncMobileBar(); });
+$('#measures').addEventListener('change', (e) => { ui.measures = e.target.checked; updateOverlays(); syncMobileBar(); });
+// Botons d'icona del mòbil: fan el mateix que els controls d'escriptori.
+const WALL_CYCLE = { low: 'full', full: 'none', none: 'low' };
+const WALL_ICON = { low: '🧱', full: '🏠', none: '▢' };
+const WALL_TEXT = { low: 'Parets baixes', full: 'Parets completes', none: 'Parets amagades' };
+function syncMobileBar() {
+  const w = $('#wallBtn'); if (w) { w.textContent = WALL_ICON[ui.wallMode] || '🧱'; w.title = WALL_TEXT[ui.wallMode] + ' · toca per canviar'; }
+  for (const [id, on] of [['#labelsBtn', ui.labels], ['#measBtn', ui.measures]]) { const b = $(id); if (b) { b.classList.toggle('active', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); } }
+}
+$('#wallBtn')?.addEventListener('click', () => { ui.wallMode = WALL_CYCLE[ui.wallMode] || 'low'; $('#wallMode').value = ui.wallMode; rebuildPlan(); syncMobileBar(); toast(WALL_TEXT[ui.wallMode]); });
+$('#labelsBtn')?.addEventListener('click', () => { const c = $('#labels'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); });
+$('#measBtn')?.addEventListener('click', () => { const c = $('#measures'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); });
+syncMobileBar();
 
 // Barra del passeig: botons per caminar (mantenir premut) i giroscopi.
 document.querySelectorAll('#walkbar [data-walk]').forEach((b) => {
@@ -1884,7 +1956,7 @@ if (cloudEnabled) {
       const needsResave = JSON.stringify(merged) !== JSON.stringify(s);
       state = migratePlan(merged);
       afterStateReplace(needsResave);
-      if (!needsResave) setSync('Actualitzat per ' + by);
+      if (!needsResave) setSync('Actualitzat per ' + String(by).split('@')[0]);
     },
   }).catch((e) => showGate(`<p class="gate-err">Error en carregar Firebase: ${esc(e.message)}</p>`));
   document.getElementById('sync-btn').addEventListener('click', syncNow);
@@ -1894,10 +1966,11 @@ if (cloudEnabled) {
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => { /* sense SW */ }));
 }
-function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
+function isStandalone() { return ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay'].some((m) => window.matchMedia(`(display-mode: ${m})`).matches) || navigator.standalone === true || document.referrer.startsWith('android-app://'); }
 function isIOS() { return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; updateInstallUI(); });
 window.addEventListener('appinstalled', () => { installPrompt = null; updateInstallUI(); });
+window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateInstallUI);
 function updateInstallUI() {
   document.getElementById('install-group').hidden = isStandalone();
   const d = $('#x-install-status');
@@ -1929,7 +2002,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v23',
+  version: 'v24',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2033,4 +2106,4 @@ window.planta3d = {
     const r = renderer.domElement.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
-  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits };
+  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk };
