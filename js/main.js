@@ -36,7 +36,8 @@ function migratePlan(s) {
 }
 
 let state = migratePlan(loadState());
-const ui = { selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null };
+const ui = { selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false };
+const isMobile = () => window.matchMedia('(max-width: 800px)').matches;
 const history = { past: [], future: [] };
 
 function save(remote = true) {
@@ -83,6 +84,9 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 wrap.appendChild(renderer.domElement);
+// Només es redibuixa quan canvia alguna cosa (estalvia bateria i CPU).
+let needsRender = true;
+function requestRender() { needsRender = true; }
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xe9e6e0);
@@ -131,6 +135,7 @@ function resize() {
   persp.aspect = w / h;
   persp.updateProjectionMatrix();
   fitOrtho();
+  requestRender();
 }
 
 function fitOrtho(target) {
@@ -161,6 +166,7 @@ function frameCamera(room) {
   const s = b.size * 0.8;
   Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 10, far: 4000 });
   sun.shadow.camera.updateProjectionMatrix();
+  requestRender();
 }
 
 function setView(v) {
@@ -249,6 +255,7 @@ function makeLabel(lines, color = '#2b2926', bg = 'rgba(255,255,255,0.82)', maxW
 }
 
 function rebuildPlan() {
+  requestRender();
   disposeGroup(planGroup);
   const t = state.wallThickness || 10;
   const H = wallHeight();
@@ -389,6 +396,7 @@ function placeMesh(it, g) {
 }
 
 function rebuildItems() {
+  requestRender();
   disposeGroup(itemsGroup);
   meshes.clear();
   for (const it of state.items) {
@@ -444,6 +452,7 @@ function conflicts() {
 
 let conflictLines = null;
 function updateOverlays() {
+  requestRender();
   const sel = itemById(ui.selected);
   if (sel) {
     const y = (sel.elev || 0) + sel.h + 2;
@@ -463,6 +472,83 @@ function updateOverlays() {
   conflictLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xd32f2f }));
   overlayGroup.add(conflictLines);
   ui.conflicts = bad;
+  updateMeasures(sel);
+}
+
+// Cotes: distància del moble seleccionat a les quatre parets de la seva habitació.
+const measureGroup = new THREE.Group();
+overlayGroup.add(measureGroup);
+const measureMat = new THREE.LineBasicMaterial({ color: 0x1e88e5 });
+const measureLabelCache = new Map();
+function measureLabel(text) {
+  let tex = measureLabelCache.get(text);
+  if (!tex) {
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    ctx.font = '700 40px system-ui, sans-serif';
+    c.width = Math.ceil(ctx.measureText(text).width) + 28; c.height = 56;
+    ctx.font = '700 40px system-ui, sans-serif';
+    ctx.fillStyle = '#1e88e5';
+    ctx.beginPath(); ctx.roundRect(0, 0, c.width, c.height, 14); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, c.width / 2, c.height / 2 + 2);
+    tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.userData.w = c.width; tex.userData.h = c.height;
+    if (measureLabelCache.size > 300) { for (const t of measureLabelCache.values()) t.dispose(); measureLabelCache.clear(); }
+    measureLabelCache.set(text, tex);
+  }
+  const sc = 0.42;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(tex.userData.w * sc, tex.userData.h * sc), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false }));
+  m.rotation.x = -Math.PI / 2;
+  m.renderOrder = 5;
+  return m;
+}
+function wallDistances(it) {
+  const r = roomById(it.roomId);
+  if (!r || r.kind === 'void') return null;
+  const R = innerRect(r, state.wallThickness || 10);
+  const b = aabb(it);
+  return { R, b, W: b.x0 - R.x0, E: R.x1 - b.x1, N: b.z0 - R.z0, S: R.z1 - b.z1 };
+}
+function updateMeasures(sel) {
+  for (const o of measureGroup.children) { o.geometry.dispose(); o.material.dispose(); } // la textura (cache) no es destrueix
+  measureGroup.clear();
+  if (!sel || !ui.measures) return;
+  const d = wallDistances(sel);
+  if (!d) return;
+  const { R, b } = d;
+  const y = (sel.elev || 0) + 2.5;
+  const pts = [];
+  const mx = (b.x0 + b.x1) / 2, mz = (b.z0 + b.z1) / 2;
+  const segs = [
+    { k: 'W', v: d.W, a: [R.x0, mz], c: [b.x0, mz], tick: 'z' },
+    { k: 'E', v: d.E, a: [b.x1, mz], c: [R.x1, mz], tick: 'z' },
+    { k: 'N', v: d.N, a: [mx, R.z0], c: [mx, b.z0], tick: 'x' },
+    { k: 'S', v: d.S, a: [mx, b.z1], c: [mx, R.z1], tick: 'x' },
+  ];
+  for (const s of segs) {
+    if (s.v < 0.5) continue;
+    pts.push(s.a[0], y, s.a[1], s.c[0], y, s.c[1]);
+    const t = 6;
+    for (const p of [s.a, s.c]) {
+      if (s.tick === 'z') pts.push(p[0], y, p[1] - t, p[0], y, p[1] + t);
+      else pts.push(p[0] - t, y, p[1], p[0] + t, y, p[1]);
+    }
+    const l = measureLabel(Math.round(s.v) + ' cm');
+    l.position.set((s.a[0] + s.c[0]) / 2, y + 0.5, (s.a[1] + s.c[1]) / 2);
+    if (s.tick === 'z') l.position.z -= 14; else l.position.x += 0;
+    measureGroup.add(l);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  measureGroup.add(new THREE.LineSegments(geo, measureMat));
+}
+function distHtml(it) {
+  const d = wallDistances(it);
+  if (!d) return '';
+  const f = (v) => `<b>${Math.round(v)}</b>`;
+  return `A les parets: esq. ${f(d.W)} · dreta ${f(d.E)} · dalt ${f(d.N)} · baix ${f(d.S)} cm`;
 }
 
 // ---------------------------------------------------------------- interacción
@@ -631,6 +717,26 @@ document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('clic
 $('#wallMode').addEventListener('change', (e) => { ui.wallMode = e.target.value; rebuildPlan(); });
 $('#snap')?.addEventListener('change', (e) => { ui.snap = e.target.checked; }); // l'imant de 5 cm queda actiu sense botó
 $('#labels').addEventListener('change', (e) => { ui.labels = e.target.checked; rebuildPlan(); });
+$('#measures').addEventListener('change', (e) => { ui.measures = e.target.checked; updateOverlays(); });
+
+// Barra flotant (mòbil) per al moble seleccionat.
+const selbar = document.getElementById('selbar');
+selbar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+  const it = itemById(ui.selected);
+  if (!it) return;
+  const act = b.dataset.act;
+  if (act === 'props') { ui.propsOpen = !ui.propsOpen; renderProps(); return; }
+  if (it.locked && act !== 'dup') return;
+  if (act === 'rl') rotate(it, -90);
+  else if (act === 'rr') rotate(it, 90);
+  else if (act === 'dup') duplicate(it);
+  else if (act === 'del') removeItem(it.id);
+}));
+function updateSelbar() {
+  const it = itemById(ui.selected);
+  selbar.hidden = !it;
+  selbar.querySelector('[data-act=props]').classList.toggle('on', ui.propsOpen);
+}
 $('#undo').addEventListener('click', undo);
 $('#redo').addEventListener('click', redo);
 
@@ -709,16 +815,20 @@ function renderItemList() {
 function renderProps(onlyPos = false) {
   const el = $('#props');
   const it = itemById(ui.selected);
+  updateSelbar();
   if (!it) { el.hidden = true; return; }
   if (onlyPos && !el.hidden && el.dataset.id === it.id) {
     $('#p-x').value = it.x; $('#p-z').value = it.z;
+    const dl = $('#p-dist'); if (dl) dl.innerHTML = distHtml(it);
     return;
   }
   el.hidden = false;
+  el.classList.toggle('collapsed', isMobile() && !ui.propsOpen);
   el.dataset.id = it.id;
   const bad = ui.conflicts?.get(it.id);
   el.innerHTML = `
     <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(it.color)}"></span>${esc(it.name)} ${bad ? `<span class="badge bad">${esc(bad)}</span>` : ''}<button class="close" id="p-close" title="Tanca">×</button></h3>
+    <div class="dist" id="p-dist">${distHtml(it)}</div>
     <div class="row c2">
       <label>Nom<input type="text" id="p-name" value="${esc(it.name)}" /></label>
       <label>Tipus<select id="p-type">${Object.entries(CATALOG).map(([k, v]) => `<option value="${k}" ${k === it.type ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
@@ -747,7 +857,7 @@ function renderProps(onlyPos = false) {
     </div>`;
   const num = (id) => +$(id).value;
   const apply = (fn, rebuild) => { commit(); fn(); save(); updateItem(it, rebuild); renderProps(); renderItemList(); };
-  $('#p-close').addEventListener('click', () => select(null));
+  $('#p-close').addEventListener('click', () => { if (isMobile()) { ui.propsOpen = false; renderProps(); } else select(null); });
   $('#p-name').addEventListener('change', (e) => apply(() => { it.name = e.target.value; }));
   $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; }, true));
   for (const k of ['w', 'd', 'h']) $('#p-' + k).addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
@@ -1047,9 +1157,14 @@ rebuildItems();
 frameCamera();
 renderAll();
 
+controls3d.addEventListener('change', requestRender);
+controlsTop.addEventListener('change', requestRender);
 function loop() {
-  controls.update();
-  renderer.render(scene, camera);
+  const moved = controls.update();
+  if (moved || needsRender) {
+    needsRender = false;
+    renderer.render(scene, camera);
+  }
   requestAnimationFrame(loop);
 }
 loop();

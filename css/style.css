@@ -27,7 +27,7 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
-#app { display: flex; height: 100vh; }
+#app { display: flex; height: 100vh; height: 100dvh; }
 #sidebar { width: 360px; min-width: 300px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
 .brand { padding: 14px 16px 6px; display: flex; align-items: baseline; gap: 8px; }
 .brand h1 { font-size: 18px; margin: 0; }
@@ -89,13 +89,29 @@ input[type="checkbox"] { accent-color: var(--accent); }
 #props h3 { margin: 0 0 10px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
 #props h3 .close { margin-left: auto; background: none; border: 0; font-size: 18px; cursor: pointer; color: var(--muted); }
 #hint { position: absolute; left: 10px; bottom: 10px; font-size: 12px; color: var(--muted); background: var(--panel); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); }
+#selbar { display: none; position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 4; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.14); }
+#selbar button { min-width: 48px; height: 44px; border: 0; border-radius: 8px; background: var(--soft); color: var(--ink); font-size: 20px; cursor: pointer; padding: 0 12px; }
+#selbar button[data-act="props"] { font-size: 14px; font-weight: 600; }
+#selbar button.danger { color: var(--bad); }
+#selbar button.on { background: var(--accent); color: var(--accent-ink); }
+#selbar[hidden] { display: none; }
+#props .dist { font-size: 12px; color: var(--muted); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
+#props .dist b { color: var(--ink); font-weight: 600; }
 @media (max-width: 800px) {
-  #app { flex-direction: column-reverse; height: auto; min-height: 100vh; }
+  #app { flex-direction: column-reverse; height: auto; min-height: 100vh; min-height: 100dvh; }
   #sidebar { width: 100%; min-width: 0; border-right: 0; border-top: 1px solid var(--line); }
   .tab { overflow: visible; }
-  #viewport { height: 62vh; flex: none; }
-  #props { left: 10px; right: 10px; width: auto; bottom: 10px; max-height: 55%; }
+  #viewport { height: 62vh; height: 62dvh; flex: none; }
+  #toolbar { gap: 6px; }
+  #toolbar button, #toolbar select { min-height: 36px; }
+  #toolbar label { min-height: 36px; }
+  #account .who { display: none; }
+  #props { left: 10px; right: 10px; width: auto; bottom: 68px; max-height: 60%; }
+  #props.collapsed { display: none; }
+  #selbar:not([hidden]) { display: flex; }
   #hint { display: none; }
+  input[type="number"], input[type="text"], select { min-height: 38px; }
+  .btn { min-height: 40px; }
 }
 #account .who { font-size: 13px; padding: 0 6px; }
 .sync { font-size: 12px; color: var(--muted); padding: 0 4px; }
