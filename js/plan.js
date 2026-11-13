@@ -3,13 +3,14 @@
 // Todas las medidas en centímetros. X hacia la derecha, Z hacia abajo (vista en planta).
 // Cada habitación es un rectángulo interior: x, z (esquina superior izquierda), w (ancho X), d (fondo Z).
 // estimated: true indica que la medida no aparece en el plano y es una aproximación.
-// openings: huecos en las paredes. wall: 'N' | 'S' | 'E' | 'W', offset desde la esquina N/W, width, type.
+// openings: huecos en las paredes. wall: 'N' | 'S' | 'E' | 'W', offset desde la esquina N/W, width,
+// type: 'puerta' | 'ventana' | 'ventanal' (doble, de suelo a techo) | 'paso'.
 
 // Vivienda 3-1 B (Escala B), planta sotacoberta. Superficies útiles del proyecto (abril 2010):
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 11, // v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 12, // v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -52,57 +53,57 @@ export const DEFAULT_PLAN = {
     },
     {
       id: 'bano', name: 'Baño', kind: 'room', color: '#9aa3a8',
-      x: 670, z: 465, w: 190, d: 190,
+      x: 655, z: 465, w: 190, d: 190,
       notes: 'Baño 1: 190 × 190 según el croquis (bañera, inodoro y bidé). Encima del tramo final del pasillo; la puerta está en el rincón donde acaba el pasillo.',
       estimated: false,
       openings: [{ wall: 'S', offset: 110, width: 70, type: 'puerta' }],
     },
     {
       id: 'bano2', name: 'Baño 2', kind: 'room', color: '#a7b1b6',
-      x: 860, z: 620, w: 107, d: 145,
+      x: 845, z: 620, w: 107, d: 145,
       notes: 'Baño 2: 107 × 145 según el croquis (145 a lo largo, 107 de fondo). Se entra por la pared del fondo del pasillo, al lado de la puerta del baño 1.',
       estimated: false,
       openings: [{ wall: 'W', offset: 45, width: 70, type: 'puerta' }],
     },
     {
       id: 'distribuidor', name: 'Pasillo', kind: 'room', color: '#c89b6a',
-      x: 270, z: 655, w: 590, d: 100,
+      x: 270, z: 655, w: 575, d: 100,
       notes: 'Pasillo que une el salón con el baño, el baño 2, el lavadero y el dormitorio. 4,60 m² en el proyecto.',
       estimated: true,
       openings: [],
     },
     {
       id: 'office', name: 'Office', kind: 'room', color: '#c9b9a0',
-      x: 270, z: 755, w: 220, d: 350,
-      notes: 'Office (en el proyecto: traster-safareig, 7,70 m²). Con un armario pequeño en la esquina.',
-      estimated: true,
+      x: 270, z: 755, w: 205, d: 275,
+      notes: 'Office: 205 (pared de la ventana) × 275 (croquis). Ventana simple de 167, a 36 de la pared de 275; el armario pequeño queda al otro lado de la ventana.',
+      estimated: false,
       openings: [
-        { wall: 'N', offset: 120, width: 80, type: 'puerta' },
-        { wall: 'S', offset: 50, width: 120, type: 'ventana' },
+        { wall: 'N', offset: 110, width: 80, type: 'puerta' },
+        { wall: 'S', offset: 36, width: 167, type: 'ventana' },
       ],
     },
     {
       id: 'armario-dorm', name: 'Armario dormitorio', kind: 'room', color: '#bfb3a0',
-      x: 490, z: 755, w: 60, d: 230,
-      notes: 'Armario empotrado del dormitorio: 60 de fondo (cota del croquis); el largo (230) es estimado.',
+      x: 475, z: 755, w: 60, d: 195,
+      notes: 'Armario empotrado del dormitorio: 60 de fondo (cota del croquis); el largo (195) es estimado.',
       estimated: true,
-      openings: [{ wall: 'E', offset: 10, width: 210, type: 'paso' }],
+      openings: [{ wall: 'E', offset: 10, width: 175, type: 'paso' }],
     },
     {
       id: 'armario-office', name: 'Armario office', kind: 'room', color: '#bfb3a0',
-      x: 490, z: 985, w: 60, d: 80,
-      notes: 'Pequeño armario del office, en el extremo de la columna de armarios. Estimado.',
+      x: 475, z: 950, w: 60, d: 80,
+      notes: 'Pequeño armario del office, junto a la ventana, en el extremo de la columna de armarios. Estimado.',
       estimated: true,
       openings: [{ wall: 'W', offset: 5, width: 70, type: 'paso' }],
     },
     {
       id: 'dormitorio', name: 'Dormitorio', kind: 'room', color: '#c08e5e',
-      x: 550, z: 755, w: 310, d: 310,
-      notes: 'Dormitorio 310 × 310 (confirmado). El proyecto indica 11,00 m² útiles, quizá contando el armario.',
+      x: 535, z: 755, w: 310, d: 310,
+      notes: 'Dormitorio 310 × 310 (confirmado). Ventanal doble de suelo a techo; su ancho (200) es estimado.',
       estimated: false,
       openings: [
         { wall: 'N', offset: 30, width: 80, type: 'puerta' },
-        { wall: 'S', offset: 80, width: 150, type: 'ventana' },
+        { wall: 'S', offset: 55, width: 200, type: 'ventanal' },
       ],
     },
   ],

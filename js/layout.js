@@ -66,13 +66,14 @@ export function generateLayouts(room, roomItems, allRooms, opts = {}) {
 
   // Zonas de paso delante de puertas (no se pueden ocupar) y delante de ventanas (solo muebles altos).
   const keepouts = doors.map((o) => {
-    const depth = o.type === 'ventana' ? 30 : 60;
+    const isWin = o.type === 'ventana' || o.type === 'ventanal';
+    const depth = isWin ? 30 : 60;
     let r;
     if (o.wall === 'N') r = { x0: o.a, x1: o.b, z0: R.z0, z1: R.z0 + depth };
     if (o.wall === 'S') r = { x0: o.a, x1: o.b, z0: R.z1 - depth, z1: R.z1 };
     if (o.wall === 'W') r = { x0: R.x0, x1: R.x0 + depth, z0: o.a, z1: o.b };
     if (o.wall === 'E') r = { x0: R.x1 - depth, x1: R.x1, z0: o.a, z1: o.b };
-    return { ...r, window: o.type === 'ventana', wall: o.wall };
+    return { ...r, window: isWin, wall: o.wall };
   });
   const doorWalls = new Set(keepouts.filter((k) => !k.window).map((k) => k.wall));
 

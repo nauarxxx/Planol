@@ -336,8 +336,15 @@ function rebuildPlan() {
       for (const [a, b] of solid) wallPiece(e.axis, e.line, a, b, 0, H, t, wallMat);
       for (const o of ops) {
         const a = Math.max(o.a, e.a), b = Math.min(o.b, e.b);
-        const top = o.type === 'paso' ? 220 : 210;
+        const top = o.type === 'paso' ? 220 : o.type === 'ventanal' ? Math.min(H, 240) : 210;
         if (H > top) wallPiece(e.axis, e.line, a, b, top, H, t, wallMat);
+        if (o.type === 'ventanal') {
+          // ventanal doble de suelo a techo: cristal entero con un montante en medio
+          wallPiece(e.axis, e.line, a, b, 0, top, 2, glassMat, false);
+          const mid = (a + b) / 2;
+          wallPiece(e.axis, e.line, mid - 2, mid + 2, 0, top, t, wallTopMat, false);
+          wallPiece(e.axis, e.line, a, b, 0, 4, t, wallTopMat, false);
+        }
         if (o.type === 'ventana') {
           wallPiece(e.axis, e.line, a, b, 0, Math.min(90, H), t, wallMat);
           if (H > 90) wallPiece(e.axis, e.line, a, b, 90, Math.min(210, H), 2, glassMat, false);
@@ -831,11 +838,19 @@ function drawPreview(cv, room, p) {
     const lim = o.axis === 'x' ? [room.x, room.x + room.w] : [room.z, room.z + room.d];
     const a = Math.max(o.a, lim[0]), b = Math.min(o.b, lim[1]);
     if (b <= a) continue;
-    ctx.strokeStyle = o.type === 'ventana' ? '#7fb2d0' : '#ffffff';
+    ctx.strokeStyle = o.type === 'ventana' || o.type === 'ventanal' ? '#7fb2d0' : '#ffffff';
+    ctx.lineWidth = o.type === 'ventanal' ? 7 : 4;
     ctx.beginPath();
     if (o.axis === 'x') { ctx.moveTo(X(a), Z(o.line)); ctx.lineTo(X(b), Z(o.line)); }
     else { ctx.moveTo(X(o.line), Z(a)); ctx.lineTo(X(o.line), Z(b)); }
     ctx.stroke();
+    if (o.type === 'ventanal') { // montante central del ventanal doble
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath();
+      const m = (a + b) / 2;
+      if (o.axis === 'x') { ctx.moveTo(X(m), Z(o.line) - 4); ctx.lineTo(X(m), Z(o.line) + 4); }
+      else { ctx.moveTo(X(o.line) - 4, Z(m)); ctx.lineTo(X(o.line) + 4, Z(m)); }
+      ctx.stroke();
+    }
   }
   const its = state.items.filter((i) => i.roomId === room.id).map((i) => ({ ...i, ...(p.placements[i.id] || {}) }));
   its.sort((a, b) => (a.type === 'alfombra' ? -1 : 0) - (b.type === 'alfombra' ? -1 : 0) || (a.elev || 0) - (b.elev || 0));
@@ -909,7 +924,7 @@ function renderPlano() {
               <select data-ok="wall">${['N', 'S', 'E', 'W'].map((w) => `<option ${o.wall === w ? 'selected' : ''} value="${w}">${{ N: 'Arriba', S: 'Abajo', E: 'Dcha', W: 'Izq' }[w]}</option>`).join('')}</select>
               <input type="number" data-ok="offset" value="${o.offset}" title="Distancia desde la esquina superior o izquierda" />
               <input type="number" data-ok="width" value="${o.width}" title="Ancho del hueco" />
-              <select data-ok="type">${['puerta', 'ventana', 'paso'].map((t) => `<option ${o.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select>
+              <select data-ok="type">${[['puerta', 'puerta'], ['ventana', 'ventana'], ['ventanal', 'ventanal (suelo-techo, doble)'], ['paso', 'paso']].map(([t, lb]) => `<option value="${t}" ${o.type === t ? 'selected' : ''}>${lb}</option>`).join('')}</select>
               <button data-del-op="${k}" title="Quitar">×</button>
             </div>`).join('')}
           <div class="btns">
