@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, SHAPES, SHAPE_PARAMS, hasWing, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=29';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=30';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
@@ -39,8 +39,9 @@ function migratePlan(s) {
     const r = roomAt(s.rooms, it.x, it.z);
     it.roomId = r ? r.id : (s.rooms.find((x) => x.kind === 'room') || {}).id;
   }
-  // mobles fixos del plànol (p. ex. els de la cuina) que encara no hi siguin
-  for (const it of fresh.items || []) if (!s.items.some((x) => x.id === it.id)) s.items.push(clone(it));
+  // mobles fixos del plànol (p. ex. els de la cuina) que encara no hi siguin, tret dels que l'usuari hagi esborrat expressament
+  const removed = new Set(s.removedFixed || []);
+  for (const it of fresh.items || []) if (!removed.has(it.id) && !s.items.some((x) => x.id === it.id)) s.items.push(clone(it));
   return s;
 }
 
@@ -83,11 +84,12 @@ function setSync(st, json) {
   const btn = document.getElementById('sync-btn');
   if (btn) { btn.dataset.st = st.startsWith('error') ? 'bad' : st === 'pendiente' ? 'pending' : 'ok'; btn.title = el.textContent + ' · toca per sincronitzar'; }
 }
-function commit() {
-  history.past.push(JSON.stringify(state));
+function pushHistory(json) {
+  history.past.push(json);
   while (history.past.length > cfgGet('histMax')) history.past.shift();
   history.future = [];
 }
+const commit = () => pushHistory(JSON.stringify(state));
 function undo() {
   if (!history.past.length) return;
   history.future.push(JSON.stringify(state));
@@ -211,7 +213,9 @@ function frameCamera(room) {
   const b = planBounds();
   const cx = room ? room.x + room.w / 2 : b.cx;
   const cz = room ? room.z + room.d / 2 : b.cz;
-  const size = room ? Math.max(room.w, room.d) * 1.6 + 200 : b.size;
+  // En vertical (mòbil) la càmera s'allunya una mica més perquè tot el plànol càpiga a l'amplada de la pantalla.
+  const asp = (wrap.clientWidth || 1) / (wrap.clientHeight || 1);
+  const size = (room ? Math.max(room.w, room.d) * 1.6 + 200 : b.size) * (asp < 1 ? Math.min(1.7, 1 / asp) : 1);
   controls3d.target.set(cx, 0, cz);
   persp.position.set(cx + size * 0.35, size * 0.95, cz + size * 0.85);
   controls3d.update();
@@ -415,8 +419,11 @@ function floorKind(r) {
   if (/bany|bano|cuina|cocina|safareig/i.test(r.id + ' ' + r.name)) return 'rajola';
   return 'parquet';
 }
+const floorMatCache = new Map();
 function floorMaterial(r, worldUV = false) {
   const kind = floorKind(r);
+  const key = [kind, r.color, worldUV ? 'w' : r.w + 'x' + r.d].join('|');
+  if (floorMatCache.has(key)) return floorMatCache.get(key);
   const base = makeTexture(kind);
   const tex = base.clone();
   const p = base.userData.period;
@@ -424,7 +431,10 @@ function floorMaterial(r, worldUV = false) {
   tex.needsUpdate = true;
   // El color de l'habitació tenyeix la textura (que és clara i grisa).
   const col = new THREE.Color(r.color || '#c89b6a').multiplyScalar(kind === 'parquet' ? 1.25 : 1.1);
-  return new THREE.MeshStandardMaterial({ color: col, map: tex, roughness: kind === 'rajola' ? 0.45 : 0.7, metalness: 0 });
+  const m = new THREE.MeshStandardMaterial({ color: col, map: tex, roughness: kind === 'rajola' ? 0.45 : 0.7, metalness: 0 });
+  if (floorMatCache.size > 200) floorMatCache.clear();
+  floorMatCache.set(key, m);
+  return m;
 }
 const wallTex = makeTexture('estuc');
 wallTex.repeat.set(2, 2);
@@ -464,7 +474,6 @@ function stepDoors(now) {
   return true;
 }
 const doorMat = new THREE.MeshStandardMaterial({ color: 0xa98562, roughness: 0.7 });
-const doorSwingOf = (room, op) => doorSwing(room, op);
 const frameMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.6 });
 // Fulles de finestra: penjades d'una frontissa a cada extrem, giren cap a dins de l'habitació en tocar-les (clau "habitació|wN").
 function windowLeaves(r, o, e, a, b, y0, y1, n) {
@@ -697,7 +706,7 @@ function rebuildPlan() {
     }
     // Batents de les portes d'aquesta habitació: arc al terra i la fulla oberta.
     for (const op of r.openings || []) {
-      const sw = doorSwingOf(r, op);
+      const sw = doorSwing(r, op);
       if (!sw) continue;
       const arc = swingArc(sw, 14);
       const pts = [];
@@ -944,6 +953,8 @@ renderer.domElement.addEventListener('wheel', (e) => {
   setWalkFov(walk.fov + Math.sign(e.deltaY) * 4);
 }, { passive: false });
 
+// Captura el punter (si el navegador encara el té actiu) perquè el moviment segueixi fora del llenç.
+const capture = (e) => { try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) { /* punter ja alliberat */ } };
 function setPointer(e) {
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -970,10 +981,10 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
       // segon dit: pessic per fer zoom; s'anul·la el toc
       const [a, b] = [...pointers.values()];
       drag = { look: true, pinch: { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, fov0: walk.fov }, x: e.clientX, y: e.clientY, x0: -1e9, y0: -1e9 };
-      renderer.domElement.setPointerCapture(e.pointerId); return;
+      capture(e); return;
     }
     drag = { look: true, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, item: near(ih) && (!dh || ih.distance <= dh.distance) ? ih.object.userData.itemId : null, door: near(dh) && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null, wall: near(wh) ? wh.object.userData.wall : null };
-    renderer.domElement.setPointerCapture(e.pointerId); return;
+    capture(e); return;
   }
   setPointer(e);
   const hits = raycaster.intersectObjects(itemsGroup.children, true);
@@ -986,7 +997,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     if (!p) return;
     drag = { id: it.id, dx: it.x - p.x, dz: it.z - p.z, moved: false, before: JSON.stringify(state) };
     controls.enabled = false;
-    renderer.domElement.setPointerCapture(e.pointerId);
+    capture(e);
   } else {
     const ph = raycaster.intersectObjects(planGroup.children, true);
     const dh = ph.find((h) => typeof h.object.userData.door === 'string');
@@ -1058,7 +1069,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   } else if (drag) {
     const it = itemById(drag.id);
     if (drag.moved) {
-      history.past.push(drag.before); history.future = [];
+      pushHistory(drag.before);
       const r = roomAt(state.rooms, it.x, it.z);
       if (r) it.roomId = r.id;
       save(); renderAll();
@@ -1129,6 +1140,7 @@ function removeItem(id, ask = true) {
   if (ask && +prefs.confirmDel && !confirm(`Eliminar «${it.name}»?`)) return;
   commit();
   state.items = state.items.filter((i) => i.id !== id);
+  if (id.startsWith('fix-')) (state.removedFixed ||= []).push(id); // perquè una actualització del plànol no el torni a posar
   if (ui.selected === id) ui.selected = null;
   save(); rebuildItems(); renderAll();
 }
@@ -1440,7 +1452,7 @@ function renderProps(onlyPos = false) {
   const apply = (fn, rebuild) => { commit(); fn(); save(); updateItem(it, rebuild); renderProps(); renderItemList(); };
   $('#p-close').addEventListener('click', () => { if (isMobile()) { ui.propsOpen = false; renderProps(); } else select(null); });
   $('#p-name').addEventListener('change', (e) => apply(() => { it.name = e.target.value; }));
-  $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; }, true));
+  $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; if (it.shape && !SHAPES[it.type]?.some(([k]) => k === it.shape)) { delete it.shape; delete it.sd; delete it.lw; } }, true));
   for (const k of ['w', 'd', 'h']) $('#p-' + k).addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
   for (const k of ['sd', 'lw']) $('#p-' + k)?.addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
   // Botons − / + de les mides: passos de 5 cm (10 amb el botó dret o mantenint Maj).
@@ -1564,7 +1576,7 @@ async function generateProposal(room) {
   } finally { propBusy = false; }
   if (!props.length) { toast('No he trobat cap col·locació que hi càpiga. Prova amb menys mobles.'); renderDistribuir(); return; }
   const best = props[0];
-  const placed = items.map((i) => ({ ...i, ...(best.placements[i.id] ? { x: Math.round(best.placements[i.id].x), z: Math.round(best.placements[i.id].z), rot: best.placements[i.id].rot, ...(best.placements[i.id].elev !== undefined ? { elev: best.placements[i.id].elev } : {}) } : {}) }));
+  const placed = applyPlacements(items, best.placements);
   H.list.length = H.idx + 1;
   H.list.push({ name: `${label} · ${best.rating}`, items: placed, alts: props.slice(1).map((p) => ({ name: p.name, rating: p.rating, placements: p.placements })), base: items });
   if (H.list.length > 30) H.list.shift();
@@ -1619,7 +1631,7 @@ function renderDistribuir() {
       const p = snap.alts[+card.dataset.i];
       drawPreview(card.querySelector('canvas'), room, p, snap.base);
       card.addEventListener('click', () => {
-        const placed = snap.base.map((i) => ({ ...i, ...(p.placements[i.id] ? { x: Math.round(p.placements[i.id].x), z: Math.round(p.placements[i.id].z), rot: p.placements[i.id].rot } : {}) }));
+        const placed = applyPlacements(snap.base, p.placements);
         H.list.length = H.idx + 1;
         H.list.push({ name: `${p.name} · ${p.rating}`, items: placed, alts: snap.alts.filter((a) => a !== p).concat([{ name: snap.name.split(' · ')[0], rating: snap.name.split(' · ').slice(1).join(' · '), placements: Object.fromEntries(snap.items.map((i) => [i.id, { x: i.x, z: i.z, rot: i.rot }])) }]), base: snap.base });
         H.idx = H.list.length - 1;
@@ -1629,6 +1641,10 @@ function renderDistribuir() {
   }
 }
 
+// Còpia dels mobles amb les posicions d'una proposta (x, z, gir i, si n'hi ha, elevació).
+function applyPlacements(items, placements) {
+  return items.map((i) => { const p = placements[i.id]; return p ? { ...i, x: Math.round(p.x), z: Math.round(p.z), rot: p.rot, ...(p.elev !== undefined ? { elev: p.elev } : {}) } : { ...i }; });
+}
 function applyProposal(room, p) {
   commit();
   for (const [id, pos] of Object.entries(p.placements)) {
@@ -1722,7 +1738,6 @@ function compareProposals(room) {
     onAction: () => { H.idx = H.list.indexOf(snap); setRoomItems(room, snap.items); },
   })));
 }
-function sceneItems(sc) { return sc.items; }
 function compareScenes(a, b) {
   const panels = [a, b].map((sc) => ({
     title: sc ? sc.name : 'Ara mateix', subtitle: sc ? `${sc.items.length} mobles · ${new Date(sc.ts).toLocaleString('ca')}` : `${state.items.length} mobles`,
@@ -1899,7 +1914,7 @@ function renderDatos(target) {
     try {
       const s = JSON.parse(await file.text());
       if (!Array.isArray(s.rooms) || !Array.isArray(s.items)) throw new Error('formato');
-      commit(); state = s; afterStateReplace(); frameCamera();
+      commit(); state = migratePlan(s); afterStateReplace(); frameCamera();
     } catch (err) { el.insertAdjacentHTML('beforeend', '<p class="note" style="color:var(--bad)">El fitxer no és vàlid.</p>'); }
   });
   $('#x-png').addEventListener('click', () => {
@@ -1939,7 +1954,7 @@ function renderDatos(target) {
     row.querySelector('[data-sc-ren]').addEventListener('click', () => { const n = prompt('Nom de l’escena:', sc.name); if (n === null) return; commit(); sc.name = n.trim() || sc.name; save(); renderDatos(); });
     row.querySelector('[data-sc-del]').addEventListener('click', () => { commit(); state.scenes = scenes.filter((s) => s !== sc); save(); renderDatos(); });
   });
-  $('#x-clear').addEventListener('click', () => { commit(); state.items = []; ui.selected = null; afterStateReplace(); });
+  $('#x-clear').addEventListener('click', () => { commit(); state.removedFixed = [...new Set([...(state.removedFixed || []), ...state.items.map((i) => i.id).filter((id) => id.startsWith('fix-'))])]; state.items = []; ui.selected = null; afterStateReplace(); });
   $('#x-reset').addEventListener('click', () => { commit(); state = clone(DEFAULT_PLAN); ui.selected = null; afterStateReplace(); frameCamera(); });
 }
 
@@ -1950,7 +1965,7 @@ function renderAll() {
   renderPlano();
   renderDatos();
   renderProps();
-  if (window.devTools) devTools.refresh?.();
+  window.devTools?.refresh?.();
 }
 
 // ---------------------------------------------------------------- arranque
@@ -2095,7 +2110,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v29',
+  version: 'v30',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2115,7 +2130,7 @@ const api = {
     // Propostes de l'assistent: s'afegeixen a l'historial de l'estança i s'aplica la millor.
     if (!props.length) return;
     const H = propHist(room.id), base = clone(roomItemsOf(room.id)), best = props[0];
-    const placed = base.map((i) => ({ ...i, ...(best.placements[i.id] ? { x: Math.round(best.placements[i.id].x), z: Math.round(best.placements[i.id].z), rot: best.placements[i.id].rot } : {}) }));
+    const placed = applyPlacements(base, best.placements);
     H.list.length = H.idx + 1;
     H.list.push({ name: `WALL-E · ${best.rating}`, items: placed, alts: props.slice(1).map((p) => ({ name: p.name, rating: p.rating, placements: p.placements })), base });
     H.idx = H.list.length - 1;
@@ -2129,13 +2144,13 @@ const api = {
   cfgGet,
   setCfg: (obj) => { commit(); const c = cfgClean(obj); if (Object.keys(c).length) state.cfg = c; else delete state.cfg; save(); applyCfg(); },
   replaceState: (s) => { commit(); state = migratePlan(s); afterStateReplace(); applyCfg(); frameCamera(); },
-  remigrate: () => { commit(); state.version = 0; state = migratePlan(state); afterStateReplace(); },
+  remigrate: () => { commit(); state.version = 0; delete state.removedFixed; state = migratePlan(state); afterStateReplace(); },
   save: () => save(true),
   log: () => logBuf,
   toast: (m) => toast(m),
   setPlan: (patch) => { commit(); Object.assign(state, patch); save(); rebuildPlan(); rebuildItems(); renderAll(); },
   setRoom: (id, patch) => { const r = roomById(id); if (!r) return; commit(); Object.assign(r, patch); save(); rebuildPlan(); renderAll(); },
-  clearItems: (roomId) => { commit(); state.items = roomId ? state.items.filter((i) => i.roomId !== roomId) : []; ui.selected = null; afterStateReplace(); },
+  clearItems: (roomId) => { commit(); const gone = state.items.filter((i) => (!roomId || i.roomId === roomId) && i.id.startsWith('fix-')).map((i) => i.id); if (gone.length) state.removedFixed = [...new Set([...(state.removedFixed || []), ...gone])]; state.items = roomId ? state.items.filter((i) => i.roomId !== roomId) : []; ui.selected = null; afterStateReplace(); },
   setWallMode: (v) => { ui.wallMode = v; const sel = $('#wallMode'); if (sel) sel.value = v; rebuildPlan(); },
   setToggle: (what, on) => { const cb = $('#' + what); if (cb) { cb.checked = on; cb.dispatchEvent(new Event('change')); } },
   setView: (v) => setView(v),
@@ -2188,7 +2203,7 @@ document.getElementById('sim-close').addEventListener('click', () => { const m =
 api.dev = initDevCfg(api);
 const assistant = initAssistant(api);
 applyPrefs(api);
-const settings = initSettings(api);
+initSettings(api);
 applyCfg();
 if (prefs.startView === 'top') setView('top');
 
