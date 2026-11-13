@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 12, // v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 13, // v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -35,13 +35,12 @@ export const DEFAULT_PLAN = {
     {
       id: 'salon', name: 'Salón-comedor', kind: 'room', color: '#c89b6a',
       x: 0, z: 380, w: 270, d: 440,
-      notes: 'Salón-comedor 270 × 440 según las cotas del croquis (440 de largo por la pared exterior, 270 de ancho; pared de la tele 275). Entrada desde el rellano.',
+      notes: 'Salón-comedor 270 × 440 según las cotas del croquis (440 de largo por la pared exterior, 270 de ancho; pared de la tele 275). Entrada desde el rellano. Sin ventana: la luz entra por la terraza.',
       estimated: false,
       openings: [
         { wall: 'E', offset: 15, width: 85, type: 'puerta' },
         { wall: 'E', offset: 275, width: 90, type: 'paso' },
         { wall: 'S', offset: 60, width: 200, type: 'puerta' },
-        { wall: 'W', offset: 250, width: 160, type: 'ventana' },
       ],
     },
     {
@@ -75,11 +74,11 @@ export const DEFAULT_PLAN = {
     {
       id: 'office', name: 'Office', kind: 'room', color: '#c9b9a0',
       x: 270, z: 755, w: 205, d: 275,
-      notes: 'Office: 205 (pared de la ventana) × 275 (croquis). Ventana simple de 167, a 36 de la pared de 275; el armario pequeño queda al otro lado de la ventana.',
+      notes: 'Office: 205 (pared de la ventana) × 275 (croquis). Ventana simple de 107: 36 hasta la pared de 275 y 60 hasta el armario.',
       estimated: false,
       openings: [
         { wall: 'N', offset: 110, width: 80, type: 'puerta' },
-        { wall: 'S', offset: 36, width: 167, type: 'ventana' },
+        { wall: 'S', offset: 36, width: 107, type: 'ventana' },
       ],
     },
     {
