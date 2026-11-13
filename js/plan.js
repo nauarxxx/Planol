@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 22, // v22: mobles de tot el pis segons el vídeo (menjador, dormitori, office amb llitera, banys); porta del bany 2 cap enfora; v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 23, // v23: racó del mirall segons la foto: pilar amb el mirall dins del racó, tocant a la paret del passadís; v22: mobles de tot el pis segons el vídeo (menjador, dormitori, office amb llitera, banys); porta del bany 2 cap enfora; v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -46,9 +46,16 @@ export const DEFAULT_PLAN = {
     {
       id: 'raco', name: 'Racó', kind: 'room', color: '#c89b6a',
       x: 270, z: 740, w: 50, d: 80,
-      notes: 'Racó obert al menjador, al costat de la terrassa: després del pas al passadís hi ha el pilar del mirall (≈50 d’ample) i la paret recula uns 50 fins a l’office, amb la biga baixa a sobre. Mides estimades a partir de la foto.',
+      notes: 'Racó obert al menjador, al costat de la terrassa: després del pas al passadís la paret del menjador segueix 45 (la paret del quadre i els interruptors) i després recula uns 50 fins a l’office, amb la biga baixa a sobre. Dins del racó, tocant a la paret del passadís, hi ha el pilar del mirall (≈45 d’ample i 30 de fons) amb el mirall a la cara que mira al menjador. Mides estimades a partir de la foto.',
       estimated: true,
       openings: [{ wall: 'W', offset: 0, width: 80, type: 'paso' }],
+    },
+    {
+      id: 'pilar-mirall', name: 'Pilar del mirall', kind: 'pillar', color: '#f3f1ec',
+      x: 290, z: 740, w: 30, d: 45,
+      notes: 'Pilar de terra a sostre dins del racó, enganxat a la paret del fons i a la del passadís; el mirall és a la seva cara oest. Mides estimades a partir de la foto.',
+      estimated: true,
+      openings: [],
     },
     {
       id: 'biga-raco', name: 'Biga del racó', kind: 'beam', color: '#f3f1ec',
@@ -151,5 +158,7 @@ export const DEFAULT_PLAN = {
     // Bany 2 (vídeo): lavabo amb moble fosc i mirall, vàter al fons.
     { id: 'fix-vater2', type: 'vater', name: 'Vàter', w: 38, d: 55, h: 42, elev: 0, color: '#f6f6f4', x: 970, z: 584, rot: 270, roomId: 'bano2', locked: true },
     { id: 'fix-lavabo2', type: 'lavabo', name: 'Lavabo', w: 60, d: 40, h: 85, elev: 0, color: '#3a3330', x: 977, z: 670, rot: 270, roomId: 'bano2', locked: true },
+    // Racó (foto): mirall alt i estret a la cara del pilar que mira al menjador.
+    { id: 'fix-mirall', type: 'mirall', name: 'Mirall', w: 40, d: 2, h: 120, elev: 60, color: '#d9e2e6', x: 288.5, z: 765, rot: 270, roomId: 'raco', locked: true },
   ],
 };

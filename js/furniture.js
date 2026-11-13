@@ -31,8 +31,35 @@ export const CATALOG = {
   banyera:    { label: 'Banyera',          w: 170, d: 70,  h: 55,  color: '#f6f6f4', role: 'wall' },
   vater:      { label: 'Vàter',            w: 38,  d: 55,  h: 42,  color: '#f6f6f4', role: 'wall' },
   lavabo:     { label: 'Lavabo amb moble', w: 70,  d: 45,  h: 85,  color: '#f2efe9', role: 'wall' },
+  mirall:     { label: 'Mirall de paret',  w: 40,  d: 2,   h: 120, color: '#d9e2e6', role: 'wall', elev: 60 },
   caja:       { label: 'Objecte genèric',  w: 60,  d: 60,  h: 60,  color: '#8899aa', role: 'wall' },
 };
+
+// Formes alternatives d'un mateix tipus (item.shape) i els seus paràmetres (item.sd = fons del cos, item.lw = ample de l'ala).
+// La petjada (w × d) sempre és el rectangle que envolta tota la peça; la forma diu com s'omple.
+export const SHAPES = {
+  sofa:       [['recte', 'Recte'], ['Le', 'L esquerra'], ['Ld', 'L dreta'], ['U', 'En U']],
+  mesa:       [['rect', 'Rectangular'], ['rodona', 'Rodona / ovalada']],
+  mesaCentro: [['rect', 'Rectangular'], ['rodona', 'Rodona / ovalada']],
+  escritorio: [['recte', 'Recte'], ['Le', 'L esquerra'], ['Ld', 'L dreta']],
+};
+export const SHAPE_PARAMS = {
+  sofa:       { sd: ['Fons seient', 90], lw: ['Ample chaise', 90] },
+  escritorio: { sd: ['Fons taula', 60], lw: ['Ample ala', 60] },
+};
+export const hasWing = (shape) => shape === 'Le' || shape === 'Ld' || shape === 'U';
+// Rectangles [x0, ample, z0, fons] que formen una peça en L o en U dins la petjada w × d (esquena a −z).
+export function shapeRects(item) {
+  const { w, d } = item, shape = item.shape || 'recte';
+  if (!hasWing(shape)) return [[-w / 2, w, -d / 2, d]];
+  const def = SHAPE_PARAMS[item.type] || {};
+  const sd = Math.min(d, Math.max(40, +item.sd || def.sd?.[1] || 90));
+  const lw = Math.min(w / 2 - 2, Math.max(30, +item.lw || def.lw?.[1] || 90));
+  const r = [[-w / 2, w, -d / 2, sd]];
+  if (shape === 'Le' || shape === 'U') r.push([-w / 2, lw, -d / 2 + sd, d - sd]);
+  if (shape === 'Ld' || shape === 'U') r.push([w / 2 - lw, lw, -d / 2 + sd, d - sd]);
+  return r;
+}
 
 const matCache = new Map();
 function mat(color, opts = {}) {
@@ -92,11 +119,28 @@ export function buildFurniture(item) {
     case 'mesa':
     case 'escritorio': {
       const top = 4;
-      box(g, w, top, d, 0, h - top, 0, main);
-      legs(g, w, d, h - top, 5, dark);
+      if (item.shape === 'rodona') {
+        // Taula rodona (o ovalada si w ≠ d) amb peu central.
+        const t = cyl(g, w / 2, top, 0, h - top, 0, main); t.scale.z = d / w;
+        cyl(g, 5, h - top - 3, 0, 3, 0, dark);
+        const b = cyl(g, Math.min(w, d) * 0.3, 3, 0, 0, 0, dark); b.scale.z = d / w;
+        break;
+      }
+      // Recta, en L esquerra o en L dreta: un tauler i potes per cada rectangle de la forma.
+      for (const [x0, pw, z0, pd] of shapeRects(item)) {
+        box(g, pw, top, pd, x0 + pw / 2, h - top, z0 + pd / 2, main);
+        const lg = new THREE.Group(); lg.position.set(x0 + pw / 2, 0, z0 + pd / 2); g.add(lg);
+        legs(lg, pw, pd, h - top, 5, dark);
+      }
       break;
     }
     case 'mesaCentro': {
+      if (item.shape === 'rodona') {
+        const t = cyl(g, w / 2, 4, 0, h - 4, 0, main); t.scale.z = d / w;
+        const b = cyl(g, w / 2 - 4, 3, 0, 8, 0, dark); b.scale.z = d / w;
+        cyl(g, 4, h - 4, 0, 0, 0, dark);
+        break;
+      }
       box(g, w, 4, d, 0, h - 4, 0, main);
       box(g, w - 8, 3, d - 8, 0, 8, 0, dark);
       legs(g, w, d, h - 4, 4, dark);
@@ -111,13 +155,23 @@ export function buildFurniture(item) {
       break;
     }
     case 'sofa': {
+      // Recte, en L (chaise a l'esquerra o a la dreta) o en U: esquena a −z, el cos principal fa sd de fons i cada chaise lw d'ample.
+      const shape = item.shape || 'recte';
+      const L = shape === 'Le' || shape === 'U', R = shape === 'Ld' || shape === 'U';
+      const [[, , z0, sd], ...wings] = shapeRects(item);
       const arm = Math.min(18, w * 0.12);
-      const seatH = Math.min(45, h * 0.55);
-      box(g, w, seatH - 12, d, 0, 0, 0, dark);
-      box(g, w - 2 * arm, 12, d - 20, 0, seatH - 12, 10, main);
-      box(g, w, h - seatH + 12, 20, 0, seatH - 12, -d / 2 + 10, main);
-      box(g, arm, h * 0.72 - (seatH - 12), d, -w / 2 + arm / 2, seatH - 12, 0, main);
-      box(g, arm, h * 0.72 - (seatH - 12), d, w / 2 - arm / 2, seatH - 12, 0, main);
+      const seatH = Math.min(45, h * 0.55), baseH = seatH - 12, armH = h * 0.72 - baseH;
+      box(g, w, baseH, sd, 0, 0, z0 + sd / 2, dark);
+      box(g, w - 2 * arm, 12, sd - 20, 0, baseH, z0 + 20 + (sd - 20) / 2, main);
+      box(g, w, h - baseH, 20, 0, baseH, z0 + 10, main);
+      for (const [x0, lw, wz0, wd] of wings) {
+        const left = x0 < 0;
+        box(g, lw, baseH, wd, x0 + lw / 2, 0, wz0 + wd / 2, dark);
+        const cx = left ? x0 + arm + (lw - arm) / 2 : x0 + (lw - arm) / 2;
+        box(g, lw - arm, 12, wd - 2, cx, baseH, wz0 + wd / 2 - 1, main);
+      }
+      box(g, arm, armH, L ? d : sd, -w / 2 + arm / 2, baseH, L ? 0 : z0 + sd / 2, main);
+      box(g, arm, armH, R ? d : sd, w / 2 - arm / 2, baseH, R ? 0 : z0 + sd / 2, main);
       break;
     }
     case 'sillon': {
@@ -272,6 +326,14 @@ export function buildFurniture(item) {
       const tap = cyl(g, 1.2, 12, 0, h - 2, -d / 2 + 8, metal); tap.castShadow = false;
       const mirror = box(g, w, 60, 1.2, 0, h + 20, -d / 2 + 0.6, mat('#c7d6dc', { roughness: 0.05, metalness: 0.6 }));
       mirror.castShadow = false;
+      break;
+    }
+    case 'mirall': {
+      // Mirall de paret: vidre reflectant amb un marc fi; es penja a la paret (elev) i mira cap a +Z.
+      const glass = mat(c, { metalness: 0.6, roughness: 0.08, emissive: c, emissiveIntensity: 0.35 });
+      box(g, w, h, Math.max(1, d - 0.5), 0, 0, 0, dark);
+      const m = box(g, w - 2, h - 2, 0.5, 0, 1, d / 2, glass);
+      m.castShadow = false;
       break;
     }
     case 'armario': {
