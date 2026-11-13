@@ -62,6 +62,13 @@ export function signOutUser() {
   if (auth) return fb.signOut(auth);
 }
 
+// Llegeix l'estat del núvol ara mateix (botó Sincronitza).
+export async function loadRemote() {
+  if (!cloudEnabled || !db || !isAllowed(user)) return null;
+  const snap = await fb.getDoc(fb.doc(db, ...STATE_DOC));
+  if (!snap.exists() || !snap.data().json) return null;
+  return { state: JSON.parse(snap.data().json), by: snap.data().by || '' };
+}
 export function currentUser() {
   return user;
 }
@@ -122,7 +129,7 @@ export async function backupLoad(id) {
   const list = await backupList();
   const b = list.find((x) => x.id === id);
   if (!b) throw new Error('La còpia no existeix');
-  if (b.chunks <= 1) {
+  if ((b.chunks || 1) <= 1) {
     const snap = await fb.getDoc(fb.doc(db, 'planta3d', 'bk_' + id));
     if (!snap.exists()) throw new Error('La còpia està incompleta o trencada');
     return snap.data().json;
@@ -140,7 +147,7 @@ export async function backupDelete(id) {
   const b = list.find((x) => x.id === id);
   if (b) {
     // el paquet de Firebase que portem no té deleteDoc: es buida el document (deixa d'ocupar espai)
-    if (b.chunks <= 1) await fb.setDoc(fb.doc(db, 'planta3d', 'bk_' + id), { deleted: true });
+    if ((b.chunks || 1) <= 1) await fb.setDoc(fb.doc(db, 'planta3d', 'bk_' + id), { deleted: true });
     else for (let n = 0; n < b.chunks; n++) await fb.setDoc(fb.doc(db, 'planta3d', `bk_${id}_${n}`), { deleted: true });
   }
   await backupIndexWrite(list.filter((x) => x.id !== id));

@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-192.png" type="image/png" />
-  <link rel="stylesheet" href="css/style.css?v=21" />
+  <link rel="stylesheet" href="css/style.css?v=22" />
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.js", "three/addons/OrbitControls.js": "./vendor/OrbitControls.js" } }
   </script>
@@ -55,6 +55,7 @@
         </div>
         <div class="group" id="account" hidden>
           <span class="who"></span><span id="sync" class="sync"></span>
+          <button id="sync-btn" title="Sincronitza ara: baixa els canvis del núvol, puja els d’aquí i actualitza l’app" aria-label="Sincronitza">↻</button>
           <button id="signout" title="Tanca la sessió">Surt</button>
         </div>
         <div class="group">
@@ -114,6 +115,12 @@
       <div class="btns cffoot"><button class="btn primary" id="dev-save">💾 Desa els ajustos</button><button class="btn" id="dev-reset">↺ Valors per defecte</button></div>
     </div>
   </div>
+  <div id="sim" class="modal" hidden>
+    <div class="gate-card wide simcard">
+      <div class="modal-head"><h1>Simulador</h1><button type="button" class="close" id="sim-close" aria-label="Tanca">×</button></div>
+      <div class="simwrap"><iframe title="Simulador de pantalla" src="about:blank"></iframe></div>
+    </div>
+  </div>
   <div id="measure" class="modal" hidden>
     <div class="gate-card wide ms">
       <div class="modal-head"><h1>Mesura amb una foto</h1><button type="button" class="close" id="measure-close" aria-label="Tanca">×</button></div>
@@ -144,6 +151,6 @@
       <div class="gate-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=21"></script>
+  <script type="module" src="js/main.js?v=22"></script>
 </body>
 </html>

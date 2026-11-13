@@ -205,11 +205,12 @@ export function initAssistant(api) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const TTS = 'speechSynthesis' in window;
   let caVoice = null, recog = null;
-  function pickVoice() { try { const vs = speechSynthesis.getVoices(); caVoice = vs.find((v) => /^ca([-_]|$)/i.test(v.lang)) || null; } catch (e) { caVoice = null; } }
+  function pickVoice() { try { const vs = speechSynthesis.getVoices(); caVoice = (prefs.voiceName && vs.find((v) => v.name === prefs.voiceName)) || vs.find((v) => /^ca([-_]|$)/i.test(v.lang)) || null; } catch (e) { caVoice = null; } }
+  function voices() { try { return speechSynthesis.getVoices().slice().sort((a, b) => (/^ca/i.test(b.lang) - /^ca/i.test(a.lang)) || (/^es/i.test(b.lang) - /^es/i.test(a.lang)) || a.name.localeCompare(b.name)); } catch (e) { return []; } }
   if (TTS) { pickVoice(); try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { /* res */ } }
   function voiceInfo() {
     return (SR ? '🎤 Aquest navegador pot escoltar. ' : '⚠️ Aquest navegador no pot escoltar (prova amb Chrome o Safari). ')
-      + (caVoice ? '🔊 Té veu catalana per respondre.' : '🔇 No té cap veu catalana: les respostes seran només text (a Android: Ajustos → Text a veu → instal·la el català; a l’iPhone: Ajustos → Accessibilitat → Contingut llegit → Veus → Català).');
+      + (caVoice ? `🔊 Respon amb la veu «${caVoice.name}» (${caVoice.lang}).` : '🔇 No té cap veu catalana: les respostes seran només text (a Android: Ajustos → Text a veu → instal·la el català; a l’iPhone: Ajustos → Accessibilitat → Contingut llegit → Veus → Català).');
   }
   function say(text) {
     if (!TTS || +prefs.voice === 0 || !caVoice) return false;
@@ -360,7 +361,7 @@ export function initAssistant(api) {
   const CFG_WORDS = [
     ['tap', /triple toc/], ['aiwait', /toc simple|espera del toc/], ['coin', /moneda/], ['wgap', /repetici/], ['histMax', /desfes|historial/], ['saveDelay', /retard|desat al nuvol/],
     ['tries', /intents/], ['count', /propostes/], ['clear', /pas lliure|accessibilitat/], ['gapMin', /pas (minim )?entre|pas entre mobles/], ['walkSpeed', /velocitat/], ['eyeHeight', /alcada dels ulls|ulls/],
-    ['snap', /imant/], ['lowWall', /parets baixes/], ['shadow', /ombres/], ['pixelRatio', /pixels/], ['labelScale', /etiquetes/], ['bkMax', /copies/], ['bkAuto', /copia automatica|automatica/], ['catalogPhoto', /fotos? del cataleg/],
+    ['snap', /imant/], ['lowWall', /parets baixes/], ['shadow', /ombres/], ['pixelRatio', /pixels/], ['labelScale', /etiquetes/], ['bkDays', /caduc|dies de les copies|copies.*dies/], ['bkMax', /copies/], ['bkAuto', /copia automatica|automatica/], ['catalogPhoto', /fotos? del cataleg/], ['perf', /rendiment/],
   ];
   const SECK = new Set(['tap', 'aiwait', 'coin', 'wgap', 'saveDelay']);
   const COLORS = { blau: '#3b82f6', 'blau fosc': '#1e40af', verd: '#2f7d4f', 'verd fosc': '#15803d', groc: '#d4a017', taronja: '#b5652f', vermell: '#c0392b', rosa: '#e0609a', lila: '#8b5cf6', morat: '#7c3aed', marro: '#8a5a2b', gris: '#6b7280', negre: '#111111', blanc: '#ffffff', turquesa: '#0e9f8f', beix: '#d9c7a3' };
@@ -372,7 +373,7 @@ export function initAssistant(api) {
 • desfés a 150 · retard del desat a 2 segons · imant a 10
 • intents a 3000 · propostes a 6 · pas lliure a 70 · pas entre mobles a 80
 • velocitat a 200 · alçada dels ulls a 170 · parets baixes a 120 · etiquetes a 130
-• còpies a 15 · còpia automàtica cada 7 dies
+• còpies a 15 · les còpies caduquen als 15 dies · còpia automàtica cada 7 dies · mode rendiment a 1
 • restaura els ajustos · quins són els ajustos?
 🎨 ASPECTE (aquest dispositiu)
 • tema fosc / clar / automàtic · lletra gran / petita / normal
@@ -434,7 +435,7 @@ export function initAssistant(api) {
       return;
     }
     if (/restaura.*colors|colors per defecte/.test(t)) {
-      rConfirm('Restauro els colors originals (tema fosc). Confirmes?', () => { for (const k of ['accent', 'bg', 'panel', 'ink']) prefs[k] = ''; prefs.wall3d = PREFS_DEFAULT.wall3d; prefs.bg3d = PREFS_DEFAULT.bg3d; prefs.theme = 'dark'; savePrefs(); applyPrefs(api); return '✓ Colors restaurats.'; });
+      rConfirm('Restauro els colors originals (tema fosc). Confirmes?', () => { for (const k of ['accent', 'bg', 'panel', 'ink']) prefs[k] = ''; prefs.wall3d = PREFS_DEFAULT.wall3d; prefs.bg3d = ''; prefs.theme = 'dark'; savePrefs(); applyPrefs(api); return '✓ Colors restaurats.'; });
       return;
     }
     if (/\bcolor\b/.test(t)) {
@@ -664,5 +665,5 @@ Les mides van en cm (o en metres si són petites, com 2x1).`;
 
   if (+prefs.autoOpen) setTimeout(() => open(true), 800);
 
-  return { open, walleSay, voiceInfo, adminOpen, adminClose, rAsk, sayTest: () => { if (!caVoice) bot('🔇 Aquest dispositiu no té cap veu catalana. Les respostes seran només text.', { speak: false }); else say('Hola! Sóc WALL-E, l’assistent del plànol. Digue’m on poso els mobles.'); }, ask };
+  return { open, walleSay, voiceInfo, voices, pickVoice, adminOpen, adminClose, rAsk, sayTest: () => { if (!caVoice) bot('🔇 Aquest dispositiu no té cap veu catalana. Les respostes seran només text.', { speak: false }); else say('Hola! Sóc WALL-E, l’assistent del plànol. Digue’m on poso els mobles.'); }, ask };
 }

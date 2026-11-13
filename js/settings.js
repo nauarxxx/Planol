@@ -6,7 +6,7 @@ const PREFS_KEY = 'planta3d-prefs';
 export const PREFS_DEFAULT = {
   theme: 'dark',       // dark | light | auto (el fosc és el que es mostra per defecte)
   accent: '', bg: '', panel: '', ink: '', // buit = color del tema
-  wall3d: '#f3f1ec', bg3d: '#e9e6e0',
+  wall3d: '#f3f1ec', bg3d: '',  // bg3d buit = segons el tema (fosc o clar)
   font: 'm',           // s | m | l
   wvol: 60,            // volum del so de WALL-E (0 = silenci)
   voice: 2,            // assistent: 0 només text · 1 només veu · 2 text i veu
@@ -15,13 +15,20 @@ export const PREFS_DEFAULT = {
   shadows: 1,          // ombres al 3D (desactiva-les si el mòbil va lent)
   confirmDel: 0,       // demana confirmació abans d'eliminar un moble
   startView: '3d',     // vista en obrir: 3d | top
-  v2: 1,
+  units: 'cm',         // cm | m
+  unitLabel: 1,        // escriu la unitat a les cotes
+  vib: 1,              // vibra en col·locar un moble (mòbil)
+  warn: 'both',        // avís de conflictes: both | visual | sound | none
+  voiceName: '',       // veu de WALL-E (nom de la veu del sistema; buit = la catalana que trobi)
+  cams: {},            // càmeres desades per estança ('_all' = vista inicial)
+  v2: 1, v3: 1,
 };
 export let prefs = { ...PREFS_DEFAULT };
 try {
   const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
   Object.assign(prefs, saved);
   if (!saved.v2) { prefs.theme = 'dark'; prefs.v2 = 1; } // des de la v21 el tema fosc és el que surt per defecte
+  if (!saved.v3) { if (prefs.bg3d === '#e9e6e0') prefs.bg3d = ''; prefs.v3 = 1; } // v22: el fons 3D segueix el tema
 } catch (e) { /* res */ }
 
 export function savePrefs() {
@@ -42,8 +49,10 @@ export function applyPrefs(api) {
   const hint = document.getElementById('hint'); if (hint) hint.classList.toggle('off', !+prefs.hint);
   const tb = document.getElementById('theme-btn');
   if (tb) { const d = isDark(); tb.textContent = d ? '☀️' : '🌙'; tb.title = d ? 'Mode clar' : 'Mode fosc'; tb.setAttribute('aria-label', tb.title); }
-  api?.setScenePrefs?.({ wall: prefs.wall3d, bg: prefs.bg3d });
+  const dark = isDark();
+  api?.setScenePrefs?.({ wall: prefs.wall3d, bg: prefs.bg3d || (dark ? '#1b1a19' : '#e9e6e0'), ground: prefs.bg3d ? prefs.bg3d : (dark ? '#262421' : '#dcd8d0') });
   api?.setShadows?.(!!+prefs.shadows);
+  api?.applyUnits?.();
 }
 
 const fmtKB = (b) => (b / 1024).toLocaleString('ca', { maximumFractionDigits: 1 }) + ' KB';
@@ -128,7 +137,7 @@ export function initSettings(api) {
       </div>
       <div class="row c2">
         <label>Parets 3D<input type="color" data-pref="wall3d" value="${prefs.wall3d}" /></label>
-        <label>Fons de l’escena 3D<input type="color" data-pref="bg3d" value="${prefs.bg3d}" /></label>
+        <label>Fons de l’escena 3D ${prefs.bg3d ? '' : '<small>(segueix el tema)</small>'}<input type="color" data-pref="bg3d" value="${prefs.bg3d || (isDark() ? '#1b1a19' : '#e9e6e0')}" /></label>
       </div>
       <div class="btns"><button class="btn secondary small" id="s-reset-colors">Restaura els colors</button></div>
 
@@ -139,10 +148,32 @@ export function initSettings(api) {
           <option value="top" ${prefs.startView === 'top' ? 'selected' : ''}>Planta</option>
         </select></label>
       </div>
+      <div class="row c2">
+        <label>Unitats<select id="s-units">
+          <option value="cm" ${prefs.units === 'cm' ? 'selected' : ''}>Centímetres (270 × 440)</option>
+          <option value="m" ${prefs.units === 'm' ? 'selected' : ''}>Metres (2,70 × 4,40)</option>
+        </select></label>
+        <label>Avís de conflictes (xocs, portes)<select id="s-warn">
+          <option value="both" ${prefs.warn === 'both' ? 'selected' : ''}>Visual i so</option>
+          <option value="visual" ${prefs.warn === 'visual' ? 'selected' : ''}>Només visual</option>
+          <option value="sound" ${prefs.warn === 'sound' ? 'selected' : ''}>Només so</option>
+          <option value="none" ${prefs.warn === 'none' ? 'selected' : ''}>Cap</option>
+        </select></label>
+      </div>
+      ${chk('s-unitlabel', 'unitLabel', 'Escriu la unitat a les cotes (p. ex. «85 cm» en lloc de «85»)')}
+      ${chk('s-vib', 'vib', 'Vibra en col·locar o encaixar un moble (mòbil)')}
       ${chk('s-shadows', 'shadows', 'Ombres al 3D (desactiva-les si el mòbil va lent)')}
       ${chk('s-hint', 'hint', 'Mostra la línia d’ajuda a sota del 3D')}
       ${chk('s-confirmdel', 'confirmDel', 'Demana confirmació abans d’eliminar un moble')}
       ${chk('s-autoopen', 'autoOpen', 'Obre l’assistent en entrar')}
+
+      <h2>Càmera</h2>
+      <p class="note">Col·loca la vista com t’agradi al 3D i desa-la: en obrir l’app o en prémer «Mostra l’estança» tornarà a aquesta vista.</p>
+      <div class="row c2">
+        <label>Estança<select id="s-cam-room"><option value="_all">Tot el pis (vista inicial)</option>${(api.rooms?.() || []).filter((r) => r.kind !== 'void').map((r) => `<option value="${esc(r.id)}">${esc(r.name)}${prefs.cams?.[r.id] ? ' ✓' : ''}</option>`).join('')}</select></label>
+      </div>
+      <div class="btns"><button class="btn secondary small" id="s-cam-save">📷 Desa la vista actual</button><button class="btn secondary small" id="s-cam-go">Vés-hi</button><button class="btn danger small" id="s-cam-del">Esborra</button></div>
+      <p class="note" id="s-cam-info">${Object.keys(prefs.cams || {}).length ? `${Object.keys(prefs.cams).length} vistes desades.` : 'Cap vista desada: s’enquadra automàticament.'}</p>
 
       <h2>Assistent WALL-E</h2>
       <div class="row c2">
@@ -153,6 +184,10 @@ export function initSettings(api) {
           <option value="2" ${+prefs.voice === 2 ? 'selected' : ''}>Text i veu</option>
         </select></label>
       </div>
+      <label>Veu<select id="s-voicename">
+        <option value="">Automàtica (la catalana que trobi)</option>
+        ${(api.voices?.() || []).map((v) => `<option value="${esc(v.name)}" ${prefs.voiceName === v.name ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}
+      </select></label>
       <p class="note">${esc(api.voiceInfo())}</p>
       <div class="btns"><button class="btn secondary small" id="s-wtest">Prova el so</button><button class="btn secondary small" id="s-vtest">Prova la veu</button></div>
 
@@ -178,20 +213,27 @@ export function initSettings(api) {
     body.querySelector('#s-theme').addEventListener('change', (e) => set('theme', e.target.value));
     body.querySelector('#s-font').addEventListener('change', (e) => set('font', e.target.value));
     body.querySelector('#s-startview').addEventListener('change', (e) => set('startView', e.target.value));
+    body.querySelector('#s-units').addEventListener('change', (e) => set('units', e.target.value));
+    body.querySelector('#s-warn').addEventListener('change', (e) => set('warn', e.target.value));
+    body.querySelector('#s-voicename').addEventListener('change', (e) => { set('voiceName', e.target.value); api.pickVoice?.(); render(); });
+    const camSel = body.querySelector('#s-cam-room');
+    body.querySelector('#s-cam-save').addEventListener('click', () => { (prefs.cams ||= {})[camSel.value] = api.getCamera(); savePrefs(); render(); api.toast?.('📷 Vista desada.'); });
+    body.querySelector('#s-cam-go').addEventListener('click', () => { close(); api.frame(camSel.value === '_all' ? null : api.rooms().find((r) => r.id === camSel.value)); });
+    body.querySelector('#s-cam-del').addEventListener('click', () => { if (prefs.cams) delete prefs.cams[camSel.value]; savePrefs(); render(); });
     body.querySelectorAll('[data-pref]').forEach((inp) => inp.addEventListener('input', () => set(inp.dataset.pref, inp.value)));
     body.querySelector('#s-reset-colors').addEventListener('click', () => {
       for (const k of ['accent', 'bg', 'panel', 'ink']) prefs[k] = '';
-      prefs.wall3d = PREFS_DEFAULT.wall3d; prefs.bg3d = PREFS_DEFAULT.bg3d; prefs.theme = 'dark';
+      prefs.wall3d = PREFS_DEFAULT.wall3d; prefs.bg3d = ''; prefs.theme = 'dark';
       savePrefs(); applyPrefs(api); render();
     });
     body.querySelector('#s-wvol').addEventListener('input', (e) => { set('wvol', +e.target.value); e.target.parentElement.firstChild.textContent = `Volum del so (${prefs.wvol} %)`; });
     body.querySelector('#s-voice').addEventListener('change', (e) => set('voice', +e.target.value));
-    for (const [id, k] of [['s-autoopen', 'autoOpen'], ['s-hint', 'hint'], ['s-shadows', 'shadows'], ['s-confirmdel', 'confirmDel']]) {
+    for (const [id, k] of [['s-autoopen', 'autoOpen'], ['s-hint', 'hint'], ['s-shadows', 'shadows'], ['s-confirmdel', 'confirmDel'], ['s-unitlabel', 'unitLabel'], ['s-vib', 'vib']]) {
       body.querySelector('#' + id).addEventListener('change', (e) => set(k, e.target.checked ? 1 : 0));
     }
     body.querySelector('#s-wtest').addEventListener('click', () => api.walleSay(true));
     body.querySelector('#s-vtest').addEventListener('click', () => api.sayTest());
-    body.querySelector('#s-reset-all').addEventListener('click', () => { prefs = { ...PREFS_DEFAULT }; savePrefs(); applyPrefs(api); render(); });
+    body.querySelector('#s-reset-all').addEventListener('click', () => { prefs = { ...PREFS_DEFAULT, cams: {} }; savePrefs(); applyPrefs(api); render(); });
   }
   return { open, close, render, relock };
 }
