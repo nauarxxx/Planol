@@ -10,7 +10,7 @@ import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
 import { initAssistant } from './assistant.js';
 import { drawPlan, printSheet } from './sheet.js';
 import { initMeasure } from './measure.js';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, DEG } from './geom.js';
+import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado
 const STORE_KEY = 'planta3d-v1';
@@ -708,6 +708,18 @@ function conflicts() {
     if ((it.elev || 0) >= 200) continue;
     if (swings.some((sw) => boxHitsSwing(aabb(it), sw))) bad.set(it.id, 'Bloqueja una porta');
   }
+  // Sostre, pilars i bigues: el moble ha de cabre d'alçada i no pot ocupar un pilar ni passar per sota d'una biga si és més alt.
+  const ceil = state.ceiling || 250;
+  const structs = structItems(state.rooms);
+  for (const it of state.items) {
+    const top = (it.elev || 0) + it.h;
+    if (top > ceil + 0.5) { bad.set(it.id, `Més alt que el sostre (${Math.round(top)} de ${ceil} cm)`); continue; }
+    for (const st of structs) {
+      if (!overlaps(it, st, -1)) continue;
+      if (st.kind === 'pillar') { bad.set(it.id, `Xoca amb el ${st.name}`); break; }
+      if (top > st.h0 + 0.5) { bad.set(it.id, `Topa amb la ${st.name} (${st.h0} cm)`); break; }
+    }
+  }
   for (let a = 0; a < solid.length; a++) for (let b = a + 1; b < solid.length; b++) {
     const A = solid[a], B = solid[b];
     const a0 = A.elev || 0, a1 = a0 + A.h, b0 = B.elev || 0, b1 = b0 + B.h;
@@ -1003,7 +1015,7 @@ function removeItem(id, ask = true) {
 function findFreeSpot(it, room) {
   const t = state.wallThickness || 10;
   const R = innerRect(room, t);
-  const others = state.items.filter((o) => o.roomId === room.id && o.id !== it.id && o.type !== 'alfombra');
+  const others = state.items.filter((o) => o.roomId === room.id && o.id !== it.id && o.type !== 'alfombra').concat(structItems(state.rooms).filter((s) => s.roomId === room.id && (s.kind === 'pillar' || (it.elev || 0) + it.h > s.h0)));
   const cx = (R.x0 + R.x1) / 2, cz = (R.z0 + R.z1) / 2;
   let best = { x: cx, z: cz }, bestScore = Infinity;
   for (let gx = R.x0 + it.w / 2; gx <= R.x1 - it.w / 2 + 0.1; gx += 10) {
@@ -1341,7 +1353,7 @@ function kitItems(room, kit) {
     for (let i = 0; i < qty; i++) {
       const it = newItem(type, { ...over, roomId: room.id });
       if (qty > 1) it.name = `${over.name || CATALOG[type].label} ${i + 1}`;
-      if (Math.min(it.w, it.d) > Math.min(W, D) - 20 || Math.max(it.w, it.d) > Math.max(W, D) - 20) continue;
+      if (Math.min(it.w, it.d) > Math.min(W, D) - 20 || Math.max(it.w, it.d) > Math.max(W, D) - 20 || it.h > (state.ceiling || 250)) continue;
       it.fromKit = true; it.x = room.x + room.w / 2; it.z = room.z + room.d / 2;
       out.push(it);
     }
@@ -1921,6 +1933,8 @@ const api = {
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
+  ceiling: () => state.ceiling || 250,
+  structs: () => structItems(state.rooms),
   wallThickness: () => state.wallThickness || 10,
   currentRoom: () => { const it = itemById(ui.selected); return (it && roomById(it.roomId)) || roomById(ui.layoutRoom) || usableRooms()[0] || null; },
   addItems: (type, props, qty, roomId) => addItems(type, props, qty, roomId),

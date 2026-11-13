@@ -133,6 +133,18 @@ export function doorSwing(room, op) {
   return { hx, hz, r, wx, wz, ix, iz, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs), roomId: room.id };
 }
 
+// Pilars i bigues com a pseudo-mobles (per comprovar xocs i buscar lloc lliure). Les bigues porten h0 (alçada de sota).
+export function structItems(rooms) {
+  const out = [];
+  for (const r of rooms) {
+    if (r.kind !== 'pillar' && r.kind !== 'beam') continue;
+    const cx = r.x + r.w / 2, cz = r.z + r.d / 2;
+    const host = roomAt(rooms, cx, cz);
+    out.push({ id: 'struct:' + r.id, name: r.name, type: r.kind, kind: r.kind, x: cx, z: cz, w: r.w, d: r.d, rot: 0, h: r.kind === 'beam' ? 9999 : 9999, elev: r.kind === 'beam' ? (r.h0 || 210) : 0, roomId: host ? host.id : null, h0: r.h0 || 210, x0: r.x, x1: r.x + r.w, z0: r.z, z1: r.z + r.d });
+  }
+  return out;
+}
+
 export function allSwings(rooms) {
   const out = [];
   for (const r of rooms) for (const op of r.openings || []) { const s = doorSwing(r, op); if (s) out.push(s); }
