@@ -411,6 +411,6 @@ export function newItem(type, overrides = {}) {
     x: 0, z: 0, rot: 0,
     roomId: null,
     locked: false,
-    ...overrides,
+    ...Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined)),
   };
 }

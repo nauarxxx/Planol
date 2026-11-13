@@ -6,7 +6,7 @@
 // No fa servir cap servei extern: tot passa al navegador.
 
 import { CATALOG } from './furniture.js';
-import { innerRect, overlaps, aabb, DEG } from './geom.js';
+import { innerRect, overlaps, aabb } from './geom.js';
 import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js';
 import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js';
 
@@ -364,9 +364,8 @@ export function initAssistant(api) {
   function rConfirm(text, apply) {
     const d = add('bot', esc(text).replace(/\n/g, '<br>'));
     say(text);
-    let box;
     const lock = () => box.querySelectorAll('button').forEach((b) => { b.disabled = true; });
-    box = rBtns(d, [
+    const box = rBtns(d, [
       { text: '✓ Confirma', cls: 'rok', fn: () => { if (box.querySelector('button').disabled) return; lock(); let res; try { res = apply(); } catch (err) { console.error(err); res = '⚠️ No ho he pogut fer. Torna-ho a provar.'; } Promise.resolve(res).then((r) => bot(r || 'Fet ✓')); } },
       { text: '✕ Cancel·la', cls: 'rno', fn: () => { if (box.querySelector('button').disabled) return; lock(); bot('D’acord, no canvio res.'); } },
     ], 'rconf');
@@ -491,7 +490,7 @@ export function initAssistant(api) {
     if (/parets (completes|senceres|altes)/.test(t)) { api.setWallMode('full'); bot(`${prefix}Parets completes.`); return; }
     if (/parets baixes/.test(t) && !/\d/.test(t)) { api.setWallMode('low'); bot(`${prefix}Parets baixes.`); return; }
     if (/parets amagades|amaga les parets/.test(t)) { api.setWallMode('none'); bot(`${prefix}Parets amagades.`); return; }
-    if (/(amaga|treu|mostra|ensenya).*(etiquetes|cotes)/.test(t)) { const on = /mostra|ensenya/.test(t); const what = /cotes/.test(t) ? 'measures' : 'labels'; api.setToggle(what, on); bot(`${prefix}${what === 'cotes' ? 'Cotes' : what === 'measures' ? 'Cotes' : 'Etiquetes'} ${on ? 'visibles' : 'amagades'}.`); return; }
+    if (/(amaga|treu|mostra|ensenya).*(etiquetes|cotes)/.test(t)) { const on = /mostra|ensenya/.test(t); const what = /cotes/.test(t) ? 'measures' : 'labels'; api.setToggle(what, on); bot(`${prefix}${what === 'measures' ? 'Cotes' : 'Etiquetes'} ${on ? 'visibles' : 'amagades'}.`); return; }
     if (/\bvista\b/.test(t)) { const v = /planta/.test(t) ? 'top' : /passeig|primera persona/.test(t) ? 'walk' : '3d'; api.setView(v); bot(`${prefix}Vista ${{ top: 'en planta', walk: 'de passeig', '3d': '3D' }[v]}.`); return; }
     // ajustos numèrics
     for (const [k, re] of CFG_WORDS) {
@@ -545,7 +544,7 @@ Les mides van en cm (o en metres si són petites, com 2x1).`;
     const R = innerRect(room, api.wallThickness());
     const lines = Object.entries(p.placements).map(([id, pos]) => { const it = its.find((i) => i.id === id); return it ? describePlacement(it, pos, R) : null; }).filter(Boolean);
     const locked = its.filter((i) => i.locked).length;
-    const txt = `${added.length ? `He afegit ${added.map((i) => i.name.toLowerCase()).join(', ')}. ` : ''}Jo ho faria així a ${fmtRoom(room)} (${p.rating.toLowerCase()}):\n• ${lines.join('\n• ')}${locked ? `\n(${locked} moble${locked > 1 ? 's' : ''} fix${locked > 1 ? 'os' : ''} no l’he mogut.)` : ''}\nVols que ho apliqui? Tens ${props.length} propostes més a la pestanya Distribuir.`;
+    const txt = `${added.length ? `He afegit ${added.map((i) => i.name.toLowerCase()).join(', ')}. ` : ''}Jo ho faria així a ${fmtRoom(room)} (${p.rating.toLowerCase()}):\n• ${lines.join('\n• ')}${locked ? `\n(${locked} moble${locked > 1 ? 's' : ''} fix${locked > 1 ? 'os' : ''} no l’he mogut.)` : ''}\nVols que ho apliqui? Tens ${props.length} propostes més a la pestanya Propostes.`;
     pending = { kind: 'apply', room, p, props };
     api.showProposals(room, props);
     bot(txt);

@@ -121,7 +121,7 @@ export function initMeasure() {
   file.addEventListener('change', () => {
     const f = file.files[0]; if (!f) return;
     const im = new Image();
-    im.onload = () => { img = im; pts = []; measures = []; H = null; fit(); updateStatus(); };
+    im.onload = () => { URL.revokeObjectURL(im.src); img = im; pts = []; measures = []; H = null; fit(); updateStatus(); };
     im.src = URL.createObjectURL(f);
   });
   modal.querySelector('#ms-undo').addEventListener('click', () => {

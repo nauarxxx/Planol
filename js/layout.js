@@ -44,7 +44,6 @@ function onWall(it, wall, t, R) {
   }
 }
 
-const OPPOSITE = { N: 'S', S: 'N', E: 'W', W: 'E' };
 const WALLS = ['N', 'E', 'S', 'W'];
 
 function faceTowards(from, to) {
@@ -191,9 +190,7 @@ function buildCandidate(free, locked, R, rand, doorWalls, keepouts) {
     const list = opts.length ? opts : WALLS;
     return list[Math.floor(rand() * list.length)];
   };
-  const all = [...locked, ...free];
   const lockedTv = locked.find((i) => roleOf(i) === 'tv');
-  const cx = (R.x0 + R.x1) / 2, cz = (R.z0 + R.z1) / 2;
 
   // Agrupar mesas (si hay varias, a veces se juntan formando una mesa grande).
   const tables = free.filter((i) => roleOf(i) === 'table');

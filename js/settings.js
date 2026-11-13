@@ -52,7 +52,6 @@ export function applyPrefs(api) {
   const dark = isDark();
   api?.setScenePrefs?.({ wall: prefs.wall3d, bg: prefs.bg3d || (dark ? '#1b1a19' : '#e9e6e0'), ground: prefs.bg3d ? prefs.bg3d : (dark ? '#262421' : '#dcd8d0') });
   api?.setShadows?.(!!+prefs.shadows);
-  api?.applyUnits?.();
 }
 
 const fmtKB = (b) => (b / 1024).toLocaleString('ca', { maximumFractionDigits: 1 }) + ' KB';
@@ -212,7 +211,7 @@ export function initSettings(api) {
 
     api.renderDades?.(body.querySelector('#s-dades'));
 
-    const set = (k, v) => { prefs[k] = v; savePrefs(); applyPrefs(api); };
+    const set = (k, v) => { prefs[k] = v; savePrefs(); applyPrefs(api); if (k === 'units' || k === 'unitLabel') api.applyUnits?.(); };
     body.querySelector('#s-theme').addEventListener('change', (e) => set('theme', e.target.value));
     body.querySelector('#s-font').addEventListener('change', (e) => set('font', e.target.value));
     body.querySelector('#s-startview').addEventListener('change', (e) => set('startView', e.target.value));
@@ -237,7 +236,7 @@ export function initSettings(api) {
     body.querySelector('#s-signout')?.addEventListener('click', () => { close(); api.signOut(); });
     body.querySelector('#s-wtest').addEventListener('click', () => api.walleSay(true));
     body.querySelector('#s-vtest').addEventListener('click', () => api.sayTest());
-    body.querySelector('#s-reset-all').addEventListener('click', () => { prefs = { ...PREFS_DEFAULT, cams: {} }; savePrefs(); applyPrefs(api); render(); });
+    body.querySelector('#s-reset-all').addEventListener('click', () => { prefs = { ...PREFS_DEFAULT, cams: {} }; savePrefs(); applyPrefs(api); api.applyUnits?.(); render(); });
   }
   return { open, close, render, relock };
 }

@@ -118,7 +118,7 @@ const esc = (x) => String(x ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 export function printSheet(st, opts = {}) {
   const sheet = document.getElementById('print-sheet');
   const cv = document.createElement('canvas');
-  cv.width = 2000; cv.height = Math.round(2000 * 1.0);
+  cv.width = 2000;
   // proporció segons el plànol
   const xs = st.rooms.map((r) => r.x), xe = st.rooms.map((r) => r.x + r.w), zs = st.rooms.map((r) => r.z), ze = st.rooms.map((r) => r.z + r.d);
   const W = Math.max(...xe) - Math.min(...xs), D = Math.max(...ze) - Math.min(...zs);

@@ -225,9 +225,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .ai-mic { flex: none; width: 42px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .ai-mic.on { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: .6; } }
-#props { right: 80px; }
+/* A l'escriptori el panell del moble deixa lloc al robot; al mòbil ja va d'un costat a l'altre (regla de dalt). */
+@media (min-width: 801px) { #props { right: 80px; } #toolbar { top: max(10px, env(safe-area-inset-top)); } }
 /* Marges segurs en mòbils amb osca (iPhone) quan s'obre com a app */
-#toolbar { top: max(10px, env(safe-area-inset-top)); }
 #selbar { bottom: max(10px, env(safe-area-inset-bottom)); }
 .gate-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
 .gate-card h1 { margin: 0 0 12px; font-size: 22px; }
