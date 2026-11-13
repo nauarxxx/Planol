@@ -9,22 +9,22 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 9, // v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 10, // v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
   rooms: [
     {
       id: 'terraza-cocina', name: 'Terraza cocina', kind: 'terrace', color: '#b8673f',
-      x: 100, z: 0, w: 335, d: 120, d2: 40,
+      x: 10, z: 0, w: 335, d: 120, d2: 40,
       notes: 'Terraza sobre la cocina con el borde exterior en diagonal: 120 de fondo a la izquierda y 40 a la derecha (≈2,7 m²). Las dos terrazas suman 8,25 m².',
       estimated: true,
       openings: [],
     },
     {
       id: 'cocina', name: 'Cocina', kind: 'room', color: '#d9c7a3',
-      x: 100, z: 120, w: 260, d: 260,
-      notes: 'Zona de cocina abierta al comedor (estar-menjador-cuina: 26,80 m² en total). Encimera de 55 de fondo.',
+      x: 10, z: 120, w: 260, d: 260,
+      notes: 'Zona de cocina abierta al comedor (estar-menjador-cuina: 26,80 m² en total). Encimera de 55 de fondo (cota del croquis). Largo y ancho estimados.',
       estimated: true,
       openings: [
         { wall: 'N', offset: 60, width: 90, type: 'puerta' },
@@ -33,47 +33,47 @@ export const DEFAULT_PLAN = {
     },
     {
       id: 'salon', name: 'Salón-comedor', kind: 'room', color: '#c89b6a',
-      x: 0, z: 380, w: 360, d: 535,
-      notes: 'Comedor junto a la cocina y zona de estar junto a la terraza. Con la cocina suma 26,80 m². Entrada desde el rellano.',
-      estimated: true,
+      x: 0, z: 380, w: 270, d: 440,
+      notes: 'Salón-comedor 270 × 440 según las cotas del croquis (440 de largo por la pared exterior, 270 de ancho; pared de la tele 275). Entrada desde el rellano.',
+      estimated: false,
       openings: [
         { wall: 'E', offset: 15, width: 85, type: 'puerta' },
         { wall: 'E', offset: 275, width: 90, type: 'paso' },
         { wall: 'S', offset: 60, width: 200, type: 'puerta' },
-        { wall: 'W', offset: 300, width: 160, type: 'ventana' },
+        { wall: 'W', offset: 250, width: 160, type: 'ventana' },
       ],
     },
     {
       id: 'terraza', name: 'Terraza', kind: 'terrace', color: '#b8673f',
-      x: 0, z: 915, w: 360, d: 145,
-      notes: 'Terraza del salón (≈5,2 m²). En el croquis: 268 × 130.',
-      estimated: true,
+      x: 0, z: 820, w: 268, d: 130,
+      notes: 'Terraza del salón: 268 × 130 según el croquis (≈3,5 m²).',
+      estimated: false,
       openings: [],
     },
     {
       id: 'bano', name: 'Baño', kind: 'room', color: '#9aa3a8',
-      x: 670, z: 470, w: 280, d: 185,
+      x: 580, z: 470, w: 280, d: 185,
       notes: 'Baño 1 (bañera, inodoro y bidé), 5,00 m² en el proyecto. Encima del tramo final del pasillo; la puerta está en el rincón donde acaba el pasillo.',
       estimated: true,
       openings: [{ wall: 'S', offset: 205, width: 70, type: 'puerta' }],
     },
     {
       id: 'bano2', name: 'Baño 2', kind: 'room', color: '#a7b1b6',
-      x: 950, z: 615, w: 150, d: 140,
+      x: 860, z: 615, w: 150, d: 140,
       notes: 'Baño 2, al final del pasillo: se entra por la pared del fondo del pasillo, al lado de la puerta del baño 1. Medidas estimadas (≈2,1 m²).',
       estimated: true,
       openings: [{ wall: 'W', offset: 40, width: 70, type: 'puerta' }],
     },
     {
       id: 'distribuidor', name: 'Pasillo', kind: 'room', color: '#c89b6a',
-      x: 360, z: 655, w: 590, d: 100,
+      x: 270, z: 655, w: 590, d: 100,
       notes: 'Pasillo que une el salón con el baño, el baño 2, el lavadero y el dormitorio. 4,60 m² en el proyecto.',
       estimated: true,
       openings: [],
     },
     {
       id: 'office', name: 'Office', kind: 'room', color: '#c9b9a0',
-      x: 360, z: 755, w: 220, d: 350,
+      x: 270, z: 755, w: 220, d: 350,
       notes: 'Office (en el proyecto: traster-safareig, 7,70 m²). Con un armario pequeño en la esquina.',
       estimated: true,
       openings: [
@@ -83,21 +83,21 @@ export const DEFAULT_PLAN = {
     },
     {
       id: 'armario-dorm', name: 'Armario dormitorio', kind: 'room', color: '#bfb3a0',
-      x: 580, z: 755, w: 60, d: 230,
-      notes: 'Armario empotrado del dormitorio (ocupa casi toda la columna entre el office y el dormitorio). Estimado.',
+      x: 490, z: 755, w: 60, d: 230,
+      notes: 'Armario empotrado del dormitorio: 60 de fondo (cota del croquis); el largo (230) es estimado.',
       estimated: true,
       openings: [{ wall: 'E', offset: 10, width: 210, type: 'paso' }],
     },
     {
       id: 'armario-office', name: 'Armario office', kind: 'room', color: '#bfb3a0',
-      x: 580, z: 985, w: 60, d: 80,
+      x: 490, z: 985, w: 60, d: 80,
       notes: 'Pequeño armario del office, en el extremo de la columna de armarios. Estimado.',
       estimated: true,
       openings: [{ wall: 'W', offset: 5, width: 70, type: 'paso' }],
     },
     {
       id: 'dormitorio', name: 'Dormitorio', kind: 'room', color: '#c08e5e',
-      x: 640, z: 755, w: 310, d: 310,
+      x: 550, z: 755, w: 310, d: 310,
       notes: 'Dormitorio 310 × 310 (confirmado). El proyecto indica 11,00 m² útiles, quizá contando el armario.',
       estimated: false,
       openings: [
