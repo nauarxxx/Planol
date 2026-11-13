@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 20, // v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 21, // v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -25,11 +25,11 @@ export const DEFAULT_PLAN = {
     {
       id: 'cocina', name: 'Cuina', kind: 'room', color: '#d9c7a3',
       x: 0, z: 120, w: 270, d: 260,
-      notes: 'Cuina oberta al menjador (estar-menjador-cuina: 26,80 m² en total). Taulell de 55 de fons (cota del croquis). La paret que la separa del menjador té un mur de 72 al costat de la paret sencera (la del sofà) i després el pas obert. Llargada estimada.',
+      notes: 'Cuina oberta al menjador (estar-menjador-cuina: 26,80 m² en total). Taulell de 55 de fons (cota del croquis). Vist des de la porta de la terrassa: a l’esquerra (est) el taulell amb la pica, la rentadora i la nevera, que recolza al mur que separa la cuina del menjador; a la dreta (oest) el taulell amb la placa i la campana, i al fons a la dreta el pas obert al menjador. Llargada del mur de la nevera (105) i de la cuina estimades.',
       estimated: true,
       openings: [
-        { wall: 'N', offset: 60, width: 90, type: 'puerta' },
-        { wall: 'S', offset: 72, width: 178, type: 'paso' },
+        { wall: 'N', offset: 62, width: 90, type: 'puerta', hinge: 'b' },
+        { wall: 'S', offset: 0, width: 165, type: 'paso' },
       ],
     },
     {
@@ -120,5 +120,12 @@ export const DEFAULT_PLAN = {
       ],
     },
   ],
-  items: [],
+  // Mobles fixos de la cuina (foto del 2026-11-13 des de la porta de la terrassa). Bloquejats: les propostes no els mouen.
+  items: [
+    { id: 'fix-pica', type: 'encimeraPica', name: 'Taulell amb pica', w: 120, d: 55, h: 90, elev: 0, color: '#e9e4da', x: 237.5, z: 185, rot: 270, roomId: 'cocina', locked: true },
+    { id: 'fix-rentadora', type: 'rentadora', name: 'Rentadora', w: 60, d: 60, h: 85, elev: 0, color: '#f2f2f0', x: 235, z: 275, rot: 270, roomId: 'cocina', locked: true },
+    { id: 'fix-nevera', type: 'nevera', name: 'Nevera', w: 60, d: 65, h: 185, elev: 0, color: '#f2f2f0', x: 235, z: 342.5, rot: 180, roomId: 'cocina', locked: true },
+    { id: 'fix-placa', type: 'encimeraPlaca', name: 'Taulell amb placa', w: 160, d: 55, h: 90, elev: 0, color: '#e9e4da', x: 32.5, z: 205, rot: 90, roomId: 'cocina', locked: true },
+    { id: 'fix-campana', type: 'campana', name: 'Campana extractora', w: 60, d: 50, h: 40, elev: 155, color: '#9ea3a8', x: 30, z: 255, rot: 90, roomId: 'cocina', locked: true },
+  ],
 };
