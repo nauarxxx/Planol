@@ -3,14 +3,14 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=22';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=23';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
 import { initAssistant } from './assistant.js';
 import { drawPlan, printSheet } from './sheet.js';
 import { initMeasure } from './measure.js';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, DEG } from './geom.js';
+import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado
 const STORE_KEY = 'planta3d-v1';
@@ -107,7 +107,8 @@ function fmtLen(cm, unit = +prefs.unitLabel) {
 }
 const roomById = (id) => state.rooms.find((r) => r.id === id);
 const itemById = (id) => state.items.find((i) => i.id === id);
-const usableRooms = () => state.rooms.filter((r) => r.kind !== 'void');
+const STRUCT = new Set(['void', 'pillar', 'beam']);
+const usableRooms = () => state.rooms.filter((r) => !STRUCT.has(r.kind));
 
 // ---------------------------------------------------------------- three.js
 const wrap = document.getElementById('canvas-wrap');
@@ -498,6 +499,19 @@ function rebuildPlan() {
 
   for (const r of state.rooms) {
     tagEdge = null;
+    if (r.kind === 'pillar' || r.kind === 'beam') {
+      // Pilar: bloc massís de terra a sostre. Biga: bloc penjat del sostre, des de l'alçada «h0» (per defecte 210) fins al sostre.
+      const y0 = r.kind === 'beam' ? Math.min(fullH - 5, r.h0 || 210) : 0;
+      const y1 = r.kind === 'beam' ? fullH : H;
+      if (y1 > y0) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, y1 - y0, r.d), [wallMat, wallMat, r.kind === 'beam' ? wallMat : wallTopMat, wallMat, wallMat, wallMat]);
+        m.position.set(r.x + r.w / 2, (y0 + y1) / 2, r.z + r.d / 2);
+        m.castShadow = true; m.receiveShadow = true;
+        m.userData.wall = { room: r, axis: 'x', line: r.z, a: r.x, b: r.x + r.w, side: r.kind === 'beam' ? 'biga' : 'pilar' };
+        planGroup.add(m);
+      }
+      continue;
+    }
     if (r.kind === 'void') {
       const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, H, r.d), voidMat);
       m.position.set(r.x + r.w / 2, H / 2, r.z + r.d / 2);
@@ -693,6 +707,18 @@ function conflicts() {
   for (const it of solid) {
     if ((it.elev || 0) >= 200) continue;
     if (swings.some((sw) => boxHitsSwing(aabb(it), sw))) bad.set(it.id, 'Bloqueja una porta');
+  }
+  // Sostre, pilars i bigues: el moble ha de cabre d'alçada i no pot ocupar un pilar ni passar per sota d'una biga si és més alt.
+  const ceil = state.ceiling || 250;
+  const structs = structItems(state.rooms);
+  for (const it of state.items) {
+    const top = (it.elev || 0) + it.h;
+    if (top > ceil + 0.5) { bad.set(it.id, `Més alt que el sostre (${Math.round(top)} de ${ceil} cm)`); continue; }
+    for (const st of structs) {
+      if (!overlaps(it, st, -1)) continue;
+      if (st.kind === 'pillar') { bad.set(it.id, `Xoca amb el ${st.name}`); break; }
+      if (top > st.h0 + 0.5) { bad.set(it.id, `Topa amb la ${st.name} (${st.h0} cm)`); break; }
+    }
   }
   for (let a = 0; a < solid.length; a++) for (let b = a + 1; b < solid.length; b++) {
     const A = solid[a], B = solid[b];
@@ -989,7 +1015,7 @@ function removeItem(id, ask = true) {
 function findFreeSpot(it, room) {
   const t = state.wallThickness || 10;
   const R = innerRect(room, t);
-  const others = state.items.filter((o) => o.roomId === room.id && o.id !== it.id && o.type !== 'alfombra');
+  const others = state.items.filter((o) => o.roomId === room.id && o.id !== it.id && o.type !== 'alfombra').concat(structItems(state.rooms).filter((s) => s.roomId === room.id && (s.kind === 'pillar' || (it.elev || 0) + it.h > s.h0)));
   const cx = (R.x0 + R.x1) / 2, cz = (R.z0 + R.z1) / 2;
   let best = { x: cx, z: cz }, bestScore = Infinity;
   for (let gx = R.x0 + it.w / 2; gx <= R.x1 - it.w / 2 + 0.1; gx += 10) {
@@ -1327,7 +1353,7 @@ function kitItems(room, kit) {
     for (let i = 0; i < qty; i++) {
       const it = newItem(type, { ...over, roomId: room.id });
       if (qty > 1) it.name = `${over.name || CATALOG[type].label} ${i + 1}`;
-      if (Math.min(it.w, it.d) > Math.min(W, D) - 20 || Math.max(it.w, it.d) > Math.max(W, D) - 20) continue;
+      if (Math.min(it.w, it.d) > Math.min(W, D) - 20 || Math.max(it.w, it.d) > Math.max(W, D) - 20 || it.h > (state.ceiling || 250)) continue;
       it.fromKit = true; it.x = room.x + room.w / 2; it.z = room.z + room.d / 2;
       out.push(it);
     }
@@ -1582,12 +1608,15 @@ function renderPlano() {
             <option value="room" ${r.kind === 'room' ? 'selected' : ''}>Habitació</option>
             <option value="terrace" ${r.kind === 'terrace' ? 'selected' : ''}>Terrassa</option>
             <option value="void" ${r.kind === 'void' ? 'selected' : ''}>Buit (no habitable)</option>
+            <option value="pillar" ${r.kind === 'pillar' ? 'selected' : ''}>Pilar (de terra a sostre)</option>
+            <option value="beam" ${r.kind === 'beam' ? 'selected' : ''}>Biga (penjada del sostre)</option>
           </select></label>
         </div>
         <div class="row c4">
           <label>Amplada<input type="number" data-k="w" min="20" value="${r.w}" /></label>
           <label>Fons<input type="number" data-k="d" min="20" value="${r.d}" /></label>
           ${r.kind === 'terrace' ? `<label title="Fons a l’extrem dret si la vora exterior va en diagonal (0 = recta)">Fons dreta<input type="number" data-k="d2" min="0" value="${r.d2 || 0}" /></label>` : ''}
+          ${r.kind === 'beam' ? `<label title="Alçada de la part de sota de la biga">Alçada de sota<input type="number" data-k="h0" min="100" value="${r.h0 || 210}" /></label>` : ''}
           <label>X<input type="number" data-k="x" value="${r.x}" /></label>
           <label>Z<input type="number" data-k="z" value="${r.z}" /></label>
         </div>
@@ -1842,7 +1871,6 @@ if (cloudEnabled) {
       document.getElementById('gate').hidden = true;
       const acc = document.getElementById('account');
       acc.hidden = false;
-      acc.querySelector('.who').textContent = u.email;
       cloudCount('reads');
       if (initial) { history.past = []; history.future = []; const v = initial.version || 1; cloudBase = clone(initial); state = migratePlan(initial); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
       else save();
@@ -1859,7 +1887,6 @@ if (cloudEnabled) {
       if (!needsResave) setSync('Actualitzat per ' + by);
     },
   }).catch((e) => showGate(`<p class="gate-err">Error en carregar Firebase: ${esc(e.message)}</p>`));
-  document.getElementById('signout').addEventListener('click', () => signOutUser());
   document.getElementById('sync-btn').addEventListener('click', syncNow);
 }
 
@@ -1902,10 +1929,12 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v22',
+  version: 'v23',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
+  ceiling: () => state.ceiling || 250,
+  structs: () => structItems(state.rooms),
   wallThickness: () => state.wallThickness || 10,
   currentRoom: () => { const it = itemById(ui.selected); return (it && roomById(it.roomId)) || roomById(ui.layoutRoom) || usableRooms()[0] || null; },
   addItems: (type, props, qty, roomId) => addItems(type, props, qty, roomId),
@@ -1945,6 +1974,7 @@ const api = {
   setToggle: (what, on) => { const cb = $('#' + what); if (cb) { cb.checked = on; cb.dispatchEvent(new Event('change')); } },
   setView: (v) => setView(v),
   sync: syncNow, toggleDoor,
+  signOut: () => signOutUser(), userEmail: () => currentUserEmail(),
   setShadows: (on) => { if (renderer.shadowMap.enabled !== on) { renderer.shadowMap.enabled = on; scene.traverse((o) => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach((m) => { m.needsUpdate = true; }); } }); requestRender(); } },
   renderDades: (el) => renderDatos(el),
   getCamera, applyCamera, simulate,

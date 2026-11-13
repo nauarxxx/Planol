@@ -4,7 +4,7 @@
 // las mejores que sean distintas entre sí.
 
 import { CATALOG } from './furniture.js';
-import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, DEG } from './geom.js';
+import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, structItems, DEG } from './geom.js';
 
 function mulberry32(seed) {
   return function () {
@@ -105,7 +105,14 @@ function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
     const k = { x0: Math.max(sw.x0, R.x0), x1: Math.min(sw.x1, R.x1), z0: Math.max(sw.z0, R.z0), z1: Math.min(sw.z1, R.z1) };
     if (k.x1 - k.x0 > 5 && k.z1 - k.z0 > 5) keepouts.push({ ...k, window: false, wall: null, swing: true });
   }
-  const doorWalls = new Set(keepouts.filter((k) => !k.window).map((k) => k.wall));
+  // Pilars: no s'hi pot posar res. Bigues: només hi caben mobles més baixos que la biga.
+  for (const st of structItems(allRooms)) {
+    const k = { x0: Math.max(st.x0, R.x0), x1: Math.min(st.x1, R.x1), z0: Math.max(st.z0, R.z0), z1: Math.min(st.z1, R.z1) };
+    if (k.x1 - k.x0 <= 1 || k.z1 - k.z0 <= 1) continue;
+    if (st.kind === 'pillar') keepouts.push({ ...k, window: false, wall: null, solid: true });
+    else keepouts.push({ ...k, window: false, wall: null, beam: st.h0 });
+  }
+  const doorWalls = new Set(keepouts.filter((k) => !k.window && !k.solid && k.beam === undefined).map((k) => k.wall));
 
   const locked = roomItems.filter((i) => i.locked);
   const free = roomItems.filter((i) => !i.locked);
@@ -159,7 +166,7 @@ function buildCandidate(free, locked, R, rand, doorWalls, keepouts) {
   // Posición en una pared que no tape puertas (ni ventanas si el mueble es alto).
   const blocks = (it, p) => {
     const b = aabb({ ...it, ...p });
-    return keepouts.some((k) => (!k.window || it.h + (it.elev || 0) >= 110) && rectOverlapArea(b, k) > 0);
+    return keepouts.some((k) => (!k.window || it.h + (it.elev || 0) >= 110) && (k.beam === undefined || it.h + (it.elev || 0) > k.beam) && rectOverlapArea(b, k) > 0);
   };
   const collides = (it, p) => {
     const c = { ...it, ...p };
@@ -463,7 +470,7 @@ function accessibility(items, R, keepouts) {
   const occ = new Uint8Array(W * D);
   const solid = items.filter((i) => roleOf(i) !== 'rug' && (i.elev || 0) < 120);
   const boxes = solid.map((i) => aabb(i));
-  for (const b of boxes) {
+  for (const b of [...boxes, ...keepouts.filter((k) => k.solid)]) {
     const i0 = Math.max(0, Math.floor((b.x0 - R.x0) / CELL)), i1 = Math.min(W - 1, Math.floor((b.x1 - R.x0 - 0.01) / CELL));
     const j0 = Math.max(0, Math.floor((b.z0 - R.z0) / CELL)), j1 = Math.min(D - 1, Math.floor((b.z1 - R.z0 - 0.01) / CELL));
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) occ[j * W + i] = 1;
@@ -485,7 +492,7 @@ function accessibility(items, R, keepouts) {
   const seen = new Uint8Array(W * D);
   const queue = [];
   for (const k of keepouts) {
-    if (k.window) continue;
+    if (k.window || k.solid || k.beam !== undefined) continue;
     const i0 = Math.max(0, Math.floor((k.x0 - R.x0) / CELL)), i1 = Math.min(W - 1, Math.floor((k.x1 - R.x0 - 0.01) / CELL));
     const j0 = Math.max(0, Math.floor((k.z0 - R.z0) / CELL)), j1 = Math.min(D - 1, Math.floor((k.z1 - R.z0 - 0.01) / CELL));
     // la finestra de 60 no cap tocant la paret: es busquen transitables fins a 30 cm més endins
@@ -534,8 +541,9 @@ function scoreLayout(pl, free, locked, R, keepouts, dbg = null) {
     if (ra !== 'rug') {
       for (const k of keepouts) {
         if (k.window && A.h + (A.elev || 0) < 110) continue;
+        if (k.beam !== undefined && A.h + (A.elev || 0) <= k.beam) continue;
         const ov = rectOverlapArea(boxes[a], k);
-        if (ov > 0) s += add('puerta:' + A.name, (k.window ? 150 : 500) + ov * 0.3);
+        if (ov > 0) s += add((k.solid ? 'pilar:' : k.beam !== undefined ? 'biga:' : 'puerta:') + A.name, (k.window ? 150 : 500) + ov * 0.3);
       }
     }
     for (let b = a + 1; b < items.length; b++) {

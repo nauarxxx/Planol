@@ -19,6 +19,7 @@ const TYPES = [
   ['muebleTv', ['moble tv', 'moble de tv', 'moble de la tele', 'moble del televisor', 'mueble tv', 'mueble de tv', 'mueble de la tele']],
   ['mesita', ['tauleta de nit', 'tauletes de nit', 'mesita de noche', 'mesitas de noche', 'mesilla', 'mesillas', 'tauleta', 'tauletes']],
   ['escritorio', ['taula d estudi', 'escriptori', 'escriptoris', 'escritorio', 'escritorios']],
+  ['cockpit', ['simulador cockpit', 'cockpit', 'cockpits', 'simulador', 'simuladors', 'simuladores']],
   ['lampara', ['lampada de peu', 'lampada', 'lampades', 'lampara', 'lamparas', 'llum de peu']],
   ['mesa', ['taula', 'taules', 'mesa', 'mesas']],
   ['silla', ['cadira', 'cadires', 'silla', 'sillas']],
@@ -117,10 +118,11 @@ function findRoom(t, rooms) {
 }
 
 // Comprova si un moble (w × d) cap en una habitació amb els mobles que ja hi ha. Torna el millor lloc.
-function fitCheck(spec, room, items, t) {
+function fitCheck(spec, room, items, t, structs = [], ceiling = 250) {
   const R = innerRect(room, t);
   const W = R.x1 - R.x0, D = R.z1 - R.z0;
-  const others = items.filter((i) => i.roomId === room.id && i.type !== 'alfombra');
+  const others = items.filter((i) => i.roomId === room.id && i.type !== 'alfombra').concat(structs.filter((s) => s.roomId === room.id && (s.kind === 'pillar' || (spec.h || 0) > s.h0)));
+  if ((spec.h || 0) > ceiling) return { fits: false, spaceOnly: false, tooTall: true, best: null, R, W, D, others: others.length, ceiling };
   let best = null;
   for (const rot of [0, 90]) {
     const fw = rot ? spec.d : spec.w, fd = rot ? spec.w : spec.d;
@@ -502,7 +504,7 @@ export function initAssistant(api) {
 🧹 ALTRES · «treu la taula del menjador» · «mou el sofà al dormitori» · «què hi ha al dormitori?» · «quant fa la cuina?» · «mostra el llit» · «desfés»
 Les mides van en cm (o en metres si són petites, com 2x1).`;
 
-  function roomsOf() { return api.rooms().filter((r) => r.kind !== 'void'); }
+  function roomsOf() { return api.rooms().filter((r) => !['void', 'pillar', 'beam'].includes(r.kind)); }
   function itemsIn(room) { return api.items().filter((i) => i.roomId === room.id); }
   function typeLabel(key, qty = 1) { const l = CATALOG[key]?.label || key; return qty > 1 ? `${qty} ${l.toLowerCase()}s` : l.toLowerCase(); }
   function specOf(m) { const c = CATALOG[m.key] || CATALOG.caja; return { w: m.dims.w || c.w, d: m.dims.d || c.d, h: m.dims.h || c.h }; }
@@ -576,10 +578,11 @@ Les mides van en cm (o en metres si són petites, com 2x1).`;
       const r = room || api.currentRoom();
       if (!r) { bot(`${prefix}A quina habitació?`); return; }
       const m = mentions[0], s = specOf(m);
-      const res = fitCheck(s, r, api.items(), api.wallThickness());
+      const res = fitCheck(s, r, api.items(), api.wallThickness(), api.structs?.() || [], api.ceiling?.() || 250);
       const label = `${typeLabel(m.key)} de ${dimsText(s)}`;
       if (!res.fits) {
-        if (!res.spaceOnly) bot(`${prefix}No, ${label} no hi cap a ${fmtRoom(r)}: l’interior fa ${Math.round(res.W)}×${Math.round(res.D)} cm.`);
+        if (res.tooTall) bot(`${prefix}No, ${label} és més alt que el sostre (${res.ceiling} cm).`);
+        else if (!res.spaceOnly) bot(`${prefix}No, ${label} no hi cap a ${fmtRoom(r)}: l’interior fa ${Math.round(res.W)}×${Math.round(res.D)} cm.`);
         else bot(`${prefix}L’habitació fa ${Math.round(res.W)}×${Math.round(res.D)} cm, així que de mida hi cabria, però amb els ${res.others} mobles que ja hi ha no hi queda cap forat lliure. Treu-ne algun o digue’m «com ho faries» i ho reorganitzo.`);
         return;
       }
@@ -620,7 +623,7 @@ Les mides van en cm (o en metres si són petites, com 2x1).`;
       // Si només n'hi ha un, abans de posar-lo mirem si hi cap.
       if (mentions.length === 1 && mentions[0].qty === 1) {
         const s = specOf(mentions[0]);
-        const res = fitCheck(s, r, api.items(), api.wallThickness());
+        const res = fitCheck(s, r, api.items(), api.wallThickness(), api.structs?.() || [], api.ceiling?.() || 250);
         if (!res.fits) { bot(`${prefix}${typeLabel(mentions[0].key)} de ${dimsText(s)} no hi cap a ${fmtRoom(r)}${res.spaceOnly ? ' amb els mobles que ja hi ha' : ` (l’interior fa ${Math.round(res.W)}×${Math.round(res.D)} cm)`}. El poso igualment?`); pending = { kind: 'add', room: r, mention: mentions[0] }; return; }
       }
       const its = addMentioned(mentions, r);

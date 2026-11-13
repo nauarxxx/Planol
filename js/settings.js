@@ -170,7 +170,7 @@ export function initSettings(api) {
       <h2>Càmera</h2>
       <p class="note">Col·loca la vista com t’agradi al 3D i desa-la: en obrir l’app o en prémer «Mostra l’estança» tornarà a aquesta vista.</p>
       <div class="row c2">
-        <label>Estança<select id="s-cam-room"><option value="_all">Tot el pis (vista inicial)</option>${(api.rooms?.() || []).filter((r) => r.kind !== 'void').map((r) => `<option value="${esc(r.id)}">${esc(r.name)}${prefs.cams?.[r.id] ? ' ✓' : ''}</option>`).join('')}</select></label>
+        <label>Estança<select id="s-cam-room"><option value="_all">Tot el pis (vista inicial)</option>${(api.rooms?.() || []).filter((r) => !['void', 'pillar', 'beam'].includes(r.kind)).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}${prefs.cams?.[r.id] ? ' ✓' : ''}</option>`).join('')}</select></label>
       </div>
       <div class="btns"><button class="btn secondary small" id="s-cam-save">📷 Desa la vista actual</button><button class="btn secondary small" id="s-cam-go">Vés-hi</button><button class="btn danger small" id="s-cam-del">Esborra</button></div>
       <p class="note" id="s-cam-info">${Object.keys(prefs.cams || {}).length ? `${Object.keys(prefs.cams).length} vistes desades.` : 'Cap vista desada: s’enquadra automàticament.'}</p>
@@ -203,6 +203,9 @@ export function initSettings(api) {
       <p class="note">${c.items} mobles i ${c.rooms} habitacions${c.bkCount ? ` · ${c.bkCount} còpies de seguretat (${fmtKB(c.bkBytes)})` : ''}. Cada canvi es desa com a màxim un cop cada ${(api.cfgGet('saveDelay') / 1000).toLocaleString('ca')} s, i només compten les escriptures d’aquest dispositiu; les de l’altre mòbil s’han de sumar a part. Per veure el total exacte: consola de Firebase → Firestore → Ús.</p>`
       : '<p class="note">El núvol no està configurat en aquest dispositiu.</p>'}
 
+      <h2>Compte</h2>
+      ${api.userEmail?.() ? `<p class="note">Sessió iniciada com <b>${esc(api.userEmail())}</b>.</p><div class="btns"><button class="btn secondary small" id="s-signout">Tanca la sessió</button></div>` : '<p class="note">Sense sessió al núvol en aquest dispositiu.</p>'}
+
       <h2>Altres</h2>
       <p class="note">Versió: ${esc(api.version)} · ${api.standalone ? 'instal·lada com a app' : 'oberta al navegador'}. Les eines de developer (ajustos avançats, còpies de seguretat, estat JSON) s’obren amb <b>3 tocs</b> al botó ⚙, que gira i es posa vermell, i un 4t toc.</p>
       <div class="btns"><button class="btn danger small" id="s-reset-all">Restaura tota la configuració</button></div>`;
@@ -231,6 +234,7 @@ export function initSettings(api) {
     for (const [id, k] of [['s-autoopen', 'autoOpen'], ['s-hint', 'hint'], ['s-shadows', 'shadows'], ['s-confirmdel', 'confirmDel'], ['s-unitlabel', 'unitLabel'], ['s-vib', 'vib']]) {
       body.querySelector('#' + id).addEventListener('change', (e) => set(k, e.target.checked ? 1 : 0));
     }
+    body.querySelector('#s-signout')?.addEventListener('click', () => { close(); api.signOut(); });
     body.querySelector('#s-wtest').addEventListener('click', () => api.walleSay(true));
     body.querySelector('#s-vtest').addEventListener('click', () => api.sayTest());
     body.querySelector('#s-reset-all').addEventListener('click', () => { prefs = { ...PREFS_DEFAULT, cams: {} }; savePrefs(); applyPrefs(api); render(); });

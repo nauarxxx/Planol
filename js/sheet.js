@@ -20,6 +20,7 @@ export function drawPlan(cv, st, opts = {}) {
   // terres
   for (const r of rooms) {
     if (r.kind === 'void') { ctx.fillStyle = '#8a8e93'; ctx.fillRect(X(r.x), Z(r.z), r.w * s, r.d * s); continue; }
+    if (r.kind === 'pillar' || r.kind === 'beam') { ctx.fillStyle = r.kind === 'pillar' ? '#2b2926' : 'rgba(43,41,38,.35)'; ctx.fillRect(X(r.x), Z(r.z), r.w * s, r.d * s); continue; }
     ctx.fillStyle = r.color || '#c89b6a'; ctx.globalAlpha = 0.28;
     if (r.kind === 'terrace' && r.d2 > 0 && r.d2 < r.d) {
       ctx.beginPath(); ctx.moveTo(X(r.x), Z(r.z)); ctx.lineTo(X(r.x + r.w), Z(r.z + r.d - r.d2)); ctx.lineTo(X(r.x + r.w), Z(r.z + r.d)); ctx.lineTo(X(r.x), Z(r.z + r.d)); ctx.closePath(); ctx.fill();
@@ -30,7 +31,7 @@ export function drawPlan(cv, st, opts = {}) {
   const t = st.wallThickness || 10;
   ctx.lineWidth = Math.max(2, t * s * 0.8); ctx.strokeStyle = '#2b2926'; ctx.lineJoin = 'miter';
   for (const r of rooms) {
-    if (r.kind === 'void') continue;
+    if (r.kind === 'void' || r.kind === 'pillar' || r.kind === 'beam') continue;
     if (r.kind === 'terrace') { ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5; } else { ctx.setLineDash([]); ctx.lineWidth = Math.max(2, t * s * 0.8); }
     if (r.kind === 'terrace' && r.d2 > 0 && r.d2 < r.d) {
       ctx.beginPath(); ctx.moveTo(X(r.x), Z(r.z)); ctx.lineTo(X(r.x + r.w), Z(r.z + r.d - r.d2)); ctx.lineTo(X(r.x + r.w), Z(r.z + r.d)); ctx.lineTo(X(r.x), Z(r.z + r.d)); ctx.closePath(); ctx.stroke();
@@ -100,7 +101,7 @@ export function drawPlan(cv, st, opts = {}) {
     };
     const done = new Set();
     for (const r of rooms) {
-      if (r.kind === 'void') continue;
+      if (r.kind === 'void' || r.kind === 'pillar' || r.kind === 'beam') continue;
       const topFree = !rooms.some((o) => o !== r && o.z + o.d <= r.z + 1 && o.z + o.d > r.z - 40 && o.x < r.x + r.w && o.x + o.w > r.x);
       const leftFree = !rooms.some((o) => o !== r && o.x + o.w <= r.x + 1 && o.x + o.w > r.x - 40 && o.z < r.z + r.d && o.z + o.d > r.z);
       const kw = 'w' + r.x + ',' + r.z + ',' + r.w, kd = 'd' + r.x + ',' + r.z + ',' + r.d;
@@ -123,7 +124,7 @@ export function printSheet(st, opts = {}) {
   const W = Math.max(...xe) - Math.min(...xs), D = Math.max(...ze) - Math.min(...zs);
   cv.height = Math.round(cv.width * D / W) + 160;
   drawPlan(cv, st, { cotes: true, pad: 80, bg: '#ffffff' });
-  const rooms = st.rooms.filter((r) => r.kind !== 'void');
+  const rooms = st.rooms.filter((r) => !['void', 'pillar', 'beam'].includes(r.kind));
   const byRoom = rooms.map((r) => ({ r, its: st.items.filter((i) => i.roomId === r.id) })).filter((x) => x.its.length);
   const date = new Date().toLocaleDateString('ca', { day: 'numeric', month: 'long', year: 'numeric' });
   sheet.innerHTML = `
