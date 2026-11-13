@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 18, // v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 19, // v19: pilar amb mirall i biga a la cantonada del menjador amb el passadís (foto); v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -104,6 +104,23 @@ export const DEFAULT_PLAN = {
         { wall: 'N', offset: 30, width: 80, type: 'puerta' },
         { wall: 'S', offset: 110, width: 164, type: 'ventanal' },
       ],
+    },
+    // Cantonada del menjador amb el passadís, segons la foto (feta des del menjador mirant cap al passadís):
+    // un pilar que sobresurt de la paret de la tele just al costat del pas, amb el mirall a la cara que mira al menjador,
+    // i a continuació, fins a la terrassa, un racó enfonsat amb una biga a dalt. Mides estimades (pilar 45 × 45, biga de 210 a sostre).
+    {
+      id: 'pilar-pas', name: 'Pilar (mirall)', kind: 'pillar', color: '#f3f1ec',
+      x: 225, z: 745, w: 45, d: 45,
+      notes: 'Pilar al final de la paret de la tele, al costat del pas al passadís; hi ha el mirall a la cara del menjador. Mides estimades a partir de la foto.',
+      estimated: true,
+      openings: [],
+    },
+    {
+      id: 'biga-pas', name: 'Biga del racó', kind: 'beam', color: '#f3f1ec',
+      x: 225, z: 790, w: 45, d: 30, h0: 210,
+      notes: 'Biga damunt del racó enfonsat entre el pilar i la terrassa (de 210 fins al sostre). Mides estimades a partir de la foto.',
+      estimated: true,
+      openings: [],
     },
   ],
   items: [],
