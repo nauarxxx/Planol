@@ -56,10 +56,34 @@ function front(rot) {
   return { x: Math.sin(rot * DEG), z: Math.cos(rot * DEG) };
 }
 
+// Versió síncrona (bloqueja la pantalla uns instants).
 export function generateLayouts(room, roomItems, allRooms, opts = {}) {
+  const g = layoutGenerator(room, roomItems, allRooms, opts);
+  let r = g.next();
+  while (!r.done) r = g.next();
+  return r.value;
+}
+
+// Versió asíncrona: treballa a trossos de ~12 ms perquè la pantalla no es congeli i avisa del progrés.
+export function generateLayoutsAsync(room, roomItems, allRooms, opts = {}, onProgress = null) {
+  return new Promise((resolve) => {
+    const g = layoutGenerator(room, roomItems, allRooms, opts);
+    const step = () => {
+      const t0 = performance.now();
+      let r = g.next();
+      while (!r.done && performance.now() - t0 < 12) r = g.next();
+      if (r.done) return resolve(r.value);
+      onProgress?.(r.value);
+      setTimeout(step, 0);
+    };
+    step();
+  });
+}
+
+function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
   const t = opts.wallThickness ?? 10;
   const count = opts.count ?? 4;
-  const tries = opts.tries ?? 1500;
+  const tries = opts.tries ?? 2000;
   const rand = mulberry32(opts.seed ?? Date.now());
   const R = innerRect(room, t);
   const doors = openingsOnRoom(room, allOpenings(allRooms));
@@ -86,6 +110,7 @@ export function generateLayouts(room, roomItems, allRooms, opts = {}) {
     const pl = buildCandidate(free, locked, R, rand, doorWalls, keepouts);
     const score = scoreLayout(pl, free, locked, R, keepouts);
     candidates.push({ pl, score });
+    if (n % 25 === 24) yield n / tries;
   }
   candidates.sort((a, b) => a.score - b.score);
 
@@ -109,6 +134,7 @@ function rate(score, dbg) {
   const sum = (pre, min = 0) => Object.entries(dbg).filter(([k, v]) => k.startsWith(pre) && v > min).length;
   if (sum('choque:') || sum('fuera:', 5)) return 'Hi ha xocs: no hi cap tot';
   if (sum('puerta:')) return 'Bona, però alguna cosa frega una porta o finestra';
+  if (sum('accés:')) return 'Bona, però a algun moble no s’hi arriba bé';
   if (score < 250) return 'Molt bona';
   return 'Bona';
 }
@@ -421,6 +447,73 @@ function deskSlot(desk, p, chair) {
   return [{ x: p.x + f.x * off, z: p.z + f.z * off, rot: (p.rot + 180) % 360, prio: 1, tableIds: [desk.id] }];
 }
 
+// Quadrícula de 10 cm: una cel·la és "transitable" si al seu voltant hi cap un quadrat lliure de 60 cm.
+// Es fa un ompliment des de les portes i es mira quines cel·les i quins mobles queden sense accés.
+const CELL = 10, CLEAR = 60;
+function accessibility(items, R, keepouts) {
+  const W = Math.ceil((R.x1 - R.x0) / CELL), D = Math.ceil((R.z1 - R.z0) / CELL);
+  if (W < 2 || D < 2) return null;
+  const occ = new Uint8Array(W * D);
+  const solid = items.filter((i) => roleOf(i) !== 'rug' && (i.elev || 0) < 120);
+  const boxes = solid.map((i) => aabb(i));
+  for (const b of boxes) {
+    const i0 = Math.max(0, Math.floor((b.x0 - R.x0) / CELL)), i1 = Math.min(W - 1, Math.floor((b.x1 - R.x0 - 0.01) / CELL));
+    const j0 = Math.max(0, Math.floor((b.z0 - R.z0) / CELL)), j1 = Math.min(D - 1, Math.floor((b.z1 - R.z0 - 0.01) / CELL));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) occ[j * W + i] = 1;
+  }
+  // Taula de sumes acumulades per saber en O(1) si una finestra de 60×60 és lliure.
+  const S = new Int32Array((W + 1) * (D + 1));
+  for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) S[(j + 1) * (W + 1) + i + 1] = occ[j * W + i] + S[j * (W + 1) + i + 1] + S[(j + 1) * (W + 1) + i] - S[j * (W + 1) + i];
+  const n = Math.round(CLEAR / CELL), h = Math.floor(n / 2);
+  const walk = new Uint8Array(W * D);
+  let total = 0;
+  for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) {
+    const i0 = i - h, j0 = j - h, i1 = i0 + n, j1 = j0 + n;
+    if (i0 < 0 || j0 < 0 || i1 > W || j1 > D) continue;
+    const sum = S[j1 * (W + 1) + i1] - S[j0 * (W + 1) + i1] - S[j1 * (W + 1) + i0] + S[j0 * (W + 1) + i0];
+    if (sum === 0) { walk[j * W + i] = 1; total++; }
+  }
+  if (!total) return null;
+  // Llavors: cel·les transitables davant de les portes (si no n'hi ha, es parteix de tot arreu).
+  const seen = new Uint8Array(W * D);
+  const queue = [];
+  for (const k of keepouts) {
+    if (k.window) continue;
+    const i0 = Math.max(0, Math.floor((k.x0 - R.x0) / CELL)), i1 = Math.min(W - 1, Math.floor((k.x1 - R.x0 - 0.01) / CELL));
+    const j0 = Math.max(0, Math.floor((k.z0 - R.z0) / CELL)), j1 = Math.min(D - 1, Math.floor((k.z1 - R.z0 - 0.01) / CELL));
+    // la finestra de 60 no cap tocant la paret: es busquen transitables fins a 30 cm més endins
+    const ex = h;
+    for (let j = Math.max(0, j0 - ex); j <= Math.min(D - 1, j1 + ex); j++) for (let i = Math.max(0, i0 - ex); i <= Math.min(W - 1, i1 + ex); i++) {
+      const c = j * W + i;
+      if (walk[c] && !seen[c]) { seen[c] = 1; queue.push(c); }
+    }
+  }
+  if (!queue.length) return null;
+  let reached = 0;
+  while (queue.length) {
+    const c = queue.pop();
+    reached++;
+    const i = c % W, j = (c - i) / W;
+    if (i > 0 && walk[c - 1] && !seen[c - 1]) { seen[c - 1] = 1; queue.push(c - 1); }
+    if (i < W - 1 && walk[c + 1] && !seen[c + 1]) { seen[c + 1] = 1; queue.push(c + 1); }
+    if (j > 0 && walk[c - W] && !seen[c - W]) { seen[c - W] = 1; queue.push(c - W); }
+    if (j < D - 1 && walk[c + W] && !seen[c + W]) { seen[c + W] = 1; queue.push(c + W); }
+  }
+  const blocked = [];
+  const pad = CLEAR / 2 + CELL;
+  solid.forEach((it, k) => {
+    const role = roleOf(it);
+    if (role === 'seat' || role === 'coffee' || role === 'tv') return; // s'hi arriba des de la taula, el sofà o el moble de la TV
+    const b = boxes[k];
+    const i0 = Math.max(0, Math.floor((b.x0 - pad - R.x0) / CELL)), i1 = Math.min(W - 1, Math.floor((b.x1 + pad - R.x0) / CELL));
+    const j0 = Math.max(0, Math.floor((b.z0 - pad - R.z0) / CELL)), j1 = Math.min(D - 1, Math.floor((b.z1 + pad - R.z0) / CELL));
+    let ok = false;
+    for (let j = j0; j <= j1 && !ok; j++) for (let i = i0; i <= i1; i++) if (seen[j * W + i]) { ok = true; break; }
+    if (!ok) blocked.push(it.name);
+  });
+  return { lostCells: total - reached, blocked };
+}
+
 function scoreLayout(pl, free, locked, R, keepouts, dbg = null) {
   const add = (k, v) => { if (dbg) dbg[k] = (dbg[k] || 0) + v; return v; };
   const { placements, extra } = pl;
@@ -456,9 +549,17 @@ function scoreLayout(pl, free, locked, R, keepouts, dbg = null) {
       } else if (ra !== 'rug') {
         const g = rectGap(boxes[a], boxes[b]);
         const bothSeats = ra === 'seat' && rb === 'seat';
-        if (g > 0.5 && g < 55 && !bothSeats) s += add('paso', (55 - g) * 1.2); // paso estrecho entre muebles
+        if (g > 0.5 && g < 65 && !bothSeats) s += add('paso', (65 - g) * 1.2); // pas estret entre mobles
       }
     }
+  }
+
+  // Accessibilitat: des de la porta s'ha de poder arribar a cada moble per un pas de 60 cm,
+  // i l'espai lliure que queda tancat (sense accés) es penalitza.
+  const acc = accessibility(items, R, keepouts);
+  if (acc) {
+    s += add('tancat', acc.lostCells * 1.5);
+    for (const n of acc.blocked) s += add('accés:' + n, 600);
   }
 
   // TV y sofá: distancia de visión y orientación.

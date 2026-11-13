@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
-import { generateLayouts } from './layout.js';
+import { generateLayouts, generateLayoutsAsync } from './layout.js';
 import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=11';
 import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, DEG } from './geom.js';
 
@@ -897,13 +897,21 @@ function renderDistribuir() {
       <button class="btn" id="d-gen" ${its.length ? '' : 'disabled'}>Genera propostes</button>
       <button class="btn secondary" id="d-focus">Mostra l’habitació</button>
     </div>
+    <div class="progress" id="d-prog" hidden><div class="bar"></div><span></span></div>
     <div class="layouts" id="d-cards"></div>`;
   $('#d-room').addEventListener('change', (e) => { ui.layoutRoom = e.target.value; ui.proposals = []; renderDistribuir(); });
   $('#d-focus').addEventListener('click', () => frameCamera(room));
-  $('#d-gen').addEventListener('click', () => {
+  $('#d-gen').addEventListener('click', async () => {
+    const btn = $('#d-gen'), prog = $('#d-prog');
+    if (btn.disabled) return;
+    btn.disabled = true; prog.hidden = false;
     ui.seed = (ui.seed * 9301 + 49297) % 233280 + Date.now() % 1000;
-    ui.proposals = generateLayouts(room, its, state.rooms, { wallThickness: state.wallThickness, seed: ui.seed, count: 4 });
-    renderProposals(room);
+    const show = (f) => { prog.querySelector('.bar').style.width = Math.round(f * 100) + '%'; prog.querySelector('span').textContent = `Provant col·locacions… ${Math.round(f * 100)} %`; };
+    show(0);
+    ui.proposals = await generateLayoutsAsync(room, its, state.rooms, { wallThickness: state.wallThickness, seed: ui.seed, count: 4 }, show);
+    if (!$('#d-gen')) return; // la pestanya s'ha tornat a dibuixar mentrestant
+    $('#d-gen').disabled = false; $('#d-prog').hidden = true;
+    renderProposals(roomById(ui.layoutRoom));
   });
   renderProposals(room);
 }
