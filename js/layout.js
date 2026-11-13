@@ -4,7 +4,7 @@
 // las mejores que sean distintas entre sí.
 
 import { CATALOG } from './furniture.js';
-import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, DEG } from './geom.js';
+import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, DEG } from './geom.js';
 
 function mulberry32(seed) {
   return function () {
@@ -85,6 +85,7 @@ function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
   const count = opts.count ?? 4;
   const tries = opts.tries ?? 2000;
   const rand = mulberry32(opts.seed ?? Date.now());
+  CLEAR = opts.clear ?? 60; GAPMIN = opts.gapMin ?? 65;
   const R = innerRect(room, t);
   const doors = openingsOnRoom(room, allOpenings(allRooms));
 
@@ -99,6 +100,11 @@ function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
     if (o.wall === 'E') r = { x0: R.x1 - depth, x1: R.x1, z0: o.a, z1: o.b };
     return { ...r, window: isWin, wall: o.wall };
   });
+  // Batents de les portes que cauen dins de l'habitació: tampoc s'hi pot posar res.
+  for (const sw of allSwings(allRooms)) {
+    const k = { x0: Math.max(sw.x0, R.x0), x1: Math.min(sw.x1, R.x1), z0: Math.max(sw.z0, R.z0), z1: Math.min(sw.z1, R.z1) };
+    if (k.x1 - k.x0 > 5 && k.z1 - k.z0 > 5) keepouts.push({ ...k, window: false, wall: null, swing: true });
+  }
   const doorWalls = new Set(keepouts.filter((k) => !k.window).map((k) => k.wall));
 
   const locked = roomItems.filter((i) => i.locked);
@@ -449,7 +455,8 @@ function deskSlot(desk, p, chair) {
 
 // Quadrícula de 10 cm: una cel·la és "transitable" si al seu voltant hi cap un quadrat lliure de 60 cm.
 // Es fa un ompliment des de les portes i es mira quines cel·les i quins mobles queden sense accés.
-const CELL = 10, CLEAR = 60;
+const CELL = 10;
+let CLEAR = 60, GAPMIN = 65; // es fixen a cada generació des dels ajustos avançats
 function accessibility(items, R, keepouts) {
   const W = Math.ceil((R.x1 - R.x0) / CELL), D = Math.ceil((R.z1 - R.z0) / CELL);
   if (W < 2 || D < 2) return null;
@@ -549,7 +556,7 @@ function scoreLayout(pl, free, locked, R, keepouts, dbg = null) {
       } else if (ra !== 'rug') {
         const g = rectGap(boxes[a], boxes[b]);
         const bothSeats = ra === 'seat' && rb === 'seat';
-        if (g > 0.5 && g < 65 && !bothSeats) s += add('paso', (65 - g) * 1.2); // pas estret entre mobles
+        if (g > 0.5 && g < GAPMIN && !bothSeats) s += add('paso', (GAPMIN - g) * 1.2); // pas estret entre mobles
       }
     }
   }

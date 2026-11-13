@@ -1,24 +1,37 @@
-// Configuració de l'app: tema i colors, mida de la lletra, assistent, ús del núvol.
+// Configuració de l'app: tema i colors, mida de la lletra, assistent, ús del núvol, dades (exporta, escenes, PDF…).
 // Les preferències són d'aquest dispositiu (localStorage), no es pugen al núvol.
+// El botó ⚙ és una moneda: 1 toc → configuració normal · 3 tocs → gira, es posa vermell · un 4t toc → eines de developer.
 
 const PREFS_KEY = 'planta3d-prefs';
 export const PREFS_DEFAULT = {
-  theme: 'auto',       // auto | light | dark
+  theme: 'dark',       // dark | light | auto (el fosc és el que es mostra per defecte)
   accent: '', bg: '', panel: '', ink: '', // buit = color del tema
   wall3d: '#f3f1ec', bg3d: '#e9e6e0',
   font: 'm',           // s | m | l
   wvol: 60,            // volum del so de WALL-E (0 = silenci)
   voice: 2,            // assistent: 0 només text · 1 només veu · 2 text i veu
   autoOpen: 0,         // obrir l'assistent en entrar
+  hint: 1,             // mostra la línia d'ajuda de sota del 3D
+  shadows: 1,          // ombres al 3D (desactiva-les si el mòbil va lent)
+  confirmDel: 0,       // demana confirmació abans d'eliminar un moble
+  startView: '3d',     // vista en obrir: 3d | top
+  v2: 1,
 };
 export let prefs = { ...PREFS_DEFAULT };
-try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}')); } catch (e) { /* res */ }
+try {
+  const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+  Object.assign(prefs, saved);
+  if (!saved.v2) { prefs.theme = 'dark'; prefs.v2 = 1; } // des de la v21 el tema fosc és el que surt per defecte
+} catch (e) { /* res */ }
 
 export function savePrefs() {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* res */ }
 }
 
 const FONT = { s: '14px', m: '16px', l: '18px' };
+export function isDark() {
+  return prefs.theme === 'dark' || (prefs.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
 export function applyPrefs(api) {
   const root = document.documentElement;
   if (prefs.theme === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', prefs.theme);
@@ -26,7 +39,11 @@ export function applyPrefs(api) {
     if (prefs[k]) root.style.setProperty('--' + k, prefs[k]); else root.style.removeProperty('--' + k);
   }
   root.style.fontSize = FONT[prefs.font] || FONT.m;
+  const hint = document.getElementById('hint'); if (hint) hint.classList.toggle('off', !+prefs.hint);
+  const tb = document.getElementById('theme-btn');
+  if (tb) { const d = isDark(); tb.textContent = d ? '☀️' : '🌙'; tb.title = d ? 'Mode clar' : 'Mode fosc'; tb.setAttribute('aria-label', tb.title); }
   api?.setScenePrefs?.({ wall: prefs.wall3d, bg: prefs.bg3d });
+  api?.setShadows?.(!!+prefs.shadows);
 }
 
 const fmtKB = (b) => (b / 1024).toLocaleString('ca', { maximumFractionDigits: 1 }) + ' KB';
@@ -38,17 +55,52 @@ const FREE = { docBytes: 1048576, writesDay: 20000, readsDay: 50000, storageByte
 export function initSettings(api) {
   const modal = document.getElementById('settings');
   const body = modal.querySelector('.modal-body');
+  const btn = document.getElementById('settings-btn');
   const open = () => { render(); modal.hidden = false; };
   const close = () => { modal.hidden = true; };
-  document.getElementById('settings-btn').addEventListener('click', open);
   modal.querySelector('#settings-close').addEventListener('click', close);
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+  // ---- moneda: 3 tocs dins del temps «tap» la giren (vermella); mentre està desbloquejada, un toc obre el mode developer.
+  const hop = () => { btn.classList.remove('hop'); void btn.offsetWidth; btn.classList.add('hop'); setTimeout(() => btn.classList.remove('hop'), 950); };
+  let armed = false, armT = 0, openT = 0, devOpen = false;
+  const taps = [];
+  function arm() {
+    armed = true; clearTimeout(armT);
+    btn.classList.add('flipped'); hop();
+    btn.title = 'Eines de developer (toca una altra vegada)';
+    armT = setTimeout(relock, api.cfgGet('coin'));
+  }
+  function relock() {
+    clearTimeout(armT); clearTimeout(openT); taps.length = 0;
+    if (!armed && !devOpen) return;
+    armed = false; devOpen = false;
+    btn.classList.remove('flipped'); hop();
+    btn.title = 'Configuració';
+  }
+  btn.addEventListener('click', () => {
+    if (devOpen) { api.dev.close(); return; }
+    if (armed) { clearTimeout(armT); armed = false; devOpen = true; api.dev.open(); return; } // 4t toc
+    if (!modal.hidden) { close(); return; }
+    const now = Date.now(), win = api.cfgGet('tap');
+    while (taps.length && now - taps[0] > win) taps.shift();
+    taps.push(now); clearTimeout(openT);
+    if (taps.length >= 3) { taps.length = 0; arm(); return; }
+    openT = setTimeout(() => { taps.length = 0; open(); }, api.cfgGet('aiwait'));
+  });
+  api.onDevClose = relock;
+
+  // ---- botó ràpid de mode fosc / clar
+  const tb = document.getElementById('theme-btn');
+  tb?.addEventListener('click', () => { prefs.theme = isDark() ? 'light' : 'dark'; savePrefs(); applyPrefs(api); if (!modal.hidden) render(); });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (prefs.theme === 'auto') applyPrefs(api); });
 
   const cur = (k) => prefs[k] || getComputedStyle(document.documentElement).getPropertyValue('--' + k).trim() || '#000000';
   const toHex = (c) => {
     if (/^#[0-9a-f]{6}$/i.test(c)) return c;
     const ctx = document.createElement('canvas').getContext('2d'); ctx.fillStyle = c; return ctx.fillStyle;
   };
+  const chk = (id, k, label) => `<label class="chk"><input type="checkbox" id="${id}" ${+prefs[k] ? 'checked' : ''}/> ${label}</label>`;
 
   function render() {
     const c = api.cloudInfo();
@@ -58,9 +110,9 @@ export function initSettings(api) {
       <h2>Aspecte</h2>
       <div class="row c2">
         <label>Tema<select id="s-theme">
-          <option value="auto" ${prefs.theme === 'auto' ? 'selected' : ''}>Automàtic (segons el sistema)</option>
+          <option value="dark" ${prefs.theme === 'dark' ? 'selected' : ''}>Fosc (per defecte)</option>
           <option value="light" ${prefs.theme === 'light' ? 'selected' : ''}>Clar</option>
-          <option value="dark" ${prefs.theme === 'dark' ? 'selected' : ''}>Fosc</option>
+          <option value="auto" ${prefs.theme === 'auto' ? 'selected' : ''}>Automàtic (segons el sistema)</option>
         </select></label>
         <label>Mida de la lletra<select id="s-font">
           <option value="s" ${prefs.font === 's' ? 'selected' : ''}>Petita</option>
@@ -80,6 +132,18 @@ export function initSettings(api) {
       </div>
       <div class="btns"><button class="btn secondary small" id="s-reset-colors">Restaura els colors</button></div>
 
+      <h2>Funcionament</h2>
+      <div class="row c2">
+        <label>Vista en obrir<select id="s-startview">
+          <option value="3d" ${prefs.startView === '3d' ? 'selected' : ''}>3D</option>
+          <option value="top" ${prefs.startView === 'top' ? 'selected' : ''}>Planta</option>
+        </select></label>
+      </div>
+      ${chk('s-shadows', 'shadows', 'Ombres al 3D (desactiva-les si el mòbil va lent)')}
+      ${chk('s-hint', 'hint', 'Mostra la línia d’ajuda a sota del 3D')}
+      ${chk('s-confirmdel', 'confirmDel', 'Demana confirmació abans d’eliminar un moble')}
+      ${chk('s-autoopen', 'autoOpen', 'Obre l’assistent en entrar')}
+
       <h2>Assistent WALL-E</h2>
       <div class="row c2">
         <label>Volum del so (${prefs.wvol} %)<input type="range" id="s-wvol" min="0" max="100" step="5" value="${prefs.wvol}" /></label>
@@ -92,35 +156,42 @@ export function initSettings(api) {
       <p class="note">${esc(api.voiceInfo())}</p>
       <div class="btns"><button class="btn secondary small" id="s-wtest">Prova el so</button><button class="btn secondary small" id="s-vtest">Prova la veu</button></div>
 
+      <div id="s-dades"></div>
+
       <h2>Núvol (Firebase, pla gratuït)</h2>
       ${c.enabled ? `
       <p class="note">Tot el plànol es desa en un sol document. Firestore limita cada document a <b>1 MB</b>; el pla gratuït dóna <b>1 GB</b> d’espai, <b>20.000 escriptures</b> i <b>50.000 lectures</b> al dia.</p>
       <div class="stat"><span>Mida del plànol desat</span><b>${fmtKB(c.bytes)} de ${fmtKB(FREE.docBytes)} (${pct(c.bytes, FREE.docBytes)} %)</b></div>${bar(c.bytes, FREE.docBytes)}
       <div class="stat"><span>Escriptures avui, des d’aquest dispositiu</span><b>${c.writes} de ${FREE.writesDay.toLocaleString('ca')}</b></div>${bar(c.writes, FREE.writesDay)}
       <div class="stat"><span>Lectures avui, des d’aquest dispositiu</span><b>${c.reads} de ${FREE.readsDay.toLocaleString('ca')}</b></div>${bar(c.reads, FREE.readsDay)}
-      <div class="stat"><span>Espai total que ocupa l’app al núvol</span><b>≈ ${fmtKB(c.bytes)} de 1 GB (${pct(c.bytes, FREE.storageBytes)} %)</b></div>
-      <p class="note">${c.items} mobles i ${c.rooms} habitacions. Cada canvi es desa com a màxim un cop cada 0,8 s, i només compten les escriptures d’aquest dispositiu; les de l’altre mòbil s’han de sumar a part. Per veure el total exacte: consola de Firebase → Firestore → Ús.</p>`
+      <div class="stat"><span>Espai total que ocupa l’app al núvol</span><b>≈ ${fmtKB(c.bytes + (c.bkBytes || 0))} de 1 GB (${pct(c.bytes + (c.bkBytes || 0), FREE.storageBytes)} %)</b></div>
+      <p class="note">${c.items} mobles i ${c.rooms} habitacions${c.bkCount ? ` · ${c.bkCount} còpies de seguretat (${fmtKB(c.bkBytes)})` : ''}. Cada canvi es desa com a màxim un cop cada ${(api.cfgGet('saveDelay') / 1000).toLocaleString('ca')} s, i només compten les escriptures d’aquest dispositiu; les de l’altre mòbil s’han de sumar a part. Per veure el total exacte: consola de Firebase → Firestore → Ús.</p>`
       : '<p class="note">El núvol no està configurat en aquest dispositiu.</p>'}
 
       <h2>Altres</h2>
-      <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="s-autoopen" ${+prefs.autoOpen ? 'checked' : ''}/> Obre l’assistent en entrar</label>
-      <p class="note">Versió: ${esc(api.version)} · ${api.standalone ? 'instal·lada com a app' : 'oberta al navegador'}.</p>
+      <p class="note">Versió: ${esc(api.version)} · ${api.standalone ? 'instal·lada com a app' : 'oberta al navegador'}. Les eines de developer (ajustos avançats, còpies de seguretat, estat JSON) s’obren amb <b>3 tocs</b> al botó ⚙, que gira i es posa vermell, i un 4t toc.</p>
       <div class="btns"><button class="btn danger small" id="s-reset-all">Restaura tota la configuració</button></div>`;
+
+    api.renderDades?.(body.querySelector('#s-dades'));
 
     const set = (k, v) => { prefs[k] = v; savePrefs(); applyPrefs(api); };
     body.querySelector('#s-theme').addEventListener('change', (e) => set('theme', e.target.value));
     body.querySelector('#s-font').addEventListener('change', (e) => set('font', e.target.value));
+    body.querySelector('#s-startview').addEventListener('change', (e) => set('startView', e.target.value));
     body.querySelectorAll('[data-pref]').forEach((inp) => inp.addEventListener('input', () => set(inp.dataset.pref, inp.value)));
     body.querySelector('#s-reset-colors').addEventListener('click', () => {
       for (const k of ['accent', 'bg', 'panel', 'ink']) prefs[k] = '';
-      prefs.wall3d = PREFS_DEFAULT.wall3d; prefs.bg3d = PREFS_DEFAULT.bg3d; prefs.theme = 'auto';
+      prefs.wall3d = PREFS_DEFAULT.wall3d; prefs.bg3d = PREFS_DEFAULT.bg3d; prefs.theme = 'dark';
       savePrefs(); applyPrefs(api); render();
     });
     body.querySelector('#s-wvol').addEventListener('input', (e) => { set('wvol', +e.target.value); e.target.parentElement.firstChild.textContent = `Volum del so (${prefs.wvol} %)`; });
     body.querySelector('#s-voice').addEventListener('change', (e) => set('voice', +e.target.value));
-    body.querySelector('#s-autoopen').addEventListener('change', (e) => set('autoOpen', e.target.checked ? 1 : 0));
+    for (const [id, k] of [['s-autoopen', 'autoOpen'], ['s-hint', 'hint'], ['s-shadows', 'shadows'], ['s-confirmdel', 'confirmDel']]) {
+      body.querySelector('#' + id).addEventListener('change', (e) => set(k, e.target.checked ? 1 : 0));
+    }
     body.querySelector('#s-wtest').addEventListener('click', () => api.walleSay(true));
     body.querySelector('#s-vtest').addEventListener('click', () => api.sayTest());
     body.querySelector('#s-reset-all').addEventListener('click', () => { prefs = { ...PREFS_DEFAULT }; savePrefs(); applyPrefs(api); render(); });
   }
+  return { open, close, render, relock };
 }

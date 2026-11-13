@@ -7,7 +7,8 @@
 
 import { CATALOG } from './furniture.js';
 import { innerRect, overlaps, aabb, DEG } from './geom.js';
-import { prefs } from './settings.js';
+import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js';
+import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/·/g, '').replace(/[’'`´]/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -156,10 +157,15 @@ function describePlacement(it, p, R) {
 export function initAssistant(api) {
   const fab = document.getElementById('ai-fab');
   const panel = document.getElementById('ai-panel');
-  const msgs = panel.querySelector('.ai-msgs');
-  const form = panel.querySelector('form');
-  const input = panel.querySelector('textarea');
-  const mic = panel.querySelector('.ai-mic');
+  const rpanel = document.getElementById('r-panel');
+  // Dos assistents: el normal (ai) i el d'ordres, vermell (r). `cur` diu a quin panell van els missatges.
+  const P = {
+    ai: { panel, msgs: panel.querySelector('.ai-msgs'), form: panel.querySelector('form'), input: panel.querySelector('textarea'), mic: panel.querySelector('.ai-mic') },
+    r: { panel: rpanel, msgs: rpanel.querySelector('.ai-msgs'), form: rpanel.querySelector('form'), input: rpanel.querySelector('textarea'), mic: rpanel.querySelector('.ai-mic') },
+  };
+  let cur = 'ai';
+  const msgsOf = () => P[cur].msgs, inputOf = () => P[cur].input, micOf = () => P[cur].mic;
+  const { form, input, mic } = P.ai;
   let pending = null; // acció proposada a l'espera d'un «sí»
   let greeted = false;
 
@@ -184,7 +190,7 @@ export function initAssistant(api) {
     const v = Math.max(0, Math.min(1, (+prefs.wvol || 0) / 100));
     if (v <= 0) return;
     const now = Date.now();
-    if (!force && now - lastSay < 2000) return;
+    if (!force && now - lastSay < (api.cfgGet ? api.cfgGet('wgap') : 2000)) return;
     lastSay = now;
     try {
       if (!audio) { audio = new Audio('audio/walle.mp3'); audio.preload = 'auto'; audio.playsInline = true; }
@@ -218,8 +224,10 @@ export function initAssistant(api) {
     } catch (e) { return false; }
   }
   const sayStop = () => { if (TTS) try { speechSynthesis.cancel(); } catch (e) { /* res */ } };
-  function micStop() { if (recog) { const r = recog; recog = null; try { r.abort(); } catch (e) { /* res */ } } mic.classList.remove('on'); }
-  function micStart() {
+  function micStop() { if (recog) { const r = recog; recog = null; try { r.abort(); } catch (e) { /* res */ } } P.ai.mic.classList.remove('on'); P.r.mic.classList.remove('on'); }
+  function micStart(which = cur) {
+    cur = which;
+    const mic = micOf(), input = inputOf();
     if (!SR) { bot('🎤 Aquest navegador no pot escoltar. Prova amb Chrome (Android/PC) o Safari (iPhone).'); return; }
     if (recog) { micStop(); return; }
     sayStop();
@@ -239,13 +247,14 @@ export function initAssistant(api) {
       if (recog !== r) return;
       recog = null;
       const q = (final || input.value).trim(); input.value = '';
-      if (q) ask(q);
+      if (q) (which === 'r' ? rAsk : ask)(q);
     };
     try { r.start(); } catch (e) { micStop(); bot('🎤 No s’ha pogut obrir el micròfon.'); }
   }
 
   // ---- missatges ----
   function add(cls, html) {
+    const msgs = msgsOf();
     const d = document.createElement('div');
     d.className = 'ai-m ' + cls; d.innerHTML = html;
     msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
@@ -262,17 +271,228 @@ export function initAssistant(api) {
     panel.hidden = !show;
     fab.setAttribute('aria-expanded', show ? 'true' : 'false');
     if (show) {
+      cur = 'ai';
+      if (adminOn) adminClose();
       walleSay();
       if (!greeted) { greeted = true; bot('Hola! Sóc WALL-E 🤖 Digue’m coses com «posa una taula de 100x100 al menjador», «hi cap un sofà de 220 al dormitori?» o «com posaries els mobles del menjador?». Escriu «ajuda» per veure-ho tot.'); }
       mic.hidden = !SR || +prefs.voice === 0;
       if (+prefs.voice !== 1) input.focus();
     } else { micStop(); sayStop(); }
   }
-  fab.addEventListener('click', () => open());
+  // El robot: un toc = assistent normal · 3 tocs el giren (cara vermella) · el 4t obre l'assistent d'ordres (si no, torna sol).
+  const hop = (b) => { b.classList.remove('hop'); void b.offsetWidth; b.classList.add('hop'); setTimeout(() => b.classList.remove('hop'), 950); };
+  let adminOn = false, aiArmed = false, aiArmT = 0, aiOpenT = 0;
+  const aiTaps = [];
+  function aiArm() {
+    aiArmed = true; clearTimeout(aiArmT);
+    fab.classList.add('flipped'); hop(fab);
+    fab.setAttribute('aria-label', 'Obre l’assistent d’ordres (toca una altra vegada)');
+    aiArmT = setTimeout(aiDisarm, api.cfgGet('coin'));
+  }
+  function aiDisarm() {
+    clearTimeout(aiArmT); clearTimeout(aiOpenT); aiTaps.length = 0;
+    if (!aiArmed) return;
+    aiArmed = false;
+    if (!adminOn) { fab.classList.remove('flipped'); hop(fab); fab.setAttribute('aria-label', 'Obre l’assistent WALL-E'); }
+  }
+  function adminOpen() {
+    clearTimeout(aiArmT); aiArmed = false;
+    if (!panel.hidden) open(false);
+    adminOn = true; cur = 'r';
+    fab.classList.add('flipped');
+    fab.setAttribute('aria-label', 'Tanca l’assistent d’ordres');
+    rpanel.hidden = false;
+    P.r.mic.hidden = !SR || +prefs.voice === 0;
+    if (!P.r.msgs.children.length) rGreet();
+    if (+prefs.voice !== 1) P.r.input.focus();
+  }
+  function adminClose() {
+    aiDisarm(); micStop(); sayStop();
+    if (!adminOn) return;
+    adminOn = false; cur = 'ai';
+    rpanel.hidden = true;
+    fab.classList.remove('flipped'); hop(fab);
+    fab.setAttribute('aria-label', 'Obre l’assistent WALL-E');
+  }
+  fab.addEventListener('click', () => {
+    if (adminOn) { adminClose(); return; }
+    if (aiArmed) { adminOpen(); return; } // 4t toc
+    if (!panel.hidden) { clearTimeout(aiOpenT); aiTaps.length = 0; open(false); return; }
+    const now = Date.now(), win = api.cfgGet('tap');
+    while (aiTaps.length && now - aiTaps[0] > win) aiTaps.shift();
+    aiTaps.push(now); clearTimeout(aiOpenT);
+    if (aiTaps.length >= 3) { aiTaps.length = 0; aiArm(); return; } // 3 tocs: gira la moneda
+    aiOpenT = setTimeout(() => { aiTaps.length = 0; open(true); }, api.cfgGet('aiwait'));
+  });
   panel.querySelector('.ai-close').addEventListener('click', () => open(false));
   form.addEventListener('submit', (e) => { e.preventDefault(); const q = input.value.trim(); if (!q) return; input.value = ''; ask(q); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
-  mic.addEventListener('click', micStart);
+  mic.addEventListener('click', () => micStart('ai'));
+  rpanel.querySelector('.ai-close').addEventListener('click', adminClose);
+  P.r.form.addEventListener('submit', (e) => { e.preventDefault(); const q = P.r.input.value.trim(); if (!q) return; P.r.input.value = ''; rAsk(q); });
+  P.r.input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); P.r.form.requestSubmit(); } });
+  P.r.mic.addEventListener('click', () => micStart('r'));
+  rpanel.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); adminClose(); } });
+
+  // ---- 🔴 assistent d'ordres (WALL-E malvat): canvia ajustos i l'estat, sempre amb confirmació ----
+  function rBtns(d, items, cls) {
+    const box = document.createElement('div'); box.className = cls;
+    items.forEach((it) => { const b = document.createElement('button'); b.type = 'button'; b.className = it.cls || 'sbtn'; b.textContent = it.text; b.onclick = it.fn; box.appendChild(b); });
+    d.appendChild(box); msgsOf().scrollTop = msgsOf().scrollHeight; return box;
+  }
+  const rSuggest = (d, qs) => rBtns(d, qs.map((q) => ({ text: q, fn: () => rAsk(q) })), 'aisug');
+  function rGreet() {
+    cur = 'r';
+    const d = add('bot', esc('Mode ordres activat 🔴\nPuc canviar ajustos i tocar el plànol directament. Sempre et demano confirmació abans de fer res, i tot queda a ↶ Desfés.').replace(/\n/g, '<br>'));
+    say('Mode ordres activat.');
+    rSuggest(d, ['Què puc fer?', 'Resum', 'Quins són els ajustos?']);
+  }
+  function rConfirm(text, apply) {
+    const d = add('bot', esc(text).replace(/\n/g, '<br>'));
+    say(text);
+    let box;
+    const lock = () => box.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    box = rBtns(d, [
+      { text: '✓ Confirma', cls: 'rok', fn: () => { if (box.querySelector('button').disabled) return; lock(); let res; try { res = apply(); } catch (err) { console.error(err); res = '⚠️ No ho he pogut fer. Torna-ho a provar.'; } Promise.resolve(res).then((r) => bot(r || 'Fet ✓')); } },
+      { text: '✕ Cancel·la', cls: 'rno', fn: () => { if (box.querySelector('button').disabled) return; lock(); bot('D’acord, no canvio res.'); } },
+    ], 'rconf');
+  }
+  const CFG_WORDS = [
+    ['tap', /triple toc/], ['aiwait', /toc simple|espera del toc/], ['coin', /moneda/], ['wgap', /repetici/], ['histMax', /desfes|historial/], ['saveDelay', /retard|desat al nuvol/],
+    ['tries', /intents/], ['count', /propostes/], ['clear', /pas lliure|accessibilitat/], ['gapMin', /pas (minim )?entre|pas entre mobles/], ['walkSpeed', /velocitat/], ['eyeHeight', /alcada dels ulls|ulls/],
+    ['snap', /imant/], ['lowWall', /parets baixes/], ['shadow', /ombres/], ['pixelRatio', /pixels/], ['labelScale', /etiquetes/], ['bkMax', /copies/], ['bkAuto', /copia automatica|automatica/], ['catalogPhoto', /fotos? del cataleg/],
+  ];
+  const SECK = new Set(['tap', 'aiwait', 'coin', 'wgap', 'saveDelay']);
+  const COLORS = { blau: '#3b82f6', 'blau fosc': '#1e40af', verd: '#2f7d4f', 'verd fosc': '#15803d', groc: '#d4a017', taronja: '#b5652f', vermell: '#c0392b', rosa: '#e0609a', lila: '#8b5cf6', morat: '#7c3aed', marro: '#8a5a2b', gris: '#6b7280', negre: '#111111', blanc: '#ffffff', turquesa: '#0e9f8f', beix: '#d9c7a3' };
+  const colorFind = (t) => { const m = /#([0-9a-f]{6}|[0-9a-f]{3})(?![0-9a-f])/i.exec(t); if (m) { let h = m[1].toLowerCase(); if (h.length === 3) h = h.split('').map((c) => c + c).join(''); return { hex: '#' + h, label: '#' + h }; } for (const k of Object.keys(COLORS).sort((a, b) => b.length - a.length)) if (new RegExp('(^|[^a-z])' + k + '($|[^a-z])').test(t)) return { hex: COLORS[k], label: k }; return null; };
+  const rNum = (t) => { const m = String(t).match(/\d+(?:[.,]\d+)?/g); return m ? parseFloat(m[m.length - 1].replace(',', '.')) : null; };
+  const R_HELP = `Puc fer això (sempre et demano confirmació):
+⚙️ AJUSTOS AVANÇATS
+• triple toc a 1 · toc simple a 0,5 · moneda a 4 segons
+• desfés a 150 · retard del desat a 2 segons · imant a 10
+• intents a 3000 · propostes a 6 · pas lliure a 70 · pas entre mobles a 80
+• velocitat a 200 · alçada dels ulls a 170 · parets baixes a 120 · etiquetes a 130
+• còpies a 15 · còpia automàtica cada 7 dies
+• restaura els ajustos · quins són els ajustos?
+🎨 ASPECTE (aquest dispositiu)
+• tema fosc / clar / automàtic · lletra gran / petita / normal
+• color principal a blau · color del fons #112233 · color de les parets a gris · restaura els colors
+• volum de WALL-E a 30 (0 = silenci) · mode text / veu / tots dos
+💾 CÒPIES
+• fes una còpia de seguretat · quines còpies hi ha?
+🏠 PLÀNOL
+• sostre a 260 · gruix de paret a 12 · terra del menjador a rajola (parquet, llis)
+• canvia el nom de passadís a rebedor · esborra tots els mobles · treu els mobles del menjador
+• parets completes / baixes / amagades · amaga les etiquetes · mostra les cotes · vista planta / 3d / passeig
+• resum · desfés`;
+  async function rAsk(q) {
+    cur = 'r';
+    me(q);
+    const t = norm(q);
+    const prefix = isSpanish(t) ? 'A mi parla’m en català, va 😉 ' : '';
+    const rooms = roomsOf();
+    const room = findRoom(t, rooms);
+    const st = api.state();
+    if (/^(ajuda|help|ordres|que puc fer|que pots fer|que saps fer)/.test(t)) { bot(prefix + R_HELP); return; }
+    if (/\b(desfes|desfer|enrere)\b/.test(t)) { api.undo(); bot(`${prefix}Desfet.`); return; }
+    if (/\bresum\b|estadistiq|espai/.test(t)) {
+      const c = api.cloudInfo();
+      bot(`${prefix}📊 Resum\n• ${st.items.length} mobles · ${st.rooms.length} habitacions · ${(st.catalog || []).length} al catàleg · ${(st.scenes || []).length} escenes\n• Estat: ${(c.bytes / 1024).toFixed(1)} KB de 1024 KB (${(c.bytes / 10485.76).toFixed(1)} %)\n• Avui, des d’aquest dispositiu: ${c.writes} escriptures · ${c.reads} lectures\n• Plànol v${st.version || 1} · app ${api.version}`);
+      return;
+    }
+    if (/quins son els ajustos|ajustos actuals|configuracio actual|mostra els ajustos/.test(t)) {
+      const c = api.cfg() || {};
+      const lines = Object.keys(CFGD).map((k) => { const v = api.cfgGet(k); return `• ${CFG_LABEL[k]}: ${SECK.has(k) ? (v / 1000).toLocaleString('ca') + ' s' : v}${c[k] !== undefined && +c[k] !== CFGD[k] ? ' (canviat)' : ''}`; });
+      bot(`${prefix}⚙️ Ajustos avançats\n${lines.join('\n')}\n🎨 Aquest dispositiu: tema ${prefs.theme} · lletra ${{ s: 'petita', m: 'normal', l: 'gran' }[prefs.font]} · WALL-E al ${prefs.wvol} % · mode ${['text', 'veu', 'text i veu'][+prefs.voice]}`);
+      return;
+    }
+    if (/restaura.*ajustos|ajustos per defecte/.test(t)) {
+      if (!Object.keys(cfgClean(api.cfg())).length) { bot(`${prefix}Ja estan tots els valors per defecte.`); return; }
+      rConfirm('Restauro TOTS els ajustos avançats als valors per defecte. Confirmes?', () => { api.setCfg({}); return '↺ Ajustos restaurats.'; });
+      return;
+    }
+    // còpies
+    if (/^(fes|fer|crea|crear|genera|vull)\b.*\b(copia|backup)/.test(t)) {
+      rConfirm(`Creo una còpia de seguretat de tot el plànol (${st.items.length} mobles, ${st.rooms.length} habitacions). Confirmes?`, async () => { const b = await api.dev.bkCreate('Còpia de l’assistent', { kind: 'bot', quiet: true }); return b ? `✓ Còpia creada: ${b.nItems} mobles.` : '⚠️ No s’ha pogut crear la còpia (cal sessió i connexió).'; });
+      return;
+    }
+    if (/(quines|mostra|ensenya|llista|veure|hi ha).*(copies|backups|copia)/.test(t)) {
+      if (!api.dev.bkLoaded()) await api.dev.bkLoad();
+      const BK = api.dev.bkList();
+      bot(BK.length ? `💾 Còpies de seguretat (${BK.length} de ${api.cfgGet('bkMax')}):\n${BK.slice(0, 10).map((b) => `• ${bkWhen(b.ts)} · ${b.name || 'Còpia de seguretat'} · ${b.nItems} mobles`).join('\n')}\nPer restaurar-ne una: ⚙ (3 tocs i un 4t) → Còpies de seguretat.` : 'Encara no hi ha cap còpia. Digues «fes una còpia de seguretat».');
+      return;
+    }
+    // aspecte (aquest dispositiu)
+    if (/\btema\b/.test(t) && /fosc|clar|automatic|auto\b/.test(t)) {
+      const v = /fosc/.test(t) ? 'dark' : /clar/.test(t) ? 'light' : 'auto';
+      rConfirm(`Poso el tema ${{ dark: 'fosc', light: 'clar', auto: 'automàtic' }[v]} en aquest dispositiu. Confirmes?`, () => { prefs.theme = v; savePrefs(); applyPrefs(api); return '✓ Tema canviat.'; });
+      return;
+    }
+    if (/\blletra\b/.test(t)) {
+      const v = /gran/.test(t) ? 'l' : /petit/.test(t) ? 's' : 'm';
+      rConfirm(`Poso la lletra ${{ l: 'gran', s: 'petita', m: 'normal' }[v]}. Confirmes?`, () => { prefs.font = v; savePrefs(); applyPrefs(api); return '✓ Lletra canviada.'; });
+      return;
+    }
+    if (/restaura.*colors|colors per defecte/.test(t)) {
+      rConfirm('Restauro els colors originals (tema fosc). Confirmes?', () => { for (const k of ['accent', 'bg', 'panel', 'ink']) prefs[k] = ''; prefs.wall3d = PREFS_DEFAULT.wall3d; prefs.bg3d = PREFS_DEFAULT.bg3d; prefs.theme = 'dark'; savePrefs(); applyPrefs(api); return '✓ Colors restaurats.'; });
+      return;
+    }
+    if (/\bcolor\b/.test(t)) {
+      const col = colorFind(t);
+      const key = /principal|accent/.test(t) ? 'accent' : /fons de l escena|escena|fons 3d/.test(t) ? 'bg3d' : /\bfons\b/.test(t) ? 'bg' : /panell/.test(t) ? 'panel' : /text|lletra/.test(t) ? 'ink' : /parets?/.test(t) ? 'wall3d' : null;
+      if (!col || !key) { bot(`${prefix}🎨 Digues per exemple «color principal a blau», «color del fons #112233», «color de les parets a gris» o «restaura els colors». Colors que entenc: ${Object.keys(COLORS).join(', ')}.`); return; }
+      rConfirm(`Poso el color ${{ accent: 'principal', bg: 'del fons', panel: 'dels panells', ink: 'del text', wall3d: 'de les parets 3D', bg3d: 'del fons de l’escena' }[key]} a ${col.label}. Confirmes?`, () => { prefs[key] = col.hex; savePrefs(); applyPrefs(api); return '✓ Color canviat.'; });
+      return;
+    }
+    if (/volum/.test(t)) {
+      const n = rNum(t); if (n === null) { bot(`${prefix}Digues «volum de WALL-E a 30» (0 = silenci).`); return; }
+      rConfirm(`Poso el volum de WALL-E al ${Math.round(n)} %. Confirmes?`, () => { prefs.wvol = Math.max(0, Math.min(100, Math.round(n))); savePrefs(); return '✓ Volum canviat.'; });
+      return;
+    }
+    if (/\bmode\b/.test(t) && /text|veu|tots dos|ambdos/.test(t)) {
+      const v = /tots dos|ambdos|text i veu/.test(t) ? 2 : /veu/.test(t) ? 1 : 0;
+      rConfirm(`Poso l’assistent en mode ${['només text', 'només veu', 'text i veu'][v]}. Confirmes?`, () => { prefs.voice = v; savePrefs(); P.ai.mic.hidden = P.r.mic.hidden = !SR || v === 0; return '✓ Mode canviat.'; });
+      return;
+    }
+    // plànol
+    if (/sostre/.test(t)) { const n = rNum(t); if (n) { rConfirm(`Poso l’alçada del sostre a ${n} cm. Confirmes?`, () => { api.setPlan({ ceiling: Math.max(150, n), ceilingEstimated: false }); return '✓ Sostre canviat.'; }); return; } }
+    if (/gruix/.test(t)) { const n = rNum(t); if (n) { rConfirm(`Poso el gruix de paret a ${n} cm. Confirmes?`, () => { api.setPlan({ wallThickness: Math.max(4, n) }); return '✓ Gruix canviat.'; }); return; } }
+    if (/\bterra\b/.test(t) && room) {
+      const kind = /rajol/.test(t) ? 'rajola' : /parquet|fusta/.test(t) ? 'parquet' : /llis/.test(t) ? 'llis' : null;
+      if (kind) { rConfirm(`Poso el terra de ${room.name} de ${kind}. Confirmes?`, () => { api.setRoom(room.id, { floor: kind }); return '✓ Terra canviat.'; }); return; }
+    }
+    if (/canvia el nom/.test(t) && room) {
+      const m = /\ba\s+([^.]+)$/.exec(q.trim());
+      if (m) { const nn = m[1].trim(); rConfirm(`Canvio el nom de «${room.name}» a «${nn}». Confirmes?`, () => { api.setRoom(room.id, { name: nn }); return '✓ Nom canviat.'; }); return; }
+    }
+    if (/(esborra|elimina|treu|buida).*(tots els mobles|tot)/.test(t) && !room) {
+      rConfirm(`Trec TOTS els mobles del plànol (${st.items.length}). Confirmes? (queda a ↶ Desfés)`, () => { api.clearItems(); return '✓ Plànol buit.'; });
+      return;
+    }
+    if (/(esborra|elimina|treu|buida).*mobles/.test(t) && room) {
+      const n = st.items.filter((i) => i.roomId === room.id).length;
+      rConfirm(`Trec els ${n} mobles de ${room.name}. Confirmes?`, () => { api.clearItems(room.id); return `✓ ${room.name} buit.`; });
+      return;
+    }
+    if (/parets (completes|senceres|altes)/.test(t)) { api.setWallMode('full'); bot(`${prefix}Parets completes.`); return; }
+    if (/parets baixes/.test(t) && !/\d/.test(t)) { api.setWallMode('low'); bot(`${prefix}Parets baixes.`); return; }
+    if (/parets amagades|amaga les parets/.test(t)) { api.setWallMode('none'); bot(`${prefix}Parets amagades.`); return; }
+    if (/(amaga|treu|mostra|ensenya).*(etiquetes|cotes)/.test(t)) { const on = /mostra|ensenya/.test(t); const what = /cotes/.test(t) ? 'measures' : 'labels'; api.setToggle(what, on); bot(`${prefix}${what === 'cotes' ? 'Cotes' : what === 'measures' ? 'Cotes' : 'Etiquetes'} ${on ? 'visibles' : 'amagades'}.`); return; }
+    if (/\bvista\b/.test(t)) { const v = /planta/.test(t) ? 'top' : /passeig|primera persona/.test(t) ? 'walk' : '3d'; api.setView(v); bot(`${prefix}Vista ${{ top: 'en planta', walk: 'de passeig', '3d': '3D' }[v]}.`); return; }
+    // ajustos numèrics
+    for (const [k, re] of CFG_WORDS) {
+      if (!re.test(t)) continue;
+      const n = rNum(t);
+      if (n === null) { bot(`${prefix}${CFG_LABEL[k]}: ara és ${SECK.has(k) ? api.cfgGet(k) / 1000 + ' s' : api.cfgGet(k)}. Digues un valor, per exemple «${CFG_LABEL[k].toLowerCase()} a ${SECK.has(k) ? CFGD[k] / 1000 : CFGD[k]}».`); return; }
+      const val = SECK.has(k) ? Math.round(n * 1000) : Math.round(n);
+      const [lo, hi] = CFGR[k];
+      if (val < lo || val > hi) { bot(`${prefix}${CFG_LABEL[k]} ha d’estar entre ${SECK.has(k) ? lo / 1000 : lo} i ${SECK.has(k) ? hi / 1000 : hi}.`); return; }
+      rConfirm(`Poso «${CFG_LABEL[k]}» a ${SECK.has(k) ? val / 1000 + ' s' : val}. Confirmes?`, () => { api.setCfg({ ...cfgClean(api.cfg()), [k]: val }); return `✓ ${CFG_LABEL[k]}: ${SECK.has(k) ? val / 1000 + ' s' : val}.`; });
+      return;
+    }
+    const d = add('bot', esc(prefix + 'No t’he entès 🤔 Prova amb una ordre com les d’aquests exemples:'));
+    rSuggest(d, ['Què puc fer?', 'Resum', 'Quins són els ajustos?']);
+  }
 
   const HELP = `Puc fer això (en català):
 📦 AFEGIR · «posa una taula de 140x80 al menjador» · «afegeix 4 cadires a la cuina» · «posa un sofà de 2x0,9 al menjador»
@@ -444,5 +664,5 @@ Les mides van en cm (o en metres si són petites, com 2x1).`;
 
   if (+prefs.autoOpen) setTimeout(() => open(true), 800);
 
-  return { open, walleSay, voiceInfo, sayTest: () => { if (!caVoice) bot('🔇 Aquest dispositiu no té cap veu catalana. Les respostes seran només text.', { speak: false }); else say('Hola! Sóc WALL-E, l’assistent del plànol. Digue’m on poso els mobles.'); }, ask };
+  return { open, walleSay, voiceInfo, adminOpen, adminClose, rAsk, sayTest: () => { if (!caVoice) bot('🔇 Aquest dispositiu no té cap veu catalana. Les respostes seran només text.', { speak: false }); else say('Hola! Sóc WALL-E, l’assistent del plànol. Digue’m on poso els mobles.'); }, ask };
 }
