@@ -3,6 +3,7 @@
   "short_name": "Planta 3D",
   "description": "Plànol del pis en 3D a escala per col·locar mobles a mida.",
   "lang": "ca",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -10,8 +11,8 @@
   "background_color": "#f4f2ee",
   "theme_color": "#b5652f",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/planol-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/planol-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/planol-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

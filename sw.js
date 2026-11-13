@@ -1,8 +1,8 @@
 // Service worker: guarda l'app al dispositiu perquè obri a l'instant i funcioni sense connexió.
 // Els fitxers propis es serveixen de la memòria cau i s'actualitzen en segon pla;
 // la pàgina principal es demana primer a la xarxa perquè les novetats arribin de seguida.
-const CACHE = 'planta3d-shell-v3';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './vendor/three.module.js', './vendor/OrbitControls.js', './vendor/firebase.js', './audio/walle.mp3'];
+const CACHE = 'planta3d-shell-v4';
+const SHELL = ['./', './index.html', './manifest.webmanifest?v=2', './icons/planol-192.png', './icons/planol-512.png', './vendor/three.module.js', './vendor/OrbitControls.js', './vendor/firebase.js', './audio/walle.mp3'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

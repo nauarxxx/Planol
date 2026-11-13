@@ -31,6 +31,7 @@ const TYPES = [
   ['banyera', ['banyera', 'banyeres', 'banera', 'baneras']],
   ['vater', ['vater', 'vaters', 'inodor', 'wc', 'inodoro', 'retrete']],
   ['lavabo', ['lavabo', 'lavabos', 'pica del bany', 'lavamanos', 'moble del bany']],
+  ['mirall', ['mirall', 'miralls', 'espejo', 'espejos']],
   ['mesa', ['taula', 'taules', 'mesa', 'mesas']],
   ['silla', ['cadira', 'cadires', 'silla', 'sillas']],
   ['sofa', ['sofa', 'sofas']],

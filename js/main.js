@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
-import { CATALOG, buildFurniture, newItem } from './furniture.js';
+import { CATALOG, SHAPES, SHAPE_PARAMS, hasWing, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=28';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=29';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
@@ -1383,6 +1383,13 @@ function renderItemList() {
 }
 
 // --- Panel de propiedades del mueble seleccionado
+// Camp numèric amb botons − / + per canviar la mida de pressa.
+const stepper = (id, v, min = 1) => `<span class="num"><button type="button" data-step="-5" tabindex="-1">−</button><input type="number" id="${id}" min="${min}" value="${v}" /><button type="button" data-step="5" tabindex="-1">+</button></span>`;
+// Icona SVG petita de cada forma (vista en planta, esquena a dalt).
+function shapeIcon(k) {
+  const p = { recte: 'M2 4h20v8H2z', rect: 'M2 4h20v12H2z', rodona: 'M12 3a9 7 0 1 0 0.01 0z', Le: 'M2 4h20v8H10v8H2z', Ld: 'M2 4h20v16h-8v-8H2z', U: 'M2 4h20v16h-6v-8H8v8H2z' };
+  return `<svg viewBox="0 0 24 24" width="26" height="26"><path d="${p[k] || p.rect}" fill="currentColor" opacity=".85"/></svg>`;
+}
 function renderProps(onlyPos = false) {
   const el = $('#props');
   const it = itemById(ui.selected);
@@ -1404,11 +1411,13 @@ function renderProps(onlyPos = false) {
       <label>Nom<input type="text" id="p-name" value="${esc(it.name)}" /></label>
       <label>Tipus<select id="p-type">${Object.entries(CATALOG).map(([k, v]) => `<option value="${k}" ${k === it.type ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
     </div>
+    ${SHAPES[it.type] ? `<div class="shape" id="p-shape">${SHAPES[it.type].map(([k, l], i) => `<button type="button" class="${(it.shape || SHAPES[it.type][0][0]) === k ? 'on' : ''}" data-shape="${k}" title="${l}">${shapeIcon(k)}<small>${l}</small></button>`).join('')}</div>` : ''}
     <div class="row c3">
-      <label>Amplada<input type="number" id="p-w" min="1" value="${it.w}" /></label>
-      <label>Fons<input type="number" id="p-d" min="1" value="${it.d}" /></label>
-      <label>Alçada<input type="number" id="p-h" min="1" value="${it.h}" /></label>
+      <label>Amplada${stepper('p-w', it.w)}</label>
+      <label>Fons${stepper('p-d', it.d)}</label>
+      <label>Alçada${stepper('p-h', it.h)}</label>
     </div>
+    ${SHAPE_PARAMS[it.type] && hasWing(it.shape) ? `<div class="row c2">${Object.entries(SHAPE_PARAMS[it.type]).map(([k, [l, dv]]) => `<label>${l}${stepper('p-' + k, it[k] || dv)}</label>`).join('')}</div>` : ''}
     <div class="row c4">
       <label>X<input type="number" id="p-x" value="${it.x}" /></label>
       <label>Z<input type="number" id="p-z" value="${it.z}" /></label>
@@ -1433,6 +1442,16 @@ function renderProps(onlyPos = false) {
   $('#p-name').addEventListener('change', (e) => apply(() => { it.name = e.target.value; }));
   $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; }, true));
   for (const k of ['w', 'd', 'h']) $('#p-' + k).addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
+  for (const k of ['sd', 'lw']) $('#p-' + k)?.addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
+  // Botons − / + de les mides: passos de 5 cm (10 amb el botó dret o mantenint Maj).
+  for (const b of el.querySelectorAll('[data-step]')) b.addEventListener('click', (e) => {
+    const inp = b.parentElement.querySelector('input'); const st = +b.dataset.step * (e.shiftKey ? 2 : 1);
+    inp.value = Math.max(+inp.min || 1, (+inp.value || 0) + st); inp.dispatchEvent(new Event('change'));
+  });
+  for (const b of el.querySelectorAll('#p-shape button')) b.addEventListener('click', () => apply(() => {
+    it.shape = b.dataset.shape;
+    if (hasWing(it.shape)) { const def = SHAPE_PARAMS[it.type] || {}; for (const k of ['sd', 'lw']) if (def[k] && !it[k]) it[k] = def[k][1]; if (it.d < (it.sd || 0) + 40) it.d = (it.sd || 60) + 70; }
+  }, true));
   $('#p-x').addEventListener('change', () => apply(() => { it.x = num('#p-x'); }));
   $('#p-z').addEventListener('change', () => apply(() => { it.z = num('#p-z'); }));
   $('#p-rot').addEventListener('change', () => apply(() => { it.rot = ((num('#p-rot') % 360) + 360) % 360; }));
@@ -1465,7 +1484,7 @@ function roomKits(room) {
     [['sofa', { w: Math.min(220, Math.round(minSide * 0.75)) }], ['muebleTv'], ['tv'], ['mesaCentro'], ['mesa', { w: 120, d: 80 }], ['silla', {}, 4]],
     [['sofa'], ['sillon'], ['muebleTv'], ['tv'], ['mesaCentro'], ['estanteria'], ['planta']],
     [['mesa', { w: big ? 160 : 140, d: 90 }], ['silla', {}, big ? 6 : 4], ['estanteria', { w: 120 }], ['sofa', { w: 180 }], ['tv'], ['muebleTv', { w: 120 }]],
-    [['sofa', { w: 240, d: 160, name: 'Sofà chaise longue' }], ['tv'], ['muebleTv', { w: 180 }], ['alfombra'], ['lampara'], ['mesaCentro', { w: 80, d: 80 }]],
+    [['sofa', { w: 240, d: 160, shape: 'Ld', name: 'Sofà chaise longue' }], ['tv'], ['muebleTv', { w: 180 }], ['alfombra'], ['lampara'], ['mesaCentro', { w: 80, d: 80 }]],
   ];
   if (/dormitori|habitacio/.test(n)) return [
     [['cama', { w: 150, d: 200 }], ['mesita', {}, 2], ['comoda']],
@@ -2076,7 +2095,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v28',
+  version: 'v29',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2180,4 +2199,4 @@ window.planta3d = {
     const r = renderer.domElement.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
-  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk };
+  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, rebuildItems };
