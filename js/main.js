@@ -5,6 +5,8 @@ import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
 import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=16';
 import { mergeStates } from './merge.js';
+import { prefs, applyPrefs, initSettings } from './settings.js';
+import { initAssistant } from './assistant.js';
 import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado
@@ -43,12 +45,22 @@ let installPrompt = null; // event d'instal·lació de la PWA (Chrome/Edge/Andro
 const history = { past: [], future: [] };
 
 let cloudBase = null; // últim estat confirmat al núvol (per fusionar canvis simultanis)
+// Comptador d'escriptures i lectures d'avui (només d'aquest dispositiu), per vigilar el pla gratuït.
+const CLOUD_KEY = 'planta3d-cloud';
+const today = () => new Date().toISOString().slice(0, 10);
+let cloudStats = { day: today(), writes: 0, reads: 0 };
+try { const c = JSON.parse(localStorage.getItem(CLOUD_KEY) || 'null'); if (c && c.day === today()) cloudStats = c; } catch (e) { /* res */ }
+function cloudCount(k) {
+  if (cloudStats.day !== today()) cloudStats = { day: today(), writes: 0, reads: 0 };
+  cloudStats[k]++;
+  try { localStorage.setItem(CLOUD_KEY, JSON.stringify(cloudStats)); } catch (e) { /* res */ }
+}
 function save(remote = true) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignorar */ }
   if (remote) saveRemote(() => state, setSync);
 }
 function setSync(st, json) {
-  if (st === 'guardado' && json) cloudBase = JSON.parse(json);
+  if (st === 'guardado' && json) { cloudBase = JSON.parse(json); cloudCount('writes'); }
   const el = document.getElementById('sync');
   if (!el) return;
   el.textContent = st === 'guardado' ? 'Desat al núvol' : st === 'pendiente' ? 'Desant…' : st.startsWith('error') ? 'Error en desar' : st;
@@ -775,8 +787,10 @@ function addItems(type, props, qty, roomId) {
   const room = roomById(roomId) || usableRooms()[0];
   commit();
   let last = null;
+  const added = [];
   for (let i = 0; i < qty; i++) {
     const it = newItem(type, { ...props, roomId: room.id });
+    added.push(it);
     if (qty > 1) it.name = `${props.name || CATALOG[type].label} ${i + 1}`;
     const p = findFreeSpot(it, room);
     it.x = Math.round(p.x); it.z = Math.round(p.z);
@@ -786,6 +800,20 @@ function addItems(type, props, qty, roomId) {
   save(); rebuildItems();
   if (last) select(last.id);
   renderAll();
+  return added;
+}
+// Mou un moble a una altra habitació, a un lloc lliure. Torna false si no hi cap.
+function moveItem(id, roomId) {
+  const it = itemById(id), room = roomById(roomId);
+  if (!it || !room) return false;
+  const t = state.wallThickness || 10, R = innerRect(room, t);
+  if (Math.min(it.w, it.d) > Math.min(R.x1 - R.x0, R.z1 - R.z0) || Math.max(it.w, it.d) > Math.max(R.x1 - R.x0, R.z1 - R.z0)) return false;
+  commit();
+  it.roomId = room.id;
+  const p = findFreeSpot(it, room);
+  it.x = Math.round(p.x); it.z = Math.round(p.z);
+  save(); rebuildItems(); select(it.id); renderAll();
+  return true;
 }
 
 // ---------------------------------------------------------------- UI
@@ -1296,11 +1324,13 @@ if (cloudEnabled) {
       const acc = document.getElementById('account');
       acc.hidden = false;
       acc.querySelector('.who').textContent = u.email;
+      cloudCount('reads');
       if (initial) { history.past = []; history.future = []; const v = initial.version || 1; cloudBase = clone(initial); state = migratePlan(initial); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
       else save();
     },
     onRemoteState: (s, by) => {
       // Fusió amb els canvis locals que encara no s'han desat: no es perd res de cap dels dos.
+      cloudCount('reads');
       const merged = mergeStates(cloudBase, state, s);
       cloudBase = clone(s);
       const needsResave = JSON.stringify(merged) !== JSON.stringify(s);
@@ -1348,6 +1378,40 @@ document.getElementById('install').addEventListener('click', installApp);
 document.getElementById('install-close').addEventListener('click', () => { document.getElementById('install-help').hidden = true; });
 updateInstallUI();
 
+// ---------------------------------------------------------------- configuració i assistent
+const api = {
+  version: 'v19',
+  get standalone() { return isStandalone(); },
+  rooms: () => state.rooms,
+  items: () => state.items,
+  wallThickness: () => state.wallThickness || 10,
+  currentRoom: () => { const it = itemById(ui.selected); return (it && roomById(it.roomId)) || roomById(ui.layoutRoom) || usableRooms()[0] || null; },
+  addItems: (type, props, qty, roomId) => addItems(type, props, qty, roomId),
+  removeItem, moveItem, undo, select, frameCamera,
+  frame: (room) => { frameCamera(room); if (ui.view === 'top') fitOrtho(); },
+  proposals: (room, its, onProgress) => {
+    ui.seed = (ui.seed * 9301 + 49297) % 233280 + Date.now() % 1000;
+    return generateLayoutsAsync(room, its, state.rooms, { wallThickness: state.wallThickness, seed: ui.seed, count: 4 }, onProgress);
+  },
+  apply: (room, p) => applyProposal(room, p),
+  showProposals: (room, props) => {
+    ui.layoutRoom = room.id; ui.proposals = props;
+    renderDistribuir();
+    document.querySelector('.tabs button[data-tab=distribuir]')?.click();
+  },
+  setScenePrefs: ({ wall, bg }) => {
+    try { if (wall) wallMat.color.set(wall); if (bg) scene.background.set(bg); } catch (e) { /* color no vàlid */ }
+    requestRender();
+  },
+  cloudInfo: () => ({ enabled: cloudEnabled, bytes: JSON.stringify(state).length, writes: cloudStats.day === today() ? cloudStats.writes : 0, reads: cloudStats.day === today() ? cloudStats.reads : 0, items: state.items.length, rooms: state.rooms.length }),
+  voiceInfo: () => assistant.voiceInfo(),
+  walleSay: (f) => assistant.walleSay(f),
+  sayTest: () => assistant.sayTest(),
+};
+const assistant = initAssistant(api);
+applyPrefs(api);
+initSettings(api);
+
 // Acceso para depuración desde la consola.
 window.planta3d = {
   screenOf(x, z, y = 40) {
@@ -1355,4 +1419,4 @@ window.planta3d = {
     const r = renderer.domElement.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
-  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView };
+  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), prefs };
