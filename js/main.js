@@ -629,7 +629,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
 
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 $('#wallMode').addEventListener('change', (e) => { ui.wallMode = e.target.value; rebuildPlan(); });
-$('#snap').addEventListener('change', (e) => { ui.snap = e.target.checked; });
+$('#snap')?.addEventListener('change', (e) => { ui.snap = e.target.checked; }); // l'imant de 5 cm queda actiu sense botó
 $('#labels').addEventListener('change', (e) => { ui.labels = e.target.checked; rebuildPlan(); });
 $('#undo').addEventListener('click', undo);
 $('#redo').addEventListener('click', redo);
