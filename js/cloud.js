@@ -1,5 +1,5 @@
 // Inicio de sesión con Google (Firebase Auth) y guardado en Firestore.
-import { firebaseConfig, ALLOWED_EMAILS, STATE_DOC } from './config.js';
+import { firebaseConfig, ALLOWED_EMAILS, STATE_DOC } from './config.js?v=3';
 
 export const cloudEnabled = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
