@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=24';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=25';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
@@ -175,7 +175,7 @@ function resize() {
   persp.aspect = w / h;
   persp.updateProjectionMatrix();
   walkCam.aspect = w / h;
-  walkCam.updateProjectionMatrix();
+  applyWalkFov();
   fitOrtho();
   requestRender();
 }
@@ -229,7 +229,38 @@ function frameCamera(room) {
 
 // ---- Passeig en primera persona
 const walkCam = new THREE.PerspectiveCamera(70, 1, 2, 10000);
-const walk = { x: 0, z: 0, yaw: 0, pitch: 0, keys: new Set(), gyro: false, q: null, last: 0 };
+let fovSaved = 80;
+try { fovSaved = +localStorage.getItem('planta3d-fov') || 70; } catch (e) { /* res */ }
+const walk = { x: 0, z: 0, yaw: 0, pitch: 0, keys: new Set(), gyro: false, q: null, last: 0, fov: fovSaved };
+// Zoom del passeig: pessigar al mòbil o roda / Ctrl + i − al PC canvia l'angle de visió (més gran = més camp, "zoom negatiu").
+function setWalkFov(f) {
+  walk.fov = Math.max(35, Math.min(120, Math.round(f)));
+  applyWalkFov();
+  try { localStorage.setItem('planta3d-fov', String(walk.fov)); } catch (e) { /* res */ }
+  requestRender();
+}
+// En vertical (mòbil) el valor és l'angle horitzontal, perquè es vegi la mateixa amplada d'habitació que al PC.
+function applyWalkFov() {
+  const a = walkCam.aspect || 1, f = walk.fov;
+  walkCam.fov = a < 1 ? Math.min(118, 2 * Math.atan(Math.tan(f * DEG / 2) / a) / DEG) : f;
+  walkCam.updateProjectionMatrix();
+}
+// Porta d'entrada: una porta que dona a fora del pis (cap habitació a l'altre costat). Es prefereix la del menjador.
+function entranceDoor() {
+  const found = [];
+  for (const r of state.rooms) {
+    if (STRUCT.has(r.kind) || r.kind === 'terrace') continue;
+    for (const op of r.openings || []) {
+      if (op.type !== 'puerta') continue;
+      const sw = doorSwing(r, op);
+      if (!sw) continue;
+      const cx = sw.hx + sw.wx * sw.r / 2, cz = sw.hz + sw.wz * sw.r / 2; // centre de l'obertura
+      const out = roomAt(state.rooms, cx - sw.ix * 25, cz - sw.iz * 25);
+      if (!out || out.kind === 'void') found.push({ x: cx, z: cz, ix: sw.ix, iz: sw.iz, room: r });
+    }
+  }
+  return found.find((f) => f.room.id === 'salon' || /menjador/i.test(f.room.name)) || found[0] || null;
+}
 const noControls = { update: () => false, enabled: false };
 function setView(v) {
   const was = ui.view;
@@ -240,14 +271,24 @@ function setView(v) {
   controls = v === 'top' ? controlsTop : v === 'walk' ? noControls : controls3d;
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
   document.getElementById('walkbar').hidden = v !== 'walk';
-  document.getElementById('hint').textContent = v === 'walk' ? 'Arrossega per mirar · toca una porta, una finestra o un moble · fletxes / WASD o els botons per caminar · 🧭 per mirar movent el mòbil' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
+  document.getElementById('hint').textContent = v === 'walk' ? 'Arrossega per mirar · roda o + / − per al zoom · toca una porta, una finestra o un moble · fletxes / WASD o els botons per caminar · 🧭 per mirar movent el mòbil' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
   if (v === 'walk' && was !== 'walk') {
     select(null);
-    const r = api.currentRoom() || usableRooms()[0];
-    if (r) { walk.x = r.x + r.w / 2; walk.z = r.z + r.d / 2; }
-    walk.yaw = Math.PI; walk.pitch = 0; walk.last = performance.now();
+    const ent = entranceDoor();
+    if (ent) {
+      // a la porta d'entrada, un pas cap a dins, mirant cap a l'habitació
+      walk.x = ent.x + ent.ix * 70; walk.z = ent.z + ent.iz * 70;
+      const r = ent.room, dx = r.x + r.w / 2 - walk.x, dz = r.z + r.d / 2 - walk.z; // mirant cap al centre de l'habitació
+      walk.yaw = Math.hypot(dx, dz) > 30 ? Math.atan2(-dx, -dz) : Math.atan2(-ent.ix, -ent.iz);
+    } else {
+      const r = api.currentRoom() || usableRooms()[0];
+      if (r) { walk.x = r.x + r.w / 2; walk.z = r.z + r.d / 2; }
+      walk.yaw = Math.PI;
+    }
+    walk.pitch = 0; walk.last = performance.now();
+    setWalkFov(walk.fov);
   }
-  if (v !== 'walk') stopGyro();
+  if (v !== 'walk') { stopGyro(); pointers.clear(); }
   rebuildPlan();
   requestRender();
 }
@@ -886,6 +927,12 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 let drag = null;
+const pointers = new Map(); // dits a la pantalla (per al pessic del passeig)
+renderer.domElement.addEventListener('wheel', (e) => {
+  if (ui.view !== 'walk') return;
+  e.preventDefault();
+  setWalkFov(walk.fov + Math.sign(e.deltaY) * 4);
+}, { passive: false });
 
 function setPointer(e) {
   const rect = renderer.domElement.getBoundingClientRect();
@@ -908,6 +955,13 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     const dh = ph.find((h) => typeof h.object.userData.door === 'string');
     const wh = ph.find((h) => h.object.userData.wall);
     const near = (h) => h && h.distance < 420; // només el que tens a l'abast (uns 4 m)
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      // segon dit: pessic per fer zoom; s'anul·la el toc
+      const [a, b] = [...pointers.values()];
+      drag = { look: true, pinch: { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, fov0: walk.fov }, x: e.clientX, y: e.clientY, x0: -1e9, y0: -1e9 };
+      renderer.domElement.setPointerCapture(e.pointerId); return;
+    }
     drag = { look: true, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, item: near(ih) && (!dh || ih.distance <= dh.distance) ? ih.object.userData.itemId : null, door: near(dh) && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null, wall: near(wh) ? wh.object.userData.wall : null };
     renderer.domElement.setPointerCapture(e.pointerId); return;
   }
@@ -955,6 +1009,11 @@ function showWallMeasure(w) {
 
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (drag && drag.look) {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (drag.pinch) {
+      if (pointers.size >= 2) { const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y) || 1; setWalkFov(drag.pinch.fov0 * drag.pinch.d0 / d); }
+      return;
+    }
     walk.yaw -= (e.clientX - drag.x) * 0.005; walk.pitch = Math.max(-1.2, Math.min(1.2, walk.pitch - (e.clientY - drag.y) * 0.005));
     drag.x = e.clientX; drag.y = e.clientY; walk.q = null; if (walk.gyro) stopGyro();
     requestRender(); return;
@@ -972,8 +1031,11 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   renderProps(true);
 });
 
+renderer.domElement.addEventListener('pointercancel', (e) => { pointers.delete(e.pointerId); if (drag && drag.look) drag = null; });
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (drag && drag.look) {
+    pointers.delete(e.pointerId);
+    if (drag.pinch) { if (pointers.size === 0) drag = null; return; }
     if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) {
       if (drag.item) { select(drag.item); if (+prefs.vib) navigator.vibrate?.(8); }
       else if (drag.door) toggleDoor(drag.door);
@@ -1005,6 +1067,8 @@ window.addEventListener('keydown', (e) => {
   if (ui.view === 'walk') {
     const k = WALK_KEYS[e.key.toLowerCase()];
     if (k) { walk.keys.add(k); e.preventDefault(); requestRender(); }
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); setWalkFov(walk.fov - 5); } // acostar
+    if (e.key === '-' || e.key === '_') { e.preventDefault(); setWalkFov(walk.fov + 5); } // allunyar (zoom negatiu)
     if (e.key === 'Escape') setView('3d');
     return;
   }
@@ -2002,7 +2066,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v24',
+  version: 'v25',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,

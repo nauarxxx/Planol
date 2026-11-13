@@ -120,8 +120,10 @@ input[type="checkbox"] { accent-color: var(--accent); }
   /* Una sola fila d'icones petites; si no hi cap, es desplaça de costat. */
   #toolbar { top: max(6px, env(safe-area-inset-top)); left: 4px; right: 4px; gap: 3px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; pointer-events: auto; padding-bottom: 2px; }
   #toolbar::-webkit-scrollbar { display: none; }
+  /* Els 11 botons es reparteixen l'amplada del mòbil (marges 8 + separacions 15 + vores i farciments 36 + espais interns 8 = 67 px): mai hi ha desplaçament. */
+  #toolbar { --tbw: clamp(22px, calc((100vw - 67px) / 11), 32px); overflow: visible; }
   #toolbar .group { padding: 2px; gap: 2px; border-radius: 9px; flex: none; }
-  #toolbar button { min-width: 32px; height: 32px; padding: 0 4px; font-size: 15px; line-height: 1; }
+  #toolbar button { min-width: 0; width: var(--tbw); height: 32px; padding: 0; font-size: clamp(11px, calc(var(--tbw) * 0.47), 15px); line-height: 1; }
   #toolbar .tx, #toolbar .desk, #toolbar #sync, #toolbar #install-group, #toolbar #theme-btn { display: none; }
   #toolbar .ic { display: inline; }
   #toolbar .mob { display: inline-flex; align-items: center; justify-content: center; }
@@ -335,7 +337,7 @@ label small { color: var(--muted); font-weight: 400; }
 #sync-btn.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 800px) {
-  #toolbar #settings-btn { width: 32px; height: 32px; }
+  #toolbar #settings-btn { width: var(--tbw); height: var(--tbw); }
   #toolbar #settings-btn .face svg { width: 18px; height: 18px; }
   #toolbar #sync-btn.spin { font-size: 15px; }
 }
