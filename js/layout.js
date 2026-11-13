@@ -4,7 +4,7 @@
 // las mejores que sean distintas entre sí.
 
 import { CATALOG } from './furniture.js';
-import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, DEG } from './geom.js';
+import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, DEG } from './geom.js';
 
 function mulberry32(seed) {
   return function () {
@@ -99,6 +99,11 @@ function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
     if (o.wall === 'E') r = { x0: R.x1 - depth, x1: R.x1, z0: o.a, z1: o.b };
     return { ...r, window: isWin, wall: o.wall };
   });
+  // Batents de les portes que cauen dins de l'habitació: tampoc s'hi pot posar res.
+  for (const sw of allSwings(allRooms)) {
+    const k = { x0: Math.max(sw.x0, R.x0), x1: Math.min(sw.x1, R.x1), z0: Math.max(sw.z0, R.z0), z1: Math.min(sw.z1, R.z1) };
+    if (k.x1 - k.x0 > 5 && k.z1 - k.z0 > 5) keepouts.push({ ...k, window: false, wall: null, swing: true });
+  }
   const doorWalls = new Set(keepouts.filter((k) => !k.window).map((k) => k.wall));
 
   const locked = roomItems.filter((i) => i.locked);

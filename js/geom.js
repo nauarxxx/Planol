@@ -113,3 +113,45 @@ export function openingsOnRoom(room, openings) {
   }
   return res;
 }
+
+// Batent d'una porta: quart de cercle que escombra la fulla en obrir-se.
+// op.swing: 'in' (cap a dins de l'habitació, per defecte) | 'out' | 'none'. op.hinge: 'a' (cantonada N/W) | 'b'.
+// Torna la frontissa (hx, hz), el radi, la direcció al llarg de la paret (wx, wz), la d'obertura (ix, iz) i la caixa.
+export function doorSwing(room, op) {
+  if (op.type !== 'puerta' || op.swing === 'none') return null;
+  const seg = openingSegment(room, op);
+  if (!seg) return null;
+  const r = op.width;
+  const hingeA = (op.hinge || 'a') === 'a';
+  const inward = { N: [0, 1], S: [0, -1], W: [1, 0], E: [-1, 0] }[op.wall];
+  const s = op.swing === 'out' ? -1 : 1;
+  const ix = inward[0] * s, iz = inward[1] * s;
+  let hx, hz, wx, wz;
+  if (seg.axis === 'x') { hz = seg.line; hx = hingeA ? seg.a : seg.b; wx = hingeA ? 1 : -1; wz = 0; }
+  else { hx = seg.line; hz = hingeA ? seg.a : seg.b; wz = hingeA ? 1 : -1; wx = 0; }
+  const xs = [hx, hx + wx * r, hx + ix * r, hx + (wx + ix) * r], zs = [hz, hz + wz * r, hz + iz * r, hz + (wz + iz) * r];
+  return { hx, hz, r, wx, wz, ix, iz, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs), roomId: room.id };
+}
+
+export function allSwings(rooms) {
+  const out = [];
+  for (const r of rooms) for (const op of r.openings || []) { const s = doorSwing(r, op); if (s) out.push(s); }
+  return out;
+}
+
+// Punts del batent (per dibuixar-lo): arc de la frontissa.
+export function swingArc(sw, n = 12) {
+  const pts = [];
+  for (let k = 0; k <= n; k++) {
+    const th = (k / n) * Math.PI / 2;
+    pts.push([sw.hx + sw.r * (sw.wx * Math.cos(th) + sw.ix * Math.sin(th)), sw.hz + sw.r * (sw.wz * Math.cos(th) + sw.iz * Math.sin(th))]);
+  }
+  return pts;
+}
+
+// Una caixa (AABB) toca el quart de cercle del batent?
+export function boxHitsSwing(box, sw) {
+  if (box.x1 <= sw.x0 || box.x0 >= sw.x1 || box.z1 <= sw.z0 || box.z0 >= sw.z1) return false;
+  const cx = Math.max(box.x0, Math.min(sw.hx, box.x1)), cz = Math.max(box.z0, Math.min(sw.hz, box.z1));
+  return Math.hypot(cx - sw.hx, cz - sw.hz) < sw.r;
+}

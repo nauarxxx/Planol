@@ -7,7 +7,7 @@ import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './clou
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { initAssistant } from './assistant.js';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, DEG } from './geom.js';
+import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado
 const STORE_KEY = 'planta3d-v1';
@@ -293,6 +293,9 @@ const glassMat = new THREE.MeshStandardMaterial({ color: 0x8fbfdc, transparent: 
 const windowMat = new THREE.MeshStandardMaterial({ color: 0x6fb1d6, roughness: 0.6 });
 const railMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.5, roughness: 0.4 });
 const voidMat = new THREE.MeshStandardMaterial({ color: 0x5b6066, roughness: 0.8 });
+const swingMat = new THREE.LineBasicMaterial({ color: 0x8a6a4a });
+const doorMat = new THREE.MeshStandardMaterial({ color: 0xa98562, roughness: 0.7 });
+const doorSwingOf = (room, op) => doorSwing(room, op);
 
 function disposeGroup(g) {
   g.traverse((o) => {
@@ -470,6 +473,25 @@ function rebuildPlan() {
         }
       }
     }
+    // Batents de les portes d'aquesta habitació: arc al terra i la fulla oberta.
+    for (const op of r.openings || []) {
+      const sw = doorSwingOf(r, op);
+      if (!sw) continue;
+      const arc = swingArc(sw, 14);
+      const pts = [];
+      for (let k = 0; k < arc.length - 1; k++) pts.push(arc[k][0], 0.9, arc[k][1], arc[k + 1][0], 0.9, arc[k + 1][1]);
+      pts.push(sw.hx, 0.9, sw.hz, sw.hx + sw.ix * sw.r, 0.9, sw.hz + sw.iz * sw.r);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      planGroup.add(new THREE.LineSegments(geo, swingMat));
+      if (H > 20) {
+        // la fulla oberta, com una llesca prima
+        const leaf = new THREE.Mesh(new THREE.BoxGeometry(sw.ix ? 3 : sw.r, Math.min(H, 205), sw.ix ? sw.r : 3), doorMat);
+        leaf.position.set(sw.hx + sw.ix * sw.r / 2, Math.min(H, 205) / 2, sw.hz + sw.iz * sw.r / 2);
+        leaf.castShadow = true;
+        planGroup.add(leaf);
+      }
+    }
 
     if (ui.labels) {
       const lines = [r.name, `${r.w} × ${r.d} cm`];
@@ -532,6 +554,11 @@ function conflicts() {
   for (const it of solid) {
     const r = roomById(it.roomId);
     if (r && outsideAmount(innerRect(r, t), aabb(it)) > 1) bad.set(it.id, 'Surt de l’habitació');
+  }
+  const swings = allSwings(state.rooms);
+  for (const it of solid) {
+    if ((it.elev || 0) >= 200) continue;
+    if (swings.some((sw) => boxHitsSwing(aabb(it), sw))) bad.set(it.id, 'Bloqueja una porta');
   }
   for (let a = 0; a < solid.length; a++) for (let b = a + 1; b < solid.length; b++) {
     const A = solid[a], B = solid[b];
@@ -1094,6 +1121,15 @@ function drawPreview(cv, room, p) {
       ctx.stroke();
     }
   }
+  // batents de les portes
+  ctx.strokeStyle = 'rgba(90,60,30,.7)'; ctx.lineWidth = 1;
+  for (const sw of allSwings(state.rooms)) {
+    if (sw.x1 < room.x || sw.x0 > room.x + room.w || sw.z1 < room.z || sw.z0 > room.z + room.d) continue;
+    const arc = swingArc(sw, 10);
+    ctx.beginPath(); ctx.moveTo(X(sw.hx), Z(sw.hz));
+    arc.forEach(([x, z]) => ctx.lineTo(X(x), Z(z)));
+    ctx.closePath(); ctx.stroke();
+  }
   const its = state.items.filter((i) => i.roomId === room.id).map((i) => ({ ...i, ...(p.placements[i.id] || {}) }));
   its.sort((a, b) => (a.type === 'alfombra' ? -1 : 0) - (b.type === 'alfombra' ? -1 : 0) || (a.elev || 0) - (b.elev || 0));
   for (const it of its) {
@@ -1169,6 +1205,10 @@ function renderPlano() {
               <input type="number" data-ok="width" value="${o.width}" title="Amplada del buit" />
               <select data-ok="type">${[['puerta', 'porta'], ['ventana', 'finestra'], ['ventanal', 'finestral (terra-sostre, doble)'], ['paso', 'pas']].map(([t, lb]) => `<option value="${t}" ${o.type === t ? 'selected' : ''}>${lb}</option>`).join('')}</select>
               <button data-del-op="${k}" title="Treu">×</button>
+              ${o.type === 'puerta' ? `<div class="op-sub">
+                <label>S’obre<select data-ok="swing">${[['in', 'cap a dins'], ['out', 'cap a fora'], ['none', 'no es dibuixa (corredissa)']].map(([v, l]) => `<option value="${v}" ${(o.swing || 'in') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+                <label>Frontissa<select data-ok="hinge">${[['a', o.wall === 'N' || o.wall === 'S' ? 'a l’esquerra' : 'a dalt'], ['b', o.wall === 'N' || o.wall === 'S' ? 'a la dreta' : 'a baix']].map(([v, l]) => `<option value="${v}" ${(o.hinge || 'a') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+              </div>` : ''}
             </div>`).join('')}
           <div class="btns">
             <button class="btn secondary small" data-add-op>+ Buit</button>
@@ -1200,7 +1240,8 @@ function renderPlano() {
         commit();
         const k = inp.dataset.ok;
         o[k] = k === 'offset' || k === 'width' ? +inp.value || 0 : inp.value;
-        save(); rebuildPlan();
+        save(); rebuildPlan(); updateOverlays();
+        if (k === 'type' || k === 'wall') renderPlano();
       }));
     });
     card.querySelectorAll('[data-del-op]').forEach((b) => b.addEventListener('click', () => {
