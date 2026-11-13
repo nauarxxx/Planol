@@ -9,7 +9,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 7, // v7: baño 2 detrás del fondo del pasillo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 8, // v8: los dos baños juntos sobre el tramo final del pasillo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -52,17 +52,17 @@ export const DEFAULT_PLAN = {
     },
     {
       id: 'bano', name: 'Baño', kind: 'room', color: '#9aa3a8',
-      x: 520, z: 475, w: 280, d: 180,
-      notes: 'Bañera, inodoro y bidé. 5,00 m² en el proyecto.',
+      x: 510, z: 470, w: 280, d: 185,
+      notes: 'Baño 1 (bañera, inodoro y bidé), 5,00 m² en el proyecto. Pegado al baño 2; su puerta da al tramo final del pasillo.',
       estimated: true,
-      openings: [{ wall: 'S', offset: 150, width: 75, type: 'puerta' }],
+      openings: [{ wall: 'S', offset: 200, width: 70, type: 'puerta' }],
     },
     {
       id: 'bano2', name: 'Baño 2', kind: 'room', color: '#a7b1b6',
-      x: 950, z: 615, w: 150, d: 140,
-      notes: 'Segundo baño al que se entra desde el final del pasillo: la puerta está en la pared del fondo del pasillo. Medidas estimadas (≈2,1 m²).',
+      x: 790, z: 505, w: 160, d: 150,
+      notes: 'Baño 2, al lado del baño 1 y en la esquina final del pasillo: se entra desde el último tramo del pasillo. En el proyecto era el trastero de 2,10 m². Medidas estimadas.',
       estimated: true,
-      openings: [{ wall: 'W', offset: 40, width: 70, type: 'puerta' }],
+      openings: [{ wall: 'S', offset: 85, width: 70, type: 'puerta' }],
     },
     {
       id: 'distribuidor', name: 'Pasillo', kind: 'room', color: '#c89b6a',
