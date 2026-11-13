@@ -7,6 +7,8 @@ import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './clou
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { initAssistant } from './assistant.js';
+import { drawPlan, printSheet } from './sheet.js';
+import { initMeasure } from './measure.js';
 import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado
@@ -155,6 +157,8 @@ function resize() {
   renderer.setSize(w, h);
   persp.aspect = w / h;
   persp.updateProjectionMatrix();
+  walkCam.aspect = w / h;
+  walkCam.updateProjectionMatrix();
   fitOrtho();
   requestRender();
 }
@@ -192,14 +196,76 @@ function frameCamera(room) {
   requestRender();
 }
 
+// ---- Passeig en primera persona
+const walkCam = new THREE.PerspectiveCamera(70, 1, 2, 10000);
+const walk = { x: 0, z: 0, yaw: 0, pitch: 0, keys: new Set(), gyro: false, q: null, last: 0 };
+const noControls = { update: () => false, enabled: false };
 function setView(v) {
+  const was = ui.view;
   ui.view = v;
-  camera = v === 'top' ? ortho : persp;
-  controls3d.enabled = v !== 'top';
+  camera = v === 'top' ? ortho : v === 'walk' ? walkCam : persp;
+  controls3d.enabled = v === '3d';
   controlsTop.enabled = v === 'top';
-  controls = v === 'top' ? controlsTop : controls3d;
+  controls = v === 'top' ? controlsTop : v === 'walk' ? noControls : controls3d;
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+  document.getElementById('walkbar').hidden = v !== 'walk';
+  document.getElementById('hint').textContent = v === 'walk' ? 'Arrossega per mirar · fletxes / WASD o els botons per caminar · 🧭 per mirar movent el mòbil' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
+  if (v === 'walk' && was !== 'walk') {
+    select(null);
+    const r = api.currentRoom() || usableRooms()[0];
+    if (r) { walk.x = r.x + r.w / 2; walk.z = r.z + r.d / 2; }
+    walk.yaw = Math.PI; walk.pitch = 0; walk.last = performance.now();
+  }
+  if (v !== 'walk') stopGyro();
   rebuildPlan();
+  requestRender();
+}
+function walkStep(now) {
+  const dt = Math.min(0.1, (now - walk.last) / 1000); walk.last = now;
+  let f = 0, s = 0;
+  const k = walk.keys;
+  if (k.has('f')) f += 1; if (k.has('b')) f -= 1; if (k.has('l')) s -= 1; if (k.has('r')) s += 1;
+  let moved = false;
+  if (f || s) {
+    const v = 160 * dt; // cm per segon
+    const dirx = -Math.sin(walk.yaw), dirz = -Math.cos(walk.yaw); // cap on mira (yaw 0 = -z)
+    const nx = walk.x + (dirx * f + -dirz * s) * v, nz = walk.z + (dirz * f + dirx * s) * v;
+    const b = planBounds();
+    walk.x = Math.min(b.x1 - 10, Math.max(b.x0 + 10, nx)); walk.z = Math.min(b.z1 - 10, Math.max(b.z0 + 10, nz));
+    moved = true;
+  }
+  walkCam.position.set(walk.x, 160, walk.z);
+  if (walk.q) walkCam.quaternion.copy(walk.q);
+  else walkCam.rotation.set(walk.pitch, walk.yaw, 0, 'YXZ');
+  return moved;
+}
+// Giroscopi: orientació del dispositiu → càmera (cal permís a l'iPhone).
+let gyroHandler = null;
+async function toggleGyro() {
+  if (walk.gyro) { stopGyro(); return; }
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r !== 'granted') throw new Error('denied');
+    }
+  } catch (e) { alert('No s’ha pogut activar el giroscopi. A l’iPhone cal acceptar el permís de moviment.'); return; }
+  const zee = new THREE.Vector3(0, 0, 1), euler = new THREE.Euler(), q0 = new THREE.Quaternion(), q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+  gyroHandler = (e) => {
+    if (e.alpha === null || e.alpha === undefined) return;
+    const alpha = e.alpha * DEG, beta = e.beta * DEG, gamma = e.gamma * DEG;
+    const orient = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * DEG;
+    euler.set(beta, alpha, -gamma, 'YXZ');
+    const q = new THREE.Quaternion().setFromEuler(euler).multiply(q1).multiply(q0.setFromAxisAngle(zee, -orient));
+    walk.q = q; requestRender();
+  };
+  window.addEventListener('deviceorientation', gyroHandler);
+  walk.gyro = true;
+  document.getElementById('wk-gyro').classList.add('on');
+}
+function stopGyro() {
+  if (gyroHandler) window.removeEventListener('deviceorientation', gyroHandler);
+  gyroHandler = null; walk.gyro = false; walk.q = null;
+  document.getElementById('wk-gyro')?.classList.remove('on');
 }
 
 // ---------------------------------------------------------------- plano 3D
@@ -308,6 +374,7 @@ function disposeGroup(g) {
 function wallHeight() {
   const H = state.ceiling || 250;
   if (ui.view === 'top') return Math.min(H, 120);
+  if (ui.view === 'walk') return H;
   return ui.wallMode === 'full' ? H : ui.wallMode === 'low' ? Math.min(H, 100) : 12;
 }
 
@@ -694,6 +761,7 @@ function floorPoint() {
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
+  if (ui.view === 'walk') { drag = { look: true, x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); return; }
   setPointer(e);
   const hits = raycaster.intersectObjects(itemsGroup.children, true);
   const hit = hits.find((h) => h.object.userData.itemId);
@@ -712,6 +780,11 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
 });
 
 renderer.domElement.addEventListener('pointermove', (e) => {
+  if (drag && drag.look) {
+    walk.yaw -= (e.clientX - drag.x) * 0.005; walk.pitch = Math.max(-1.2, Math.min(1.2, walk.pitch - (e.clientY - drag.y) * 0.005));
+    drag.x = e.clientX; drag.y = e.clientY; walk.q = null; if (walk.gyro) stopGyro();
+    requestRender(); return;
+  }
   if (!drag || drag.empty) return;
   setPointer(e);
   const p = floorPoint();
@@ -726,6 +799,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 });
 
 renderer.domElement.addEventListener('pointerup', (e) => {
+  if (drag && drag.look) { drag = null; return; }
   if (drag && drag.empty) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) select(null);
   } else if (drag) {
@@ -741,9 +815,17 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   drag = null;
 });
 
+const WALK_KEYS = { arrowup: 'f', w: 'f', arrowdown: 'b', s: 'b', arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r' };
+window.addEventListener('keyup', (e) => { const k = WALK_KEYS[e.key.toLowerCase()]; if (k) walk.keys.delete(k); });
 window.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+  if (ui.view === 'walk') {
+    const k = WALK_KEYS[e.key.toLowerCase()];
+    if (k) { walk.keys.add(k); e.preventDefault(); requestRender(); }
+    if (e.key === 'Escape') setView('3d');
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   const it = itemById(ui.selected);
@@ -859,6 +941,17 @@ $('#snap')?.addEventListener('change', (e) => { ui.snap = e.target.checked; }); 
 $('#labels').addEventListener('change', (e) => { ui.labels = e.target.checked; rebuildPlan(); });
 $('#measures').addEventListener('change', (e) => { ui.measures = e.target.checked; updateOverlays(); });
 
+// Barra del passeig: botons per caminar (mantenir premut) i giroscopi.
+document.querySelectorAll('#walkbar [data-walk]').forEach((b) => {
+  const k = b.dataset.walk;
+  const on = (e) => { e.preventDefault(); walk.keys.add(k); requestRender(); };
+  const off = () => walk.keys.delete(k);
+  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
+});
+document.getElementById('wk-gyro').addEventListener('click', toggleGyro);
+document.getElementById('wk-exit').addEventListener('click', () => setView('3d'));
+const openMeasure = initMeasure();
+
 // Barra flotant (mòbil) per al moble seleccionat.
 const selbar = document.getElementById('selbar');
 selbar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
@@ -904,8 +997,10 @@ function renderMuebles() {
       <label>Quantitat<input type="number" id="f-qty" min="1" max="30" value="${f.qty}" /></label>
     </div>
     <div class="row"><label>Habitació<select id="f-room">${roomOptions(f.roomId)}</select></label></div>
-    <div class="btns"><button class="btn" id="f-add">Afegeix al plànol</button></div>
+    <div class="btns"><button class="btn" id="f-add">Afegeix al plànol</button><button class="btn secondary" id="f-save-cat" title="Desa aquest moble al catàleg per tornar-lo a afegir d’un toc">★ Desa al catàleg</button><button class="btn secondary" id="f-measure" title="Mesura un moble amb una foto i un full A4">📷 Mesura amb foto</button></div>
     <p class="note">Exemple ràpid: <button class="btn secondary small" id="f-example">2 cadires + 2 taules + TV</button> a l’habitació triada.</p>
+    <h2>Els meus mobles</h2>
+    <div id="catalog"></div>
     <h2>Al plànol</h2>
     <div id="item-list"></div>`;
   const read = () => {
@@ -929,7 +1024,60 @@ function renderMuebles() {
     addItems('silla', { name: 'Cadira' }, 2, room);
     addItems('tv', { name: 'Televisor' }, 1, room);
   });
+  $('#f-save-cat').addEventListener('click', () => { read(); saveToCatalog({ type: f.type, name: f.name, w: f.w, d: f.d, h: f.h, elev: f.elev, color: f.color }); });
+  $('#f-measure').addEventListener('click', () => openMeasure((dims) => { Object.assign(f, dims); renderMuebles(); }));
+  renderCatalog();
   renderItemList();
+}
+
+// --- Catàleg dels mobles reals (es desa al núvol amb el plànol)
+function saveToCatalog(src) {
+  commit();
+  (state.catalog ||= []).push({ id: 'c' + Math.random().toString(36).slice(2, 8), type: src.type, name: src.name, w: src.w, d: src.d, h: src.h, elev: src.elev || 0, color: src.color, url: '', photo: '' });
+  save(); renderCatalog();
+}
+function renderCatalog() {
+  const el = $('#catalog');
+  if (!el) return;
+  const cat = state.catalog || [];
+  if (!cat.length) { el.innerHTML = '<p class="note">Desa aquí els mobles que ja teniu (o els que mireu a la botiga) amb el nom, les mides i una foto, i afegeix-los al plànol d’un sol toc. Omple el formulari de dalt i prem «★ Desa al catàleg», o fes-ho des d’un moble ja col·locat.</p>'; return; }
+  el.innerHTML = `<div class="cat">${cat.map((c) => `
+    <div class="cat-card" data-id="${c.id}">
+      <label class="cat-photo" title="Toca per posar o canviar la foto">${c.photo ? `<img src="${c.photo}" alt="" />` : '<span>📷</span>'}<input type="file" accept="image/*" hidden /></label>
+      <div class="cat-body">
+        <input type="text" class="cat-name" value="${esc(c.name)}" title="Nom" />
+        <div class="dm">${esc(CATALOG[c.type]?.label || c.type)} · ${c.w}×${c.d}×${c.h}</div>
+        ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="dm">🔗 enllaç</a>` : ''}
+        <div class="btns"><button class="btn small" data-cat-add>Afegeix</button><button class="btn secondary small" data-cat-link title="Enllaç a la botiga">🔗</button><button class="btn danger small" data-cat-del title="Treu del catàleg">×</button></div>
+      </div>
+    </div>`).join('')}</div>`;
+  el.querySelectorAll('.cat-card').forEach((card) => {
+    const c = cat.find((x) => x.id === card.dataset.id);
+    card.querySelector('[data-cat-add]').addEventListener('click', () => addItems(c.type, { name: c.name, w: c.w, d: c.d, h: c.h, elev: c.elev, color: c.color, catalogId: c.id }, 1, addForm.roomId));
+    card.querySelector('[data-cat-del]').addEventListener('click', () => { commit(); state.catalog = cat.filter((x) => x !== c); save(); renderCatalog(); });
+    card.querySelector('[data-cat-link]').addEventListener('click', () => { const u = prompt('Enllaç del moble (botiga, foto, PDF…):', c.url || ''); if (u === null) return; commit(); c.url = u.trim(); save(); renderCatalog(); });
+    card.querySelector('.cat-name').addEventListener('change', (e) => { commit(); c.name = e.target.value; save(); });
+    card.querySelector('input[type=file]').addEventListener('change', async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      try { commit(); c.photo = await shrinkImage(file, 180, 0.72); save(); renderCatalog(); } catch (err) { /* res */ }
+    });
+  });
+}
+// Redueix una foto a una miniatura JPEG petita (per no omplir el document del núvol).
+function shrinkImage(file, max = 180, q = 0.72) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/jpeg', q));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 function renderItemList() {
@@ -993,6 +1141,7 @@ function renderProps(onlyPos = false) {
       <button class="btn secondary small" id="p-rl">⟲ 90°</button>
       <button class="btn secondary small" id="p-rr">⟳ 90°</button>
       <button class="btn secondary small" id="p-dup">Duplica</button>
+      <button class="btn secondary small" id="p-cat" title="Desa al catàleg dels meus mobles">★</button>
       <button class="btn danger small" id="p-del">Elimina</button>
     </div>`;
   const num = (id) => +$(id).value;
@@ -1015,6 +1164,7 @@ function renderProps(onlyPos = false) {
   $('#p-rl').addEventListener('click', () => rotate(it, -90));
   $('#p-rr').addEventListener('click', () => rotate(it, 90));
   $('#p-dup').addEventListener('click', () => duplicate(it));
+  $('#p-cat').addEventListener('click', () => { saveToCatalog(it); document.querySelector('.tabs button[data-tab=muebles]')?.click(); });
   $('#p-del').addEventListener('click', () => removeItem(it.id));
 }
 
@@ -1040,7 +1190,9 @@ function renderDistribuir() {
       <button class="btn secondary" id="d-focus">Mostra l’habitació</button>
     </div>
     <div class="progress" id="d-prog" hidden><div class="bar"></div><span></span></div>
+    <div class="btns" id="d-cmp-wrap" ${ui.proposals.length > 1 ? '' : 'hidden'}><button class="btn secondary small" id="d-cmp">⇆ Compara les propostes</button></div>
     <div class="layouts" id="d-cards"></div>`;
+  $('#d-cmp').addEventListener('click', () => compareProposals(room));
   $('#d-room').addEventListener('change', (e) => { ui.layoutRoom = e.target.value; ui.proposals = []; renderDistribuir(); });
   $('#d-focus').addEventListener('click', () => frameCamera(room));
   $('#d-gen').addEventListener('click', async () => {
@@ -1052,7 +1204,7 @@ function renderDistribuir() {
     show(0);
     ui.proposals = await generateLayoutsAsync(room, its, state.rooms, { wallThickness: state.wallThickness, seed: ui.seed, count: 4 }, show);
     if (!$('#d-gen')) return; // la pestanya s'ha tornat a dibuixar mentrestant
-    $('#d-gen').disabled = false; $('#d-prog').hidden = true;
+    $('#d-gen').disabled = false; $('#d-prog').hidden = true; $('#d-cmp-wrap').hidden = ui.proposals.length < 2;
     renderProposals(roomById(ui.layoutRoom));
   });
   renderProposals(room);
@@ -1145,6 +1297,42 @@ function drawPreview(cv, room, p) {
     ctx.beginPath(); ctx.moveTo(X(it.x), Z(it.z));
     ctx.lineTo(X(it.x + f.x * (it.d / 2)), Z(it.z + f.z * (it.d / 2))); ctx.stroke();
   }
+}
+
+// --- Comparar (propostes o escenes) costat a costat
+function showCompare(title, panels) {
+  const m = document.getElementById('compare');
+  m.querySelector('h1').textContent = title;
+  const grid = m.querySelector('.cmp-grid');
+  grid.innerHTML = panels.map((p, i) => `<div class="cmp-panel"><canvas width="640" height="520"></canvas><div class="t">${esc(p.title)}</div><div class="r">${esc(p.subtitle || '')}</div>${p.action ? `<div class="btns"><button class="btn small" data-i="${i}">${esc(p.action)}</button></div>` : ''}</div>`).join('');
+  grid.querySelectorAll('.cmp-panel').forEach((el, i) => {
+    panels[i].draw(el.querySelector('canvas'));
+    el.querySelector('button[data-i]')?.addEventListener('click', () => { m.hidden = true; panels[i].onAction?.(); });
+  });
+  m.hidden = false;
+}
+function compareProposals(room) {
+  showCompare(`Propostes per a ${room.name}`, ui.proposals.map((p) => ({
+    title: p.name, subtitle: p.rating, action: 'Aplica',
+    draw: (cv) => drawPreview(cv, room, p),
+    onAction: () => applyProposal(room, p),
+  })));
+}
+function sceneItems(sc) { return sc.items; }
+function compareScenes(a, b) {
+  const panels = [a, b].map((sc) => ({
+    title: sc ? sc.name : 'Ara mateix', subtitle: sc ? `${sc.items.length} mobles · ${new Date(sc.ts).toLocaleString('ca')}` : `${state.items.length} mobles`,
+    action: sc ? 'Carrega' : null,
+    draw: (cv) => drawPlan(cv, state, { items: sc ? sc.items : state.items, cotes: false, pad: 24, bg: getComputedStyle(document.documentElement).getPropertyValue('--panel').trim() || '#fff' }),
+    onAction: () => loadScene(sc),
+  }));
+  showCompare('Comparació d’escenes', panels);
+}
+function loadScene(sc) {
+  commit();
+  state.items = clone(sc.items);
+  ui.selected = null;
+  save(); rebuildItems(); renderAll();
 }
 
 // --- Pestaña Plano
@@ -1271,6 +1459,13 @@ function renderDatos() {
       <label class="btn secondary" style="display:inline-block">Importa<input type="file" id="x-import" accept="application/json,.json" hidden /></label>
       <button class="btn secondary" id="x-png">Captura (.png)</button>
     </div>
+    <h2>Escenes</h2>
+    <p class="note">Una escena és una foto de com estan col·locats tots els mobles ara (per exemple «Menjador opció A»). Desa’n diverses, compara-les i torna-hi quan vulguis.</p>
+    <div class="btns"><button class="btn" id="sc-save">＋ Desa l’escena actual</button><button class="btn secondary" id="sc-cmp" ${(state.scenes || []).length ? '' : 'disabled'}>⇆ Compara</button></div>
+    <div id="sc-list"></div>
+    <h2>Imprimeix / PDF</h2>
+    <p class="note">Obre una fulla amb el plànol acotat, la llista d’habitacions amb les obertures i tots els mobles amb les mides. Al diàleg d’impressió tria «Desa com a PDF» (al mòbil: Comparteix → Imprimeix → pessiga per fer-lo PDF).</p>
+    <div class="btns"><button class="btn" id="x-pdf">🖨 Plànol amb cotes (PDF)</button></div>
     <h2>Instal·la l’app</h2>
     <div id="x-install-status">${installStatusHtml()}</div>
     <div class="btns"><button class="btn" id="x-install" ${isStandalone() ? 'disabled' : ''}>⬇ Instal·la al dispositiu</button></div>
@@ -1305,6 +1500,37 @@ function renderDatos() {
     a.href = renderer.domElement.toDataURL('image/png'); a.download = 'planta-3d.png'; a.click();
   });
   $('#x-install').addEventListener('click', () => installApp());
+  $('#x-pdf').addEventListener('click', () => printSheet(state));
+  $('#sc-save').addEventListener('click', () => {
+    const name = prompt('Nom de l’escena:', `Escena ${(state.scenes || []).length + 1}`);
+    if (name === null) return;
+    commit();
+    (state.scenes ||= []).push({ id: 's' + Math.random().toString(36).slice(2, 8), name: name.trim() || 'Escena', ts: Date.now(), items: clone(state.items) });
+    save(); renderDatos();
+  });
+  $('#sc-cmp').addEventListener('click', () => {
+    const sel = [...el.querySelectorAll('.sc-row input:checked')].map((c) => (state.scenes || []).find((s) => s.id === c.value));
+    if (sel.length === 2) compareScenes(sel[0], sel[1]);
+    else if (sel.length === 1) compareScenes(sel[0], null);
+    else { el.querySelector('#sc-hint').hidden = false; }
+  });
+  const list = el.querySelector('#sc-list');
+  const scenes = state.scenes || [];
+  list.innerHTML = scenes.length ? `<p class="note" id="sc-hint" hidden>Marca una o dues escenes per comparar-les (una sola es compara amb l’estat actual).</p><ul class="list">${scenes.map((sc) => `
+    <li class="sc-row" data-id="${sc.id}">
+      <input type="checkbox" value="${sc.id}" title="Marca per comparar" />
+      <span class="nm">${esc(sc.name)}</span>
+      <span class="dm">${sc.items.length} mobles · ${new Date(sc.ts).toLocaleDateString('ca')}</span>
+      <button class="btn small" data-sc-load>Carrega</button>
+      <button class="btn secondary small" data-sc-ren title="Canvia el nom">✎</button>
+      <button class="btn danger small" data-sc-del title="Elimina">×</button>
+    </li>`).join('')}</ul>` : '';
+  list.querySelectorAll('.sc-row').forEach((row) => {
+    const sc = scenes.find((s) => s.id === row.dataset.id);
+    row.querySelector('[data-sc-load]').addEventListener('click', () => { loadScene(sc); });
+    row.querySelector('[data-sc-ren]').addEventListener('click', () => { const n = prompt('Nom de l’escena:', sc.name); if (n === null) return; commit(); sc.name = n.trim() || sc.name; save(); renderDatos(); });
+    row.querySelector('[data-sc-del]').addEventListener('click', () => { commit(); state.scenes = scenes.filter((s) => s !== sc); save(); renderDatos(); });
+  });
   $('#x-clear').addEventListener('click', () => { commit(); state.items = []; ui.selected = null; afterStateReplace(); });
   $('#x-reset').addEventListener('click', () => { commit(); state = clone(DEFAULT_PLAN); ui.selected = null; afterStateReplace(); frameCamera(); });
 }
@@ -1330,7 +1556,8 @@ renderAll();
 controls3d.addEventListener('change', requestRender);
 controlsTop.addEventListener('change', requestRender);
 function loop() {
-  const moved = controls.update();
+  let moved = controls.update();
+  if (ui.view === 'walk') { if (walkStep(performance.now())) moved = true; }
   if (moved || needsRender) {
     needsRender = false;
     renderer.render(scene, camera);
@@ -1417,6 +1644,7 @@ async function installApp() {
 }
 document.getElementById('install').addEventListener('click', installApp);
 document.getElementById('install-close').addEventListener('click', () => { document.getElementById('install-help').hidden = true; });
+document.getElementById('compare-close').addEventListener('click', () => { document.getElementById('compare').hidden = true; });
 updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent

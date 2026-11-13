@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" href="icons/icon-192.png" type="image/png" />
-  <link rel="stylesheet" href="css/style.css?v=19" />
+  <link rel="stylesheet" href="css/style.css?v=20" />
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.js", "three/addons/OrbitControls.js": "./vendor/OrbitControls.js" } }
   </script>
@@ -40,6 +40,7 @@
         <div class="group">
           <button data-view="3d" class="active" title="Vista 3D">3D</button>
           <button data-view="top" title="Vista en planta">Planta</button>
+          <button data-view="walk" title="Passeja pel pis en primera persona">Passeig</button>
         </div>
         <div class="group">
           <label>Parets
@@ -71,6 +72,14 @@
       </div>
       <div id="canvas-wrap"></div>
       <div id="props" hidden></div>
+      <div id="walkbar" hidden>
+        <div class="pad">
+          <button data-walk="f" title="Endavant (W / ↑)">▲</button>
+          <div><button data-walk="l" title="Esquerra (A / ←)">◀</button><button data-walk="b" title="Enrere (S / ↓)">▼</button><button data-walk="r" title="Dreta (D / →)">▶</button></div>
+        </div>
+        <button id="wk-gyro" title="Mira movent el mòbil (giroscopi)">🧭</button>
+        <button id="wk-exit" title="Torna a la vista 3D">Surt</button>
+      </div>
       <div id="selbar" hidden>
         <button data-act="rl" title="Gira −90°">⟲</button>
         <button data-act="rr" title="Gira +90°">⟳</button>
@@ -93,6 +102,23 @@
       <div class="modal-body"></div>
     </div>
   </div>
+  <div id="measure" class="modal" hidden>
+    <div class="gate-card wide ms">
+      <div class="modal-head"><h1>Mesura amb una foto</h1><button type="button" class="close" id="measure-close" aria-label="Tanca">×</button></div>
+      <p class="ms-status note"></p>
+      <div class="btns"><label class="btn" style="display:inline-block">📷 Fes o carrega una foto<input type="file" accept="image/*" capture="environment" hidden /></label><button class="btn secondary" id="ms-undo">↶ Desfés el punt</button><button class="btn secondary" id="ms-clear">Neteja</button></div>
+      <canvas width="600" height="320"></canvas>
+      <ul class="ms-list"></ul>
+      <p class="note">Com funciona: un full A4 (21 × 29,7 cm) fa de regle. Marca’n les quatre cantonades en ordre (1 dalt-esquerra, 2 dalt-dreta, 3 baix-dreta, 4 baix-esquerra) i després dos punts; la distància surt en cm. Només és exacta per a punts del mateix pla que el full: posa’l al terra per mesurar amplada i fons, o contra la cara frontal del moble per mesurar l’alçada. Mantén el dit premut per veure la lupa.</p>
+    </div>
+  </div>
+  <div id="compare" class="modal" hidden>
+    <div class="gate-card wide cmp">
+      <div class="modal-head"><h1>Comparació</h1><button type="button" class="close" id="compare-close" aria-label="Tanca">×</button></div>
+      <div class="cmp-grid"></div>
+    </div>
+  </div>
+  <section id="print-sheet" aria-hidden="true"></section>
   <div id="install-help" class="modal" hidden>
     <div class="gate-card">
       <h1>Instal·la l’app</h1>
@@ -106,6 +132,6 @@
       <div class="gate-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=19"></script>
+  <script type="module" src="js/main.js?v=20"></script>
 </body>
 </html>
