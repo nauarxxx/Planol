@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=3';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=4';
 import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado
@@ -21,7 +21,21 @@ function loadState() {
   return clone(DEFAULT_PLAN);
 }
 
-let state = loadState();
+// Si el plano por defecto es más nuevo que el guardado, se actualizan las habitaciones
+// y se conservan los muebles (se reasignan a la habitación donde caen).
+function migratePlan(s) {
+  if (!s || (s.version || 1) >= DEFAULT_PLAN.version) return s;
+  const fresh = clone(DEFAULT_PLAN);
+  s.rooms = fresh.rooms;
+  s.version = fresh.version;
+  for (const it of s.items || []) {
+    const r = roomAt(s.rooms, it.x, it.z);
+    it.roomId = r ? r.id : (s.rooms.find((x) => x.kind === 'room') || {}).id;
+  }
+  return s;
+}
+
+let state = migratePlan(loadState());
 const ui = { selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null };
 const history = { past: [], future: [] };
 
@@ -1009,10 +1023,10 @@ if (cloudEnabled) {
       const acc = document.getElementById('account');
       acc.hidden = false;
       acc.querySelector('.who').textContent = u.email;
-      if (initial) { history.past = []; history.future = []; state = initial; afterStateReplace(false); frameCamera(); setSync('guardado'); }
+      if (initial) { history.past = []; history.future = []; const v = initial.version || 1; state = migratePlan(initial); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
       else save();
     },
-    onRemoteState: (s, by) => { state = s; afterStateReplace(false); setSync('Actualizado por ' + by); },
+    onRemoteState: (s, by) => { state = migratePlan(s); afterStateReplace(false); setSync('Actualizado por ' + by); },
   }).catch((e) => showGate(`<p class="gate-err">Error al cargar Firebase: ${esc(e.message)}</p>`));
   document.getElementById('signout').addEventListener('click', () => signOutUser());
 }

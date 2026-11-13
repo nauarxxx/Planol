@@ -106,3 +106,4 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .gate-card h1 { margin: 0 0 12px; font-size: 22px; }
 .gate-card p { color: var(--muted); line-height: 1.5; }
 .gate-err { color: var(--bad) !important; }
+#account[hidden] { display: none; }
