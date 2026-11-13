@@ -85,5 +85,63 @@ export function saveRemote(state, onStatus) {
     } catch (e) {
       onStatus?.('error: ' + e.message);
     }
-  }, 800);
+  }, saveDelay);
+}
+
+// ---- còpies de seguretat ----
+// Índex: document planta3d/copies {list: [meta…]} · contingut: planta3d/bk_<id> {json} (en trossos bk_<id>_<n> si és gran).
+const BK_INDEX = ['planta3d', 'copies'];
+const BK_CHUNK = 700000;
+let saveDelay = 800;
+export function setSaveDelay(ms) { saveDelay = Math.max(100, +ms || 800); }
+export const currentUserEmail = () => user?.email || '';
+
+export async function backupList() {
+  if (!cloudEnabled || !db) return [];
+  const snap = await fb.getDoc(fb.doc(db, ...BK_INDEX));
+  return snap.exists() && Array.isArray(snap.data().list) ? snap.data().list : [];
+}
+async function backupIndexWrite(list) {
+  await fb.setDoc(fb.doc(db, ...BK_INDEX), { list, updatedAt: fb.serverTimestamp() });
+}
+export async function backupSave(meta, json, onProgress) {
+  if (!cloudEnabled || !db || !user) throw new Error('Sense sessió');
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const parts = [];
+  for (let i = 0; i < json.length; i += BK_CHUNK) parts.push(json.slice(i, i + BK_CHUNK));
+  for (let n = 0; n < parts.length; n++) {
+    await fb.setDoc(fb.doc(db, 'planta3d', parts.length === 1 ? 'bk_' + id : `bk_${id}_${n}`), { json: parts[n], b: id, n });
+    onProgress?.(n + 1, parts.length);
+  }
+  const list = await backupList();
+  list.unshift({ ...meta, id, chunks: parts.length });
+  await backupIndexWrite(list);
+  return id;
+}
+export async function backupLoad(id) {
+  const list = await backupList();
+  const b = list.find((x) => x.id === id);
+  if (!b) throw new Error('La còpia no existeix');
+  if (b.chunks <= 1) {
+    const snap = await fb.getDoc(fb.doc(db, 'planta3d', 'bk_' + id));
+    if (!snap.exists()) throw new Error('La còpia està incompleta o trencada');
+    return snap.data().json;
+  }
+  let json = '';
+  for (let n = 0; n < b.chunks; n++) {
+    const snap = await fb.getDoc(fb.doc(db, 'planta3d', `bk_${id}_${n}`));
+    if (!snap.exists()) throw new Error('La còpia està incompleta o trencada');
+    json += snap.data().json;
+  }
+  return json;
+}
+export async function backupDelete(id) {
+  const list = await backupList();
+  const b = list.find((x) => x.id === id);
+  if (b) {
+    // el paquet de Firebase que portem no té deleteDoc: es buida el document (deixa d'ocupar espai)
+    if (b.chunks <= 1) await fb.setDoc(fb.doc(db, 'planta3d', 'bk_' + id), { deleted: true });
+    else for (let n = 0; n < b.chunks; n++) await fb.setDoc(fb.doc(db, 'planta3d', `bk_${id}_${n}`), { deleted: true });
+  }
+  await backupIndexWrite(list.filter((x) => x.id !== id));
 }

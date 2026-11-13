@@ -3,9 +3,10 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=16';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=21';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
 import { initAssistant } from './assistant.js';
 import { drawPlan, printSheet } from './sheet.js';
 import { initMeasure } from './measure.js';
@@ -41,7 +42,15 @@ function migratePlan(s) {
 }
 
 let state = migratePlan(loadState());
-const ui = { selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false };
+// Ajustos avançats (mode developer): es desen amb el plànol a state.cfg; si no n'hi ha, valors per defecte.
+const cfgGet = (k) => { const v = +(state.cfg?.[k]); return Number.isFinite(v) ? Math.min(CFGR[k][1], Math.max(CFGR[k][0], v)) : CFGD[k]; };
+// Registre d'errors per a les eines de developer.
+const logBuf = [];
+const logAdd = (kind, msg) => { logBuf.push(`${new Date().toLocaleTimeString('ca')} ${kind} ${msg}`); if (logBuf.length > 200) logBuf.shift(); };
+window.addEventListener('error', (e) => logAdd('✖', `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
+window.addEventListener('unhandledrejection', (e) => logAdd('✖', String(e.reason?.message || e.reason)));
+{ const ce = console.error.bind(console), cw = console.warn.bind(console); console.error = (...a) => { logAdd('✖', a.map(String).join(' ')); ce(...a); }; console.warn = (...a) => { logAdd('⚠', a.map(String).join(' ')); cw(...a); }; }
+const ui = { selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false, propHist: {}, propN: {}, propK: {} };
 const isMobile = () => window.matchMedia('(max-width: 800px)').matches;
 let installPrompt = null; // event d'instal·lació de la PWA (Chrome/Edge/Android)
 const history = { past: [], future: [] };
@@ -71,7 +80,7 @@ function setSync(st, json) {
 }
 function commit() {
   history.past.push(JSON.stringify(state));
-  if (history.past.length > 80) history.past.shift();
+  while (history.past.length > cfgGet('histMax')) history.past.shift();
   history.future = [];
 }
 function undo() {
@@ -98,7 +107,7 @@ const usableRooms = () => state.rooms.filter((r) => r.kind !== 'void');
 // ---------------------------------------------------------------- three.js
 const wrap = document.getElementById('canvas-wrap');
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, cfgGet('pixelRatio')));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -127,7 +136,7 @@ let controls = controls3d;
 scene.add(new THREE.HemisphereLight(0xfff6ea, 0xb0a898, 2.6));
 const sun = new THREE.DirectionalLight(0xfff1dc, 1.6);
 sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.mapSize.set(cfgGet('shadow'), cfgGet('shadow'));
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 1.5;
 scene.add(sun, sun.target);
@@ -227,14 +236,14 @@ function walkStep(now) {
   if (k.has('f')) f += 1; if (k.has('b')) f -= 1; if (k.has('l')) s -= 1; if (k.has('r')) s += 1;
   let moved = false;
   if (f || s) {
-    const v = 160 * dt; // cm per segon
+    const v = cfgGet('walkSpeed') * dt; // cm per segon
     const dirx = -Math.sin(walk.yaw), dirz = -Math.cos(walk.yaw); // cap on mira (yaw 0 = -z)
     const nx = walk.x + (dirx * f + -dirz * s) * v, nz = walk.z + (dirz * f + dirx * s) * v;
     const b = planBounds();
     walk.x = Math.min(b.x1 - 10, Math.max(b.x0 + 10, nx)); walk.z = Math.min(b.z1 - 10, Math.max(b.z0 + 10, nz));
     moved = true;
   }
-  walkCam.position.set(walk.x, 160, walk.z);
+  walkCam.position.set(walk.x, cfgGet('eyeHeight'), walk.z);
   if (walk.q) walkCam.quaternion.copy(walk.q);
   else walkCam.rotation.set(walk.pitch, walk.yaw, 0, 'YXZ');
   return moved;
@@ -375,7 +384,7 @@ function wallHeight() {
   const H = state.ceiling || 250;
   if (ui.view === 'top') return Math.min(H, 120);
   if (ui.view === 'walk') return H;
-  return ui.wallMode === 'full' ? H : ui.wallMode === 'low' ? Math.min(H, 100) : 12;
+  return ui.wallMode === 'full' ? H : ui.wallMode === 'low' ? Math.min(H, cfgGet('lowWall')) : 12;
 }
 
 // Pieza de pared a lo largo de un eje entre a y b.
@@ -388,8 +397,10 @@ function wallPiece(axis, line, a, b, y0, y1, t, material, cap = true) {
   else m.position.set(line, y0 + h / 2, (a + b) / 2);
   m.castShadow = true;
   m.receiveShadow = true;
+  if (tagEdge) m.userData.wall = tagEdge;
   planGroup.add(m);
 }
+let tagEdge = null; // paret que s'està construint (habitació, eix, extrems)
 
 function subtractIntervals(a, b, cuts) {
   let segs = [[a, b]];
@@ -424,7 +435,7 @@ function makeLabel(lines, color = '#2b2926', bg = 'rgba(255,255,255,0.82)', maxW
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
-  const scale = Math.min(0.32, maxW / c.width, maxH / c.height);
+  const scale = Math.min(0.32 * cfgGet('labelScale') / 100, maxW / c.width, maxH / c.height);
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(c.width * scale, c.height * scale), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
   mesh.rotation.x = -Math.PI / 2;
   mesh.renderOrder = 2;
@@ -440,6 +451,7 @@ function rebuildPlan() {
   const openings = allOpenings(state.rooms);
 
   for (const r of state.rooms) {
+    tagEdge = null;
     if (r.kind === 'void') {
       const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, H, r.d), voidMat);
       m.position.set(r.x + r.w / 2, H / 2, r.z + r.d / 2);
@@ -498,6 +510,7 @@ function rebuildPlan() {
       { axis: 'z', line: r.x + r.w, a: r.z, b: r.z + r.d },
     ];
     for (const e of edges) {
+      tagEdge = { room: r, axis: e.axis, line: e.line, a: e.a, b: e.b, side: e.axis === 'x' ? (e.line === r.z ? 'nord' : 'sud') : (e.line === r.x ? 'oest' : 'est') };
       const ops = openings.filter((o) => o.axis === e.axis && Math.abs(o.line - e.line) <= 1 && o.b > e.a && o.a < e.b);
       const cuts = ops.map((o) => [Math.max(o.a, e.a), Math.min(o.b, e.b)]);
       const solid = subtractIntervals(e.a, e.b, cuts);
@@ -775,9 +788,32 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     controls.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
   } else {
-    drag = { empty: true, x: e.clientX, y: e.clientY };
+    const wh = raycaster.intersectObjects(planGroup.children, false).find((h) => h.object.userData.wall);
+    drag = { empty: true, x: e.clientX, y: e.clientY, wall: wh ? wh.object.userData.wall : null };
   }
 });
+
+// Toca una paret i en veus les mides (llargada, alçada, gruix) durant uns segons, al 3D i a la línia d'ajuda.
+let wallLabel = null, wallLabelT = 0;
+function showWallMeasure(w) {
+  if (wallLabel) { planGroup.remove(wallLabel); wallLabel.material.map.dispose(); wallLabel.material.dispose(); wallLabel.geometry.dispose(); wallLabel = null; }
+  clearTimeout(wallLabelT);
+  if (!w) { requestRender(); return; }
+  const len = Math.round(w.b - w.a), H = state.ceiling || 250, t = state.wallThickness || 10;
+  const ops = allOpenings(state.rooms).filter((o) => o.axis === w.axis && Math.abs(o.line - w.line) <= 1 && o.b > w.a && o.a < w.b);
+  const lines = [`${len} cm`, `${w.room.name} · paret ${w.side} · alçada ${H} · gruix ${t}`];
+  if (ops.length) lines.push(ops.map((o) => `${o.type === 'puerta' ? 'porta' : o.type === 'paso' ? 'pas' : o.type === 'ventanal' ? 'finestral' : 'finestra'} ${Math.round(Math.min(o.b, w.b) - Math.max(o.a, w.a))} cm a ${Math.round(Math.max(o.a, w.a) - w.a)} de l’extrem`).join(' · '));
+  wallLabel = makeLabel(lines, '#ffffff', 'rgba(181,101,47,0.92)', len * 1.4 + 120, 1e9);
+  const mid = (w.a + w.b) / 2, off = 26;
+  const inward = w.axis === 'x' ? (w.side === 'nord' ? 1 : -1) : (w.side === 'oest' ? 1 : -1);
+  if (w.axis === 'x') wallLabel.position.set(mid, wallHeight() + 1.5, w.line + inward * off);
+  else { wallLabel.position.set(w.line + inward * off, wallHeight() + 1.5, mid); wallLabel.rotation.z = Math.PI / 2; }
+  planGroup.add(wallLabel);
+  const hint = document.getElementById('hint');
+  if (hint) { hint.dataset.prev ??= hint.textContent; hint.textContent = `📏 ${lines[0]} · ${lines[1]}${lines[2] ? ' · ' + lines[2] : ''}`; }
+  requestRender();
+  wallLabelT = setTimeout(() => { showWallMeasure(null); if (hint && hint.dataset.prev !== undefined) { hint.textContent = hint.dataset.prev; delete hint.dataset.prev; } }, 3000);
+}
 
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (drag && drag.look) {
@@ -790,7 +826,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   const p = floorPoint();
   if (!p) return;
   const it = itemById(drag.id);
-  const step = ui.snap ? 5 : 1;
+  const step = ui.snap ? cfgGet('snap') : 1;
   it.x = Math.round((p.x + drag.dx) / step) * step;
   it.z = Math.round((p.z + drag.dz) / step) * step;
   drag.moved = true;
@@ -801,7 +837,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (drag && drag.look) { drag = null; return; }
   if (drag && drag.empty) {
-    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) select(null);
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (drag.wall) showWallMeasure(drag.wall); }
   } else if (drag) {
     const it = itemById(drag.id);
     if (drag.moved) {
@@ -867,7 +903,10 @@ function duplicate(it) {
   save(); rebuildItems(); select(c.id);
 }
 
-function removeItem(id) {
+function removeItem(id, ask = true) {
+  const it = itemById(id);
+  if (!it) return;
+  if (ask && +prefs.confirmDel && !confirm(`Eliminar «${it.name}»?`)) return;
   commit();
   state.items = state.items.filter((i) => i.id !== id);
   if (ui.selected === id) ui.selected = null;
@@ -1059,7 +1098,7 @@ function renderCatalog() {
     card.querySelector('.cat-name').addEventListener('change', (e) => { commit(); c.name = e.target.value; save(); });
     card.querySelector('input[type=file]').addEventListener('change', async (e) => {
       const file = e.target.files[0]; if (!file) return;
-      try { commit(); c.photo = await shrinkImage(file, 180, 0.72); save(); renderCatalog(); } catch (err) { /* res */ }
+      try { commit(); c.photo = await shrinkImage(file, cfgGet('catalogPhoto'), 0.72); save(); renderCatalog(); } catch (err) { /* res */ }
     });
   });
 }
@@ -1169,45 +1208,162 @@ function renderProps(onlyPos = false) {
 }
 
 // --- Pestaña Distribuir
+// Equipament típic de cada estança, en variants, per proposar distribucions encara que no hi hagi cap moble
+// (o per provar-ne una amb mobles diferents). [tipus, mides/nom opcionals, quantitat]
+const normName = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function roomKits(room) {
+  const n = normName(room.name), minSide = Math.min(room.w, room.d), big = room.w * room.d > 120000;
+  if (room.kind === 'terrace' || /terrassa|balco/.test(n)) return [
+    [['silla', { name: 'Cadira exterior' }, 2], ['mesa', { w: 70, d: 70, name: 'Tauleta exterior' }], ['planta']],
+    [['sillon', { w: 70, d: 70, name: 'Butaca exterior' }, 2], ['mesaCentro', { w: 60, d: 40 }], ['planta', {}, 2]],
+  ];
+  if (/menjador|sala|estar|salo/.test(n)) return [
+    [['sofa', { w: Math.min(220, Math.round(minSide * 0.75)) }], ['muebleTv'], ['tv'], ['mesaCentro'], ['mesa', { w: 120, d: 80 }], ['silla', {}, 4]],
+    [['sofa'], ['sillon'], ['muebleTv'], ['tv'], ['mesaCentro'], ['estanteria'], ['planta']],
+    [['mesa', { w: big ? 160 : 140, d: 90 }], ['silla', {}, big ? 6 : 4], ['estanteria', { w: 120 }], ['sofa', { w: 180 }], ['tv'], ['muebleTv', { w: 120 }]],
+    [['sofa', { w: 240, d: 160, name: 'Sofà chaise longue' }], ['tv'], ['muebleTv', { w: 180 }], ['alfombra'], ['lampara'], ['mesaCentro', { w: 80, d: 80 }]],
+  ];
+  if (/dormitori|habitacio/.test(n)) return [
+    [['cama', { w: 150, d: 200 }], ['mesita', {}, 2], ['comoda']],
+    [['cama', { w: 160, d: 200 }], ['mesita', {}, 2], ['estanteria'], ['planta']],
+    [['cama', { w: 135, d: 190 }], ['mesita'], ['escritorio', { w: 100, d: 50 }], ['silla']],
+    [['cama', { w: 180, d: 200, name: 'Llit gran' }], ['mesita', {}, 2], ['sillon'], ['lampara']],
+  ];
+  if (/office|despatx|estudi/.test(n)) return [
+    [['escritorio'], ['silla'], ['estanteria']],
+    [['escritorio', { w: 140, d: 60 }], ['silla'], ['estanteria', {}, 2], ['sillon']],
+    [['cama', { w: 90, d: 190, name: 'Llit individual' }], ['escritorio', { w: 100, d: 50 }], ['silla'], ['estanteria']],
+    [['sofa', { w: 160, d: 80, name: 'Sofà llit' }], ['escritorio', { w: 110, d: 55 }], ['silla'], ['estanteria', { w: 60 }]],
+  ];
+  if (/cuina/.test(n)) return [
+    [['mesa', { w: 120, d: 80 }], ['silla', {}, 4]],
+    [['mesa', { w: 80, d: 80, name: 'Taula alta' }], ['silla', { name: 'Tamboret' }, 2], ['planta']],
+    [['mesa', { w: 140, d: 80 }], ['silla', {}, 4], ['estanteria', { w: 60, d: 30, name: 'Rebost' }]],
+  ];
+  if (/passadis|rebedor|distribuidor|entrada/.test(n)) return [
+    [['comoda', { w: 80, d: 35, name: 'Moble d’entrada' }], ['planta']],
+    [['estanteria', { w: 60, d: 25, name: 'Sabater' }], ['planta']],
+  ];
+  if (/bany|lavabo|armari|traster|safareig/.test(n)) return [];
+  return [[['mesa'], ['silla', {}, 2]], [['estanteria'], ['sillon'], ['planta']]];
+}
+// Crea els mobles d'un equipament dins d'una habitació (sense col·locar-los encara). Es descarten els que no hi caben.
+function kitItems(room, kit) {
+  const R = innerRect(room, state.wallThickness || 10), W = R.x1 - R.x0, D = R.z1 - R.z0;
+  const out = [];
+  for (const [type, over = {}, qty = 1] of kit) {
+    for (let i = 0; i < qty; i++) {
+      const it = newItem(type, { ...over, roomId: room.id });
+      if (qty > 1) it.name = `${over.name || CATALOG[type].label} ${i + 1}`;
+      if (Math.min(it.w, it.d) > Math.min(W, D) - 20 || Math.max(it.w, it.d) > Math.max(W, D) - 20) continue;
+      it.fromKit = true; it.x = room.x + room.w / 2; it.z = room.z + room.d / 2;
+      out.push(it);
+    }
+  }
+  return out;
+}
+const propHist = (id) => (ui.propHist[id] ||= { list: [], idx: -1 });
+function roomItemsOf(id) { return state.items.filter((i) => i.roomId === id); }
+// Substitueix els mobles d'una habitació per uns altres (queda a Desfés).
+function setRoomItems(room, items) {
+  commit();
+  state.items = state.items.filter((i) => i.roomId !== room.id).concat(clone(items));
+  if (ui.selected && !itemById(ui.selected)) ui.selected = null;
+  save(); rebuildItems(); renderAll();
+}
+let propBusy = false;
+async function generateProposal(room) {
+  if (propBusy) return;
+  const H = propHist(room.id), n = ui.propN[room.id] || 0;
+  const cur = roomItemsOf(room.id);
+  const kits = roomKits(room);
+  const vary = !!$('#d-vary')?.checked;
+  const locked = cur.filter((i) => i.locked);
+  let items, label;
+  if (!cur.length || (vary && kits.length && n % 2 === 1)) {
+    if (!kits.length) { toast(`${room.name}: aquesta estança no necessita mobles. Afegeix-ne des de la pestanya Mobles si vols.`); return; }
+    const k = (ui.propK[room.id] || 0) % kits.length; // cada cop un equipament diferent, en ordre
+    ui.propK[room.id] = k + 1;
+    items = locked.concat(kitItems(room, kits[k]));
+    label = `Equipament ${k + 1} de ${kits.length}`;
+  } else { items = clone(cur); label = 'Mateixos mobles'; }
+  if (!items.length) { toast('No hi ha mobles per col·locar.'); return; }
+  ui.propN[room.id] = n + 1;
+  propBusy = true;
+  const btn = $('#d-gen'), prog = $('#d-prog');
+  if (btn) btn.disabled = true; if (prog) prog.hidden = false;
+  ui.seed = (ui.seed * 9301 + 49297) % 233280 + Date.now() % 1000;
+  const show = (f) => { const p = $('#d-prog'); if (!p) return; p.querySelector('.bar').style.width = Math.round(f * 100) + '%'; p.querySelector('span').textContent = `Provant col·locacions… ${Math.round(f * 100)} %`; };
+  show(0);
+  let props = [];
+  try {
+    props = await generateLayoutsAsync(room, items, state.rooms, { wallThickness: state.wallThickness, seed: ui.seed, count: cfgGet('count'), tries: cfgGet('tries'), clear: cfgGet('clear'), gapMin: cfgGet('gapMin') }, show);
+  } finally { propBusy = false; }
+  if (!props.length) { toast('No he trobat cap col·locació que hi càpiga. Prova amb menys mobles.'); renderDistribuir(); return; }
+  const best = props[0];
+  const placed = items.map((i) => ({ ...i, ...(best.placements[i.id] ? { x: Math.round(best.placements[i.id].x), z: Math.round(best.placements[i.id].z), rot: best.placements[i.id].rot, ...(best.placements[i.id].elev !== undefined ? { elev: best.placements[i.id].elev } : {}) } : {}) }));
+  H.list.length = H.idx + 1;
+  H.list.push({ name: `${label} · ${best.rating}`, items: placed, alts: props.slice(1).map((p) => ({ name: p.name, rating: p.rating, placements: p.placements })), base: items });
+  if (H.list.length > 30) H.list.shift();
+  H.idx = H.list.length - 1;
+  setRoomItems(room, placed);
+  frameCamera(room);
+}
 function renderDistribuir() {
   const el = $('#tab-distribuir');
-  if (!roomById(ui.layoutRoom) || (!ui.proposals.length && !state.items.some((i) => i.roomId === ui.layoutRoom))) {
-    // Per defecte, l'habitació del moble seleccionat o la primera que tingui mobles.
+  if (!roomById(ui.layoutRoom)) {
     const sel = itemById(ui.selected);
-    const withItems = (sel && roomById(sel.roomId)) || usableRooms().find((r) => state.items.some((i) => i.roomId === r.id));
-    ui.layoutRoom = (withItems || usableRooms()[0])?.id;
+    ui.layoutRoom = ((sel && roomById(sel.roomId)) || usableRooms().find((r) => state.items.some((i) => i.roomId === r.id)) || usableRooms()[0])?.id;
   }
   const room = roomById(ui.layoutRoom);
-  const its = state.items.filter((i) => i.roomId === ui.layoutRoom);
+  const its = roomItemsOf(ui.layoutRoom);
   const locked = its.filter((i) => i.locked).length;
+  const kits = roomKits(room);
+  const H = propHist(room.id);
+  const allKit = its.length > 0 && its.every((i) => i.fromKit || i.locked);
+  const vary = ui.propVary?.[room.id] ?? (!its.length || allKit);
+  const snap = H.idx >= 0 ? H.list[H.idx] : null;
   el.innerHTML = `
-    <h2>Propostes de distribució</h2>
-    <div class="row"><label>Habitació<select id="d-room">${roomOptions(ui.layoutRoom)}</select></label></div>
-    <p class="note">${its.length ? `${its.length} mobles a ${esc(room.name)}${locked ? `, ${locked} de fixos` : ''}.` : 'Aquesta habitació no té mobles. Afegeix-los a la pestanya Mobles.'}
-    L’app prova centenars de col·locacions (TV a la paret, sofà davant de la TV, cadires al voltant de la taula, llit contra la paret, pas lliure davant de les portes) i t’ensenya les millors.</p>
+    <h2>Propostes</h2>
+    <div class="row"><label>Estança<select id="d-room">${roomOptions(ui.layoutRoom)}</select></label></div>
+    <p class="note">${its.length ? `${its.length} mobles a ${esc(room.name)}${locked ? `, ${locked} de fixos (no es mouen)` : ''}.` : kits.length ? `${esc(room.name)} encara no té mobles: et proposaré un equipament típic (${kits.length} variants) i la seva col·locació.` : `${esc(room.name)} no necessita mobles.`}
+    Cada cop que premis <b>Genera una proposta</b> en veuràs una altra, directament al 3D. Si una d’abans t’agradava més, torna-hi amb ◀.</p>
+    <label class="chk"><input type="checkbox" id="d-vary" ${vary ? 'checked' : ''} ${kits.length ? '' : 'disabled'}/> Pot canviar els mobles (alterna mateixos mobles / un altre equipament)</label>
     <div class="btns">
-      <button class="btn" id="d-gen" ${its.length ? '' : 'disabled'}>Genera propostes</button>
-      <button class="btn secondary" id="d-focus">Mostra l’habitació</button>
+      <button class="btn" id="d-gen" ${its.length || kits.length ? '' : 'disabled'}>✨ Genera una proposta</button>
+      <button class="btn secondary" id="d-focus">Mostra l’estança</button>
     </div>
     <div class="progress" id="d-prog" hidden><div class="bar"></div><span></span></div>
-    <div class="btns" id="d-cmp-wrap" ${ui.proposals.length > 1 ? '' : 'hidden'}><button class="btn secondary small" id="d-cmp">⇆ Compara les propostes</button></div>
-    <div class="layouts" id="d-cards"></div>`;
-  $('#d-cmp').addEventListener('click', () => compareProposals(room));
-  $('#d-room').addEventListener('change', (e) => { ui.layoutRoom = e.target.value; ui.proposals = []; renderDistribuir(); });
+    ${H.list.length ? `<div class="prop-nav">
+      <button class="btn secondary small" id="d-prev" ${H.idx > 0 ? '' : 'disabled'} title="Proposta anterior">◀ Anterior</button>
+      <span class="cnt">Proposta ${H.idx + 1} de ${H.list.length}<br><small>${esc(snap?.name || '')}</small></span>
+      <button class="btn secondary small" id="d-next" ${H.idx < H.list.length - 1 ? '' : 'disabled'} title="Proposta següent">Següent ▶</button>
+    </div>` : ''}
+    ${snap?.alts?.length ? `<p class="note">Altres col·locacions amb els mateixos mobles (toca’n una per aplicar-la):</p>` : ''}
+    <div class="layouts" id="d-cards"></div>
+    ${H.list.length > 1 ? '<div class="btns"><button class="btn secondary small" id="d-cmp">⇆ Compara les propostes</button></div>' : ''}`;
+  $('#d-room').addEventListener('change', (e) => { ui.layoutRoom = e.target.value; renderDistribuir(); });
+  $('#d-vary').addEventListener('change', (e) => { (ui.propVary ||= {})[room.id] = e.target.checked; });
   $('#d-focus').addEventListener('click', () => frameCamera(room));
-  $('#d-gen').addEventListener('click', async () => {
-    const btn = $('#d-gen'), prog = $('#d-prog');
-    if (btn.disabled) return;
-    btn.disabled = true; prog.hidden = false;
-    ui.seed = (ui.seed * 9301 + 49297) % 233280 + Date.now() % 1000;
-    const show = (f) => { prog.querySelector('.bar').style.width = Math.round(f * 100) + '%'; prog.querySelector('span').textContent = `Provant col·locacions… ${Math.round(f * 100)} %`; };
-    show(0);
-    ui.proposals = await generateLayoutsAsync(room, its, state.rooms, { wallThickness: state.wallThickness, seed: ui.seed, count: 4 }, show);
-    if (!$('#d-gen')) return; // la pestanya s'ha tornat a dibuixar mentrestant
-    $('#d-gen').disabled = false; $('#d-prog').hidden = true; $('#d-cmp-wrap').hidden = ui.proposals.length < 2;
-    renderProposals(roomById(ui.layoutRoom));
-  });
-  renderProposals(room);
+  $('#d-gen').addEventListener('click', () => generateProposal(room));
+  $('#d-prev')?.addEventListener('click', () => { if (H.idx > 0) { H.idx--; setRoomItems(room, H.list[H.idx].items); } });
+  $('#d-next')?.addEventListener('click', () => { if (H.idx < H.list.length - 1) { H.idx++; setRoomItems(room, H.list[H.idx].items); } });
+  $('#d-cmp')?.addEventListener('click', () => compareProposals(room));
+  if (snap?.alts?.length) {
+    const cards = $('#d-cards');
+    cards.innerHTML = snap.alts.map((p, i) => `<div class="layout-card" data-i="${i}"><canvas width="320" height="240"></canvas><div class="t">${esc(p.name)}</div><div class="r">${esc(p.rating)}</div></div>`).join('');
+    cards.querySelectorAll('.layout-card').forEach((card) => {
+      const p = snap.alts[+card.dataset.i];
+      drawPreview(card.querySelector('canvas'), room, p, snap.base);
+      card.addEventListener('click', () => {
+        const placed = snap.base.map((i) => ({ ...i, ...(p.placements[i.id] ? { x: Math.round(p.placements[i.id].x), z: Math.round(p.placements[i.id].z), rot: p.placements[i.id].rot } : {}) }));
+        H.list.length = H.idx + 1;
+        H.list.push({ name: `${p.name} · ${p.rating}`, items: placed, alts: snap.alts.filter((a) => a !== p).concat([{ name: snap.name.split(' · ')[0], rating: snap.name.split(' · ').slice(1).join(' · '), placements: Object.fromEntries(snap.items.map((i) => [i.id, { x: i.x, z: i.z, rot: i.rot }])) }]), base: snap.base });
+        H.idx = H.list.length - 1;
+        setRoomItems(room, placed);
+      });
+    });
+  }
 }
 
 function renderProposals(room) {
@@ -1238,7 +1394,7 @@ function applyProposal(room, p) {
   save(); rebuildItems(); renderAll();
 }
 
-function drawPreview(cv, room, p) {
+function drawPreview(cv, room, p, items = null) {
   const ctx = cv.getContext('2d');
   const pad = 14;
   const s = Math.min((cv.width - 2 * pad) / room.w, (cv.height - 2 * pad) / room.d);
@@ -1282,7 +1438,7 @@ function drawPreview(cv, room, p) {
     arc.forEach(([x, z]) => ctx.lineTo(X(x), Z(z)));
     ctx.closePath(); ctx.stroke();
   }
-  const its = state.items.filter((i) => i.roomId === room.id).map((i) => ({ ...i, ...(p.placements[i.id] || {}) }));
+  const its = (items || state.items.filter((i) => i.roomId === room.id)).map((i) => ({ ...i, ...(p.placements[i.id] || {}) }));
   its.sort((a, b) => (a.type === 'alfombra' ? -1 : 0) - (b.type === 'alfombra' ? -1 : 0) || (a.elev || 0) - (b.elev || 0));
   for (const it of its) {
     const cs = corners(it);
@@ -1312,10 +1468,12 @@ function showCompare(title, panels) {
   m.hidden = false;
 }
 function compareProposals(room) {
-  showCompare(`Propostes per a ${room.name}`, ui.proposals.map((p) => ({
-    title: p.name, subtitle: p.rating, action: 'Aplica',
-    draw: (cv) => drawPreview(cv, room, p),
-    onAction: () => applyProposal(room, p),
+  const H = propHist(room.id);
+  const list = H.list.slice(Math.max(0, H.idx - 3), H.idx + 1);
+  showCompare(`Propostes per a ${room.name}`, list.map((snap) => ({
+    title: `Proposta ${H.list.indexOf(snap) + 1}`, subtitle: snap.name, action: 'Aplica',
+    draw: (cv) => drawPreview(cv, room, { placements: {} }, snap.items),
+    onAction: () => { H.idx = H.list.indexOf(snap); setRoomItems(room, snap.items); },
   })));
 }
 function sceneItems(sc) { return sc.items; }
@@ -1449,10 +1607,11 @@ function renderPlano() {
 }
 
 // --- Pestaña Datos
-function renderDatos() {
-  const el = $('#tab-datos');
+function renderDatos(target) {
+  const el = target || document.getElementById('s-dades');
+  if (!el) return;
   el.innerHTML = `
-    <h2>Desa i comparteix</h2>
+    <h2>Dades: desa i comparteix</h2>
     <p class="note">Tot es desa automàticament en aquest navegador i al núvol. Per passar-ho a un altre ordinador, exporta el fitxer i després importa’l allà.</p>
     <div class="btns">
       <button class="btn" id="x-export">Exporta (.json)</button>
@@ -1542,6 +1701,7 @@ function renderAll() {
   renderPlano();
   renderDatos();
   renderProps();
+  if (window.devTools) devTools.refresh?.();
 }
 
 // ---------------------------------------------------------------- arranque
@@ -1595,6 +1755,7 @@ if (cloudEnabled) {
       cloudCount('reads');
       if (initial) { history.past = []; history.future = []; const v = initial.version || 1; cloudBase = clone(initial); state = migratePlan(initial); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
       else save();
+      setTimeout(() => { applyCfg(); api.dev?.bkAutoCheck(); }, 1500);
     },
     onRemoteState: (s, by) => {
       // Fusió amb els canvis locals que encara no s'han desat: no es perd res de cap dels dos.
@@ -1649,7 +1810,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v19',
+  version: 'v21',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -1664,22 +1825,60 @@ const api = {
   },
   apply: (room, p) => applyProposal(room, p),
   showProposals: (room, props) => {
-    ui.layoutRoom = room.id; ui.proposals = props;
-    renderDistribuir();
+    // Propostes de l'assistent: s'afegeixen a l'historial de l'estança i s'aplica la millor.
+    if (!props.length) return;
+    const H = propHist(room.id), base = clone(roomItemsOf(room.id)), best = props[0];
+    const placed = base.map((i) => ({ ...i, ...(best.placements[i.id] ? { x: Math.round(best.placements[i.id].x), z: Math.round(best.placements[i.id].z), rot: best.placements[i.id].rot } : {}) }));
+    H.list.length = H.idx + 1;
+    H.list.push({ name: `WALL-E · ${best.rating}`, items: placed, alts: props.slice(1).map((p) => ({ name: p.name, rating: p.rating, placements: p.placements })), base });
+    H.idx = H.list.length - 1;
+    ui.layoutRoom = room.id;
+    setRoomItems(room, placed);
     document.querySelector('.tabs button[data-tab=distribuir]')?.click();
   },
+  // ---- estat i ajustos (mode developer / assistent d'ordres)
+  state: () => state,
+  cfg: () => state.cfg || {},
+  cfgGet,
+  setCfg: (obj) => { commit(); const c = cfgClean(obj); if (Object.keys(c).length) state.cfg = c; else delete state.cfg; save(); applyCfg(); },
+  replaceState: (s) => { commit(); state = migratePlan(s); afterStateReplace(); applyCfg(); frameCamera(); },
+  remigrate: () => { commit(); state.version = 0; state = migratePlan(state); afterStateReplace(); },
+  save: () => save(true),
+  log: () => logBuf,
+  toast: (m) => toast(m),
+  setPlan: (patch) => { commit(); Object.assign(state, patch); save(); rebuildPlan(); rebuildItems(); renderAll(); },
+  setRoom: (id, patch) => { const r = roomById(id); if (!r) return; commit(); Object.assign(r, patch); save(); rebuildPlan(); renderAll(); },
+  clearItems: (roomId) => { commit(); state.items = roomId ? state.items.filter((i) => i.roomId !== roomId) : []; ui.selected = null; afterStateReplace(); },
+  setWallMode: (v) => { ui.wallMode = v; const sel = $('#wallMode'); if (sel) sel.value = v; rebuildPlan(); },
+  setToggle: (what, on) => { const cb = $('#' + what); if (cb) { cb.checked = on; cb.dispatchEvent(new Event('change')); } },
+  setView: (v) => setView(v),
+  setShadows: (on) => { if (renderer.shadowMap.enabled !== on) { renderer.shadowMap.enabled = on; scene.traverse((o) => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach((m) => { m.needsUpdate = true; }); } }); requestRender(); } },
+  renderDades: (el) => renderDatos(el),
+  cloud: { enabled: () => cloudEnabled, user: () => (currentUserEmail() ? { email: currentUserEmail() } : null), backupList, backupSave, backupLoad, backupDelete },
   setScenePrefs: ({ wall, bg }) => {
     try { if (wall) wallMat.color.set(wall); if (bg) scene.background.set(bg); } catch (e) { /* color no vàlid */ }
     requestRender();
   },
-  cloudInfo: () => ({ enabled: cloudEnabled, bytes: JSON.stringify(state).length, writes: cloudStats.day === today() ? cloudStats.writes : 0, reads: cloudStats.day === today() ? cloudStats.reads : 0, items: state.items.length, rooms: state.rooms.length }),
+  cloudInfo: () => { const bk = api.dev?.bkList?.() || []; return { enabled: cloudEnabled, bytes: JSON.stringify(state).length, writes: cloudStats.day === today() ? cloudStats.writes : 0, reads: cloudStats.day === today() ? cloudStats.reads : 0, items: state.items.length, rooms: state.rooms.length, bkCount: bk.length, bkBytes: bk.reduce((a, b) => a + (b.bytes || 0), 0) }; },
   voiceInfo: () => assistant.voiceInfo(),
   walleSay: (f) => assistant.walleSay(f),
   sayTest: () => assistant.sayTest(),
 };
+// Avís breu a la part de baix.
+let toastT = 0;
+function toast(msg) {
+  const el = document.getElementById('toast'); if (!el) return;
+  el.textContent = msg; el.hidden = false; clearTimeout(toastT);
+  toastT = setTimeout(() => { el.hidden = true; }, 3500);
+}
+// Aplica els ajustos avançats que no es llegeixen al moment.
+function applyCfg() { setSaveDelay(cfgGet('saveDelay')); rebuildPlan(); }
+api.dev = initDevCfg(api);
 const assistant = initAssistant(api);
 applyPrefs(api);
-initSettings(api);
+const settings = initSettings(api);
+applyCfg();
+if (prefs.startView === 'top') setView('top');
 
 // Acceso para depuración desde la consola.
 window.planta3d = {
@@ -1688,4 +1887,4 @@ window.planta3d = {
     const r = renderer.domElement.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
-  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), prefs };
+  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits };

@@ -206,3 +206,102 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .gate-card p { color: var(--muted); line-height: 1.5; }
 .gate-err { color: var(--bad) !important; }
 #account[hidden] { display: none; }
+
+/* ===== v21: moneda (⚙ i robot), mode developer vermell, assistent d'ordres, avisos ===== */
+#hint.off { display: none; }
+#toolbar #theme-btn { font-size: 16px; }
+.flipbtn { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.persp { display: block; width: 100%; height: 100%; perspective: 700px; }
+.coin { display: block; position: relative; width: 100%; height: 100%; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transition: transform .9s cubic-bezier(.25,.8,.25,1); }
+.flipbtn.flipped .coin { transform: rotateY(540deg); }
+.face { position: absolute; inset: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.face.back { transform: rotateY(180deg); }
+.flipbtn.hop { animation: coinhop .9s ease-in-out; }
+@keyframes coinhop { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-12px) scale(1.14); } 100% { transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .coin { transition: none; } .flipbtn.hop { animation: none; } }
+/* botó ⚙: gris en repòs, vermell quan es desbloqueja */
+#toolbar #settings-btn { width: 36px; height: 36px; padding: 0; border-radius: 50%; }
+#settings-btn .face { background: var(--panel); border: 2px solid var(--line); color: var(--muted); }
+#settings-btn .face.back { background: #000; border-color: #ff3b3b; color: #ff3b3b; box-shadow: 0 0 14px rgba(255,59,59,.55); }
+/* robot: cara normal i cara malvada */
+#ai-fab { background: transparent; box-shadow: none; }
+#ai-fab .face { box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+#ai-fab .face.front { background: var(--panel); color: var(--ink); }
+#ai-fab[aria-expanded="true"] .face.front { background: var(--accent); color: var(--accent-ink); }
+#ai-fab .face.back { background: #e5252a; color: #1a0000; --accent: #e5252a; box-shadow: 0 4px 18px rgba(229,37,42,.55); }
+/* panell de l'assistent d'ordres: negre i vermell */
+#r-panel { position: absolute; right: 14px; bottom: 80px; z-index: 7; width: min(400px, calc(100% - 28px)); height: min(520px, calc(100% - 100px)); display: flex; flex-direction: column; background: #050000; color: #fff; border: 1px solid #ff3b3b; border-radius: 14px; box-shadow: 0 10px 30px rgba(255,0,0,.25), 0 0 0 1px #4a0000; overflow: hidden; --accent: #e5252a; --accent-ink: #fff; --soft: #120000; --line: #5a1010; --bg: #0d0000; --panel: #050000; --ink: #fff; --muted: #c9a0a0; }
+#r-panel[hidden] { display: none; }
+#r-panel .ai-head { border-bottom-color: #ff3b3b; background: linear-gradient(160deg, #3a0000, #050000 80%); }
+#r-panel .ai-head h3 { color: #ff6b6b; }
+#r-panel .ai-m.bot { border: 1px solid #5a1010; }
+#r-panel .ai-form textarea:focus { border-color: #ff3b3b; outline: 0; }
+.sbtn { font: inherit; font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; white-space: nowrap; }
+#r-panel .sbtn { border-color: #ff3b3b; color: #ff6b6b; background: #140000; }
+.aisug { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
+.rconf { display: flex; gap: 8px; margin-top: 10px; white-space: normal; }
+.rconf button { flex: 1; font: inherit; font-size: 14px; font-weight: 800; padding: 9px 12px; border-radius: 999px; border: 2px solid #5a1010; background: #140000; color: #fff; cursor: pointer; }
+.rconf button.rok { background: #e5252a; border-color: #e5252a; }
+.rconf button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 800px) { #r-panel { left: 10px; right: 10px; width: auto; bottom: 70px; height: min(60%, 460px); } }
+/* finestra de developer: negre i vermell */
+.modal.red { background: rgba(20,0,0,.9); }
+.cfdlg { background: #050000; color: #fff; border-color: #ff3b3b; box-shadow: 0 0 0 1px #4a0000, 0 12px 40px rgba(255,0,0,.25); max-width: 600px; padding: 0; display: flex; flex-direction: column; max-height: calc(100dvh - 32px); overflow: hidden; --ink: #fff; --muted: #c9a0a0; --line: #5a1010; --bg: #0d0000; --panel: #050000; --soft: #140000; --accent: #e5252a; --accent-ink: #fff; }
+.cfhead { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 0; border-bottom: 2px solid #ff3b3b; background: linear-gradient(160deg, #3a0000 0%, #050000 80%); }
+.cfico { width: 40px; height: 40px; border-radius: 14px; background: #000; border: 2px solid #ff3b3b; display: flex; align-items: center; justify-content: center; font-size: 21px; flex: none; }
+.cftt { flex: 1; min-width: 0; }
+.cftt h1 { margin: 0; font-size: 19px; color: #ff6b6b; }
+.cftt small { display: block; font-size: 12px; color: #c9a0a0; }
+.cfdlg .close { color: #ff6b6b; }
+.cfdlg .modal-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.cffoot { margin: 0; padding: 10px 14px; border-top: 2px solid #ff3b3b; background: #0d0000; }
+.cfdlg .btn { background: #140000; border: 2px solid #5a1010; color: #fff; }
+.cfdlg .btn.primary { background: #e5252a; border-color: #e5252a; color: #fff; }
+.cfg { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; }
+.cfg h3 { margin: 0; font-size: 16px; color: #ff6b6b; border-bottom: 1px solid #4a0000; padding-bottom: 6px; }
+.cfn { margin: 0; font-size: 12.5px; color: #c9a0a0; line-height: 1.4; }
+.cfn b { color: #fff; }
+.cfrow { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 12px; background: #0d0000; border: 1px solid #3a0a0a; color: #fff; font-weight: 600; cursor: pointer; }
+.cfrow .cft { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cfrow .cft b { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.cfrow .cft small { font-size: 11.5px; color: #c9a0a0; font-weight: 500; }
+.cfrow .cfin { flex: none; display: flex; align-items: center; gap: 6px; }
+.cfrow .cfin i { font-style: normal; font-size: 12px; color: #c9a0a0; min-width: 52px; }
+.cfrow input { width: 92px; text-align: right; background: #000; border: 2px solid #5a1010; color: #fff; border-radius: 10px; padding: 8px 10px; font: inherit; }
+.cfrow input:focus { outline: 0; border-color: #ff3b3b; box-shadow: 0 0 0 3px rgba(255,59,59,.25); }
+.cfrow input.bad { border-color: #ff3b3b; background: #2a0000; }
+.cfstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.cfstat { background: #0d0000; border: 1px solid #3a0a0a; border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.cfstat b { font-size: 21px; color: #fff; line-height: 1.1; }
+.cfstat small { font-size: 11.5px; color: #c9a0a0; }
+.bkbar { display: flex; gap: 8px; }
+.bkbar input { flex: 1; min-width: 0; background: #000; border: 2px solid #5a1010; color: #fff; border-radius: 10px; padding: 8px 10px; font: inherit; }
+.bkbar input:focus { outline: 0; border-color: #ff3b3b; }
+.cfdlg .progress { background: #000; border-color: #5a1010; }
+.cfdlg .progress .bar { background: #5a1010; }
+.cfdlg .progress span { color: #fff; }
+.bklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bki { display: flex; gap: 8px; align-items: stretch; }
+.bkrow { flex: 1; min-width: 0; font: inherit; color: #fff; text-align: left; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; border: 2px solid #3a0a0a; background: #0d0000; cursor: pointer; }
+.bkrow:hover, .bkrow:focus-visible { border-color: #ff3b3b; outline: 0; }
+.bkrow .bkd { font-size: 20px; flex: none; }
+.bkrow .bkt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bkrow .bkt b { font-size: 14px; overflow-wrap: anywhere; }
+.bkrow .bkt b em { font-style: normal; font-weight: 500; color: #ff9c9c; font-size: 12px; }
+.bkrow .bkt small { font-size: 11.5px; color: #c9a0a0; }
+.bkrow .bkr { font-size: 20px; color: #ff6b6b; flex: none; }
+.bkdel { flex: none; width: 46px; font: inherit; font-size: 18px; border-radius: 14px; border: 2px solid #3a0a0a; background: #0d0000; cursor: pointer; padding: 0; }
+.bkdel:hover, .bkdel:focus-visible { border-color: #ff3b3b; background: #2a0000; outline: 0; }
+.bkempty { padding: 24px 10px; text-align: center; color: #c9a0a0; font-size: 14px; }
+#dev-json { width: 100%; font: 12px ui-monospace, Menlo, Consolas, monospace; background: #000; color: #ffd6d6; border: 2px solid #5a1010; border-radius: 10px; padding: 8px; resize: vertical; }
+#dev-logbox { background: #000; color: #ffd6d6; border: 1px solid #5a1010; border-radius: 10px; padding: 8px; font-size: 11.5px; max-height: 220px; overflow: auto; white-space: pre-wrap; }
+/* avís breu */
+#toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 90; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.3); max-width: calc(100% - 32px); text-align: center; }
+#toast[hidden] { display: none; }
+/* configuració: caselles i dades */
+label.chk { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; margin: 4px 0; }
+.modal-body h2 { font-size: 15px; margin: 18px 0 6px; }
+/* propostes: historial */
+.prop-nav { display: flex; align-items: center; gap: 6px; margin: 8px 0; }
+.prop-nav .cnt { flex: 1; text-align: center; font-size: 13px; color: var(--muted); }
+/* mesura de paret al 3D (etiqueta temporal) */
