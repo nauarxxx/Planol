@@ -20,7 +20,7 @@ export const CATALOG = {
   alfombra:   { label: 'Catifa',           w: 200, d: 140, h: 1,   color: '#4a4f57', role: 'rug' },
   lampara:    { label: 'Làmpada de peu',   w: 35,  d: 35,  h: 165, color: '#d8c9a0', role: 'corner' },
   planta:     { label: 'Planta',           w: 40,  d: 40,  h: 110, color: '#3f7a3a', role: 'corner' },
-  cockpit:    { label: 'Simulador cockpit', w: 150, d: 90, h: 120, color: '#2a2a2e', role: 'desk' },
+  cockpit:    { label: 'Simulador cockpit', w: 150, d: 90, h: 100, color: '#2a2a2e', role: 'desk' },
   caja:       { label: 'Objecte genèric',  w: 60,  d: 60,  h: 60,  color: '#8899aa', role: 'wall' },
 };
 
@@ -127,6 +127,48 @@ export function buildFurniture(item) {
       box(g, w - 20, 10, 35, 0, h, -d / 2 + 25, mat('#f4f1ec'));
       box(g, w + 4, Math.max(h + 45, 100), 6, 0, 0, -d / 2 - 0, mat('#5c4030'));
       box(g, w - 4, 4, d * 0.55, 0, h, d * 0.2, mat(shade(c, 0.8)));
+      break;
+    }
+    case 'cockpit': {
+      // Simulador de conducció: xassís amb rails, seient baquet reclinat al darrere, pedals, volant i tres pantalles al davant (llarg = w, ample = d).
+      const s = Math.min(1.6, Math.max(0.6, h / 100)); // escala vertical respecte als 100 cm de referència
+      const seatMat = mat(shade(c, 1.15), { roughness: 0.8 });
+      const screen = mat('#0b0d12', { roughness: 0.2, metalness: 0.3 });
+      const frame = mat('#1c1c20', { metalness: 0.5, roughness: 0.45 });
+      const rail = Math.min(10, d * 0.1);
+      // xassís: dos rails llargs i dos travessers
+      box(g, w, 5 * s, rail, 0, 0, -d / 2 + rail / 2, frame);
+      box(g, w, 5 * s, rail, 0, 0, d / 2 - rail / 2, frame);
+      box(g, rail, 5 * s, d - 2 * rail, -w / 2 + rail / 2, 0, 0, frame);
+      box(g, rail, 5 * s, d - 2 * rail, w / 2 - rail / 2, 0, 0, frame);
+      // seient baquet: base, coixí amb laterals, respatller reclinat i reposacaps
+      const sw = Math.min(52, d * 0.6), sx = -w / 2 + 38;
+      box(g, 40, 14 * s, sw * 0.7, sx, 5 * s, 0, frame);
+      box(g, 46, 10 * s, sw, sx, 19 * s, 0, seatMat);
+      box(g, 46, 16 * s, 7, sx, 19 * s, -sw / 2 + 3.5, seatMat);
+      box(g, 46, 16 * s, 7, sx, 19 * s, sw / 2 - 3.5, seatMat);
+      const back = box(g, 10, 62 * s, sw, 0, 0, 0, seatMat);
+      back.position.set(sx - 20 - 8, 29 * s, 0); back.rotation.z = -0.32; // reclinat cap enrere
+      back.position.y += 31 * s * Math.cos(0.32); back.position.x -= 31 * s * Math.sin(0.32) - 2;
+      const head = box(g, 8, 14 * s, 22, 0, 0, 0, seatMat);
+      head.position.set(sx - 20 - 8 - 62 * s * Math.sin(0.32) + 4, 29 * s + 62 * s * Math.cos(0.32) + 6 * s, 0); head.rotation.z = -0.32;
+      // pedals: caixa inclinada al davant
+      const ped = box(g, 24, 12 * s, 30, 0, 0, 0, dark);
+      ped.position.set(w / 2 - 30, 7 * s, 0); ped.rotation.z = -0.5;
+      // columna i volant
+      const col = cyl(g, 2.5, 34 * s, 0, 0, 0, frame);
+      col.position.set(w / 2 - 54, 44 * s, 0); col.rotation.z = -1.0; // puja cap al pilot
+      const wheel = new THREE.Mesh(new THREE.TorusGeometry(15 * Math.min(1, s), 2.6, 10, 28), dark);
+      wheel.position.set(w / 2 - 68, 60 * s, 0); wheel.rotation.y = Math.PI / 2; wheel.rotation.x = 0.35; wheel.castShadow = true;
+      g.add(wheel);
+      // suport i tres pantalles corbades al davant, fins a l'alçada total
+      box(g, 8, h - 45 * s, 10, w / 2 - 12, 0, 0, frame);
+      const sh = Math.min(45 * s, h * 0.45), sy = h - sh - 1, cw = Math.min(50, d * 0.5), swd = Math.max(20, (d - cw) / 2 + 6);
+      box(g, 2.5, sh, cw, w / 2 - 8, sy, 0, screen);
+      for (const sgn of [-1, 1]) {
+        const p = box(g, 2.5, sh, swd, 0, 0, 0, screen);
+        p.position.set(w / 2 - 8 - Math.sin(0.55) * swd / 2, sy + sh / 2, sgn * (cw / 2 + Math.cos(0.55) * swd / 2)); p.rotation.y = -sgn * 0.55;
+      }
       break;
     }
     case 'armario': {
