@@ -9,21 +9,21 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 4, // v4: sin ascensor, segundo baño al final del pasillo
+  version: 5, // v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
   rooms: [
     {
       id: 'terraza-cocina', name: 'Terraza cocina', kind: 'terrace', color: '#b8673f',
-      x: 100, z: 0, w: 335, d: 90,
-      notes: 'Terraza alargada sobre la cocina (≈3 m²). Las dos terrazas suman 8,25 m² en el proyecto.',
+      x: 100, z: 0, w: 335, d: 120, d2: 40,
+      notes: 'Terraza sobre la cocina con el borde exterior en diagonal: 120 de fondo a la izquierda y 40 a la derecha (≈2,7 m²). Las dos terrazas suman 8,25 m².',
       estimated: true,
       openings: [],
     },
     {
       id: 'cocina', name: 'Cocina', kind: 'room', color: '#d9c7a3',
-      x: 100, z: 90, w: 260, d: 290,
+      x: 100, z: 120, w: 260, d: 260,
       notes: 'Zona de cocina abierta al comedor (estar-menjador-cuina: 26,80 m² en total). Encimera de 55 de fondo.',
       estimated: true,
       openings: [
@@ -59,22 +59,22 @@ export const DEFAULT_PLAN = {
     },
     {
       id: 'bano2', name: 'Baño 2', kind: 'room', color: '#a7b1b6',
-      x: 800, z: 510, w: 145, d: 245,
-      notes: 'Segundo baño al final del pasillo (en el proyecto original eran dos trasteros pequeños). Medidas estimadas.',
+      x: 800, z: 535, w: 175, d: 120,
+      notes: 'Segundo baño al final del pasillo (en el proyecto era el trastero de 2,10 m²; el cuarto de encima pertenece al piso vecino). Medidas estimadas.',
       estimated: true,
-      openings: [{ wall: 'W', offset: 155, width: 80, type: 'puerta' }],
+      openings: [{ wall: 'S', offset: 20, width: 70, type: 'puerta' }],
     },
     {
       id: 'distribuidor', name: 'Pasillo', kind: 'room', color: '#c89b6a',
-      x: 360, z: 655, w: 440, d: 100,
+      x: 360, z: 655, w: 540, d: 100,
       notes: 'Pasillo que une el salón con el baño, el baño 2, el lavadero y el dormitorio. 4,60 m² en el proyecto.',
       estimated: true,
       openings: [],
     },
     {
-      id: 'safareig', name: 'Lavadero / trastero', kind: 'room', color: '#c9b9a0',
+      id: 'office', name: 'Office', kind: 'room', color: '#c9b9a0',
       x: 360, z: 755, w: 220, d: 350,
-      notes: 'Traster-safareig: 7,70 m² en el proyecto. Puede usarse como habitación pequeña.',
+      notes: 'Office (en el proyecto: traster-safareig, 7,70 m²). Con un armario pequeño en la esquina.',
       estimated: true,
       openings: [
         { wall: 'N', offset: 120, width: 80, type: 'puerta' },
@@ -82,11 +82,18 @@ export const DEFAULT_PLAN = {
       ],
     },
     {
-      id: 'armario-pasillo', name: 'Armario empotrado', kind: 'room', color: '#bfb3a0',
-      x: 580, z: 755, w: 60, d: 310,
-      notes: 'Armario entre el lavadero y el dormitorio. Estimado.',
+      id: 'armario-dorm', name: 'Armario dormitorio', kind: 'room', color: '#bfb3a0',
+      x: 580, z: 755, w: 60, d: 230,
+      notes: 'Armario empotrado del dormitorio (ocupa casi toda la columna entre el office y el dormitorio). Estimado.',
       estimated: true,
-      openings: [],
+      openings: [{ wall: 'E', offset: 10, width: 210, type: 'paso' }],
+    },
+    {
+      id: 'armario-office', name: 'Armario office', kind: 'room', color: '#bfb3a0',
+      x: 580, z: 985, w: 60, d: 80,
+      notes: 'Pequeño armario del office, en el extremo de la columna de armarios. Estimado.',
+      estimated: true,
+      openings: [{ wall: 'W', offset: 5, width: 70, type: 'paso' }],
     },
     {
       id: 'dormitorio', name: 'Dormitorio', kind: 'room', color: '#c08e5e',

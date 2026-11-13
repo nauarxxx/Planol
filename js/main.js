@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=6';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote } from './cloud.js?v=7';
 import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, DEG } from './geom.js';
 
 // ---------------------------------------------------------------- estado
@@ -268,6 +268,38 @@ function rebuildPlan() {
       continue;
     }
     const floorMat = new THREE.MeshStandardMaterial({ color: r.color || '#c89b6a', roughness: 0.85 });
+    const sloped = r.kind === 'terrace' && r.d2 > 0 && r.d2 < r.d; // terraza con el borde norte en diagonal
+    if (sloped) {
+      // Polígono: (x, z) · (x+w, z+d-d2) · (x+w, z+d) · (x, z+d). ShapeGeometry va en XY: Y = -Z.
+      const sh = new THREE.Shape();
+      sh.moveTo(r.x, -r.z); sh.lineTo(r.x + r.w, -(r.z + r.d - r.d2)); sh.lineTo(r.x + r.w, -(r.z + r.d)); sh.lineTo(r.x, -(r.z + r.d)); sh.closePath();
+      const floor = new THREE.Mesh(new THREE.ShapeGeometry(sh), floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      floor.userData.roomId = r.id;
+      planGroup.add(floor);
+      // Barandilla: oeste, este (más corta), sur y la diagonal.
+      const rail = (x1, z1, x2, z2) => {
+        const len = Math.hypot(x2 - x1, z2 - z1), ang = Math.atan2(-(z2 - z1), x2 - x1);
+        for (const [y0, h, th, mat] of [[95, 5, 5, railMat], [5, 90, 1.5, glassMat]]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(len + th, h, th), mat);
+          m.position.set((x1 + x2) / 2, y0 + h / 2, (z1 + z2) / 2);
+          m.rotation.y = ang;
+          m.castShadow = mat === railMat;
+          planGroup.add(m);
+        }
+      };
+      rail(r.x, r.z, r.x + r.w, r.z + r.d - r.d2);
+      rail(r.x, r.z, r.x, r.z + r.d);
+      rail(r.x + r.w, r.z + r.d - r.d2, r.x + r.w, r.z + r.d);
+      rail(r.x, r.z + r.d, r.x + r.w, r.z + r.d);
+      if (ui.labels) {
+        const l = makeLabel([r.name, `${r.w} × ${r.d} / ${r.d2} cm`, 'borde en diagonal'], r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.8, r.d * 0.6);
+        l.position.set(r.x + r.w * 0.45, 0.6, r.z + r.d * 0.6);
+        planGroup.add(l);
+      }
+      continue;
+    }
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(r.w, r.d), floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(r.x + r.w / 2, 0, r.z + r.d / 2);
@@ -861,6 +893,7 @@ function renderPlano() {
         <div class="row c4">
           <label>Ancho<input type="number" data-k="w" min="20" value="${r.w}" /></label>
           <label>Fondo<input type="number" data-k="d" min="20" value="${r.d}" /></label>
+          ${r.kind === 'terrace' ? `<label title="Fondo en el extremo derecho si el borde exterior va en diagonal (0 = recto)">Fondo dcha.<input type="number" data-k="d2" min="0" value="${r.d2 || 0}" /></label>` : ''}
           <label>X<input type="number" data-k="x" value="${r.x}" /></label>
           <label>Z<input type="number" data-k="z" value="${r.z}" /></label>
         </div>
@@ -895,7 +928,7 @@ function renderPlano() {
       commit();
       const k = inp.dataset.k;
       if (k === 'estimated') r.estimated = inp.checked;
-      else if (['w', 'd', 'x', 'z'].includes(k)) {
+      else if (['w', 'd', 'd2', 'x', 'z'].includes(k)) {
         r[k] = +inp.value || 0;
         if (k === 'w' || k === 'd') r.estimated = card.querySelector('[data-k=estimated]').checked;
       } else r[k] = inp.value;
