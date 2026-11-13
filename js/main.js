@@ -83,6 +83,8 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffe
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 wrap.appendChild(renderer.domElement);
 // Només es redibuixa quan canvia alguna cosa (estalvia bateria i CPU).
 let needsRender = true;
@@ -104,12 +106,15 @@ controlsTop.screenSpacePanning = true;
 controlsTop.enabled = false;
 let controls = controls3d;
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0xb0a898, 2.2));
-const sun = new THREE.DirectionalLight(0xffffff, 1.3);
+scene.add(new THREE.HemisphereLight(0xfff6ea, 0xb0a898, 2.6));
+const sun = new THREE.DirectionalLight(0xfff1dc, 1.6);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.bias = -0.0005;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 1.5;
 scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight(0xdfe9ff, 0.5); // llum de farciment freda des de l'altre costat
+scene.add(fill, fill.target);
 
 const planGroup = new THREE.Group();
 const itemsGroup = new THREE.Group();
@@ -163,6 +168,8 @@ function frameCamera(room) {
   controlsTop.update();
   sun.position.set(b.cx - 600, 1400, b.cz - 300);
   sun.target.position.set(b.cx, 0, b.cz);
+  fill.position.set(b.cx + 900, 700, b.cz + 600);
+  fill.target.position.set(b.cx, 0, b.cz);
   const s = b.size * 0.8;
   Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 10, far: 4000 });
   sun.shadow.camera.updateProjectionMatrix();
@@ -180,7 +187,91 @@ function setView(v) {
 }
 
 // ---------------------------------------------------------------- plano 3D
-const wallMat = new THREE.MeshStandardMaterial({ color: 0xf3f1ec, roughness: 0.9 });
+// Textures procedimentals (sense fitxers): parquet, rajoles i estuc de paret.
+const texCache = new Map();
+function hashNoise(x, y, s = 1) { const v = Math.sin(x * 12.9898 + y * 78.233 + s * 37.719) * 43758.5453; return v - Math.floor(v); }
+function makeTexture(kind) {
+  if (texCache.has(kind)) return texCache.get(kind);
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  let period = 120; // cm que representa el canvas
+  if (kind === 'parquet') {
+    // Llistons de 15 × 60 cm, encavalcats a la meitat; el to el posa el color de l'habitació.
+    const pw = 512 / 8, ph = 512 / 2;
+    ctx.fillStyle = '#d2d2d2'; ctx.fillRect(0, 0, 512, 512);
+    for (let row = 0; row < 8; row++) {
+      const off = (row % 2) * ph / 2;
+      for (let k = -1; k < 3; k++) {
+        const y = row * pw, x = k * ph + off;
+        const l = 0.78 + hashNoise(row, k) * 0.3;
+        ctx.fillStyle = `rgb(${Math.round(210 * l)},${Math.round(205 * l)},${Math.round(198 * l)})`;
+        ctx.fillRect(x, y, ph, pw);
+        // veta
+        ctx.strokeStyle = 'rgba(80,50,20,0.10)'; ctx.lineWidth = 1.2;
+        for (let g = 0; g < 5; g++) {
+          ctx.beginPath();
+          const gy = y + 6 + hashNoise(row, k + g * 7) * (pw - 12);
+          ctx.moveTo(x, gy); ctx.bezierCurveTo(x + ph * 0.3, gy + (hashNoise(g, row) - 0.5) * 8, x + ph * 0.7, gy + (hashNoise(k, g) - 0.5) * 8, x + ph, gy);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(40,25,10,0.35)'; ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, ph - 2, pw - 2);
+      }
+    }
+  } else if (kind === 'rajola') {
+    // Rajoles de 30 × 30 cm amb junta clara.
+    period = 60;
+    const n = 2, s = 512 / n;
+    ctx.fillStyle = '#b9b9b9'; ctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const l = 0.93 + hashNoise(i, j, 3) * 0.1;
+      ctx.fillStyle = `rgb(${Math.round(215 * l)},${Math.round(215 * l)},${Math.round(213 * l)})`;
+      ctx.fillRect(i * s + 3, j * s + 3, s - 6, s - 6);
+      for (let q = 0; q < 300; q++) {
+        ctx.fillStyle = `rgba(0,0,0,${0.02 + hashNoise(q, i + j * 7) * 0.04})`;
+        ctx.fillRect(i * s + 3 + hashNoise(q, i, 5) * (s - 6), j * s + 3 + hashNoise(q, j, 9) * (s - 6), 2, 2);
+      }
+    }
+  } else if (kind === 'estuc') {
+    period = 100;
+    ctx.fillStyle = '#e4e4e4'; ctx.fillRect(0, 0, 512, 512);
+    for (let q = 0; q < 9000; q++) {
+      ctx.fillStyle = `rgba(${hashNoise(q, 1) < 0.5 ? '255,255,255' : '0,0,0'},${0.03 + hashNoise(q, 2) * 0.05})`;
+      ctx.fillRect(hashNoise(q, 3) * 512, hashNoise(q, 4) * 512, 1 + hashNoise(q, 5) * 3, 1 + hashNoise(q, 6) * 3);
+    }
+  } else {
+    ctx.fillStyle = '#d8d8d8'; ctx.fillRect(0, 0, 512, 512);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  tex.userData.period = period;
+  texCache.set(kind, tex);
+  return tex;
+}
+// Tipus de terra d'una habitació: el que tingui desat o, si no, segons el tipus/nom.
+function floorKind(r) {
+  if (r.floor) return r.floor;
+  if (r.kind === 'terrace') return 'rajola';
+  if (/bany|bano|cuina|cocina|safareig/i.test(r.id + ' ' + r.name)) return 'rajola';
+  return 'parquet';
+}
+function floorMaterial(r, worldUV = false) {
+  const kind = floorKind(r);
+  const base = makeTexture(kind);
+  const tex = base.clone();
+  const p = base.userData.period;
+  if (worldUV) tex.repeat.set(1 / p, 1 / p); else tex.repeat.set(r.w / p, r.d / p);
+  tex.needsUpdate = true;
+  // El color de l'habitació tenyeix la textura (que és clara i grisa).
+  const col = new THREE.Color(r.color || '#c89b6a').multiplyScalar(kind === 'parquet' ? 1.25 : 1.1);
+  return new THREE.MeshStandardMaterial({ color: col, map: tex, roughness: kind === 'rajola' ? 0.45 : 0.7, metalness: 0 });
+}
+const wallTex = makeTexture('estuc');
+wallTex.repeat.set(2, 2);
+const wallMat = new THREE.MeshStandardMaterial({ color: 0xf3f1ec, roughness: 0.92, map: wallTex });
 const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x2b2926, roughness: 0.9 });
 const glassMat = new THREE.MeshStandardMaterial({ color: 0x8fbfdc, transparent: true, opacity: 0.55, roughness: 0.1 });
 const windowMat = new THREE.MeshStandardMaterial({ color: 0x6fb1d6, roughness: 0.6 });
@@ -275,13 +366,12 @@ function rebuildPlan() {
       }
       continue;
     }
-    const floorMat = new THREE.MeshStandardMaterial({ color: r.color || '#c89b6a', roughness: 0.85 });
     const sloped = r.kind === 'terrace' && r.d2 > 0 && r.d2 < r.d; // terraza con el borde norte en diagonal
     if (sloped) {
       // Polígono: (x, z) · (x+w, z+d-d2) · (x+w, z+d) · (x, z+d). ShapeGeometry va en XY: Y = -Z.
       const sh = new THREE.Shape();
       sh.moveTo(r.x, -r.z); sh.lineTo(r.x + r.w, -(r.z + r.d - r.d2)); sh.lineTo(r.x + r.w, -(r.z + r.d)); sh.lineTo(r.x, -(r.z + r.d)); sh.closePath();
-      const floor = new THREE.Mesh(new THREE.ShapeGeometry(sh), floorMat);
+      const floor = new THREE.Mesh(new THREE.ShapeGeometry(sh), floorMaterial(r, true));
       floor.rotation.x = -Math.PI / 2;
       floor.receiveShadow = true;
       floor.userData.roomId = r.id;
@@ -308,21 +398,12 @@ function rebuildPlan() {
       }
       continue;
     }
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(r.w, r.d), floorMat);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(r.w, r.d), floorMaterial(r));
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(r.x + r.w / 2, 0, r.z + r.d / 2);
     floor.receiveShadow = true;
     floor.userData.roomId = r.id;
     planGroup.add(floor);
-
-    if (r.kind === 'terrace') {
-      // Tiles
-      const grid = new THREE.GridHelper(Math.max(r.w, r.d), Math.round(Math.max(r.w, r.d) / 33), 0x7a4a30, 0x7a4a30);
-      grid.position.set(r.x + r.w / 2, 0.3, r.z + r.d / 2);
-      grid.material.opacity = 0.35; grid.material.transparent = true;
-      grid.scale.set(r.w / Math.max(r.w, r.d), 1, r.d / Math.max(r.w, r.d));
-      planGroup.add(grid);
-    }
 
     const edges = [
       { axis: 'x', line: r.z, a: r.x, b: r.x + r.w },
@@ -1039,8 +1120,9 @@ function renderPlano() {
           <label>X<input type="number" data-k="x" value="${r.x}" /></label>
           <label>Z<input type="number" data-k="z" value="${r.z}" /></label>
         </div>
-        <div class="row c2">
+        <div class="row c3">
           <label>Color del terra<input type="color" data-k="color" value="${esc(r.color)}" /></label>
+          <label>Terra<select data-k="floor">${[['', 'Automàtic'], ['parquet', 'Parquet'], ['rajola', 'Rajola'], ['llis', 'Llis']].map(([v, l]) => `<option value="${v}" ${(r.floor || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label style="flex-direction:row;align-items:center;gap:6px;margin-top:18px"><input type="checkbox" data-k="estimated" ${r.estimated ? 'checked' : ''}/> Mides estimades</label>
         </div>
         ${r.notes ? `<p class="note">${esc(r.notes)}</p>` : ''}
@@ -1070,6 +1152,7 @@ function renderPlano() {
       commit();
       const k = inp.dataset.k;
       if (k === 'estimated') r.estimated = inp.checked;
+      else if (k === 'floor') { if (inp.value) r.floor = inp.value; else delete r.floor; }
       else if (['w', 'd', 'd2', 'x', 'z'].includes(k)) {
         r[k] = +inp.value || 0;
         if (k === 'w' || k === 'd') r.estimated = card.querySelector('[data-k=estimated]').checked;
