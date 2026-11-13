@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 18, // v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 19, // v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -39,9 +39,16 @@ export const DEFAULT_PLAN = {
       estimated: false,
       openings: [
         { wall: 'E', offset: 15, width: 85, type: 'puerta' },
-        { wall: 'E', offset: 275, width: 90, type: 'paso' },
+        { wall: 'E', offset: 220, width: 90, type: 'paso' },
         { wall: 'S', offset: 53, width: 164, type: 'ventanal' },
       ],
+    },
+    {
+      id: 'raco', name: 'Racó', kind: 'room', color: '#c89b6a',
+      x: 270, z: 740, w: 50, d: 80,
+      notes: 'Racó obert al menjador, al costat de la terrassa: després del pas al passadís hi ha el pilar del mirall (≈50 d’ample) i la paret recula uns 50 fins a l’office, amb la biga baixa a sobre. Mides estimades a partir de la foto.',
+      estimated: true,
+      openings: [{ wall: 'W', offset: 0, width: 80, type: 'paso' }],
     },
     {
       id: 'terraza', name: 'Terrassa', kind: 'terrace', color: '#b8673f',
@@ -52,28 +59,28 @@ export const DEFAULT_PLAN = {
     },
     {
       id: 'bano', name: 'Bany 1', kind: 'room', color: '#9aa3a8',
-      x: 655, z: 465, w: 190, d: 190,
+      x: 705, z: 405, w: 190, d: 190,
       notes: 'Bany 1: 190 × 190 segons el croquis (banyera, vàter i bidet). Damunt del tram final del passadís; la porta és al racó on acaba el passadís.',
       estimated: false,
       openings: [{ wall: 'S', offset: 110, width: 70, type: 'puerta' }],
     },
     {
       id: 'bano2', name: 'Bany 2', kind: 'room', color: '#a7b1b6',
-      x: 845, z: 620, w: 107, d: 145,
+      x: 895, z: 560, w: 107, d: 145,
       notes: 'Bany 2: 107 × 145 segons el croquis (145 de llarg, 107 de fons). S’hi entra per la paret del fons del passadís, al costat de la porta del bany 1.',
       estimated: false,
       openings: [{ wall: 'W', offset: 45, width: 70, type: 'puerta' }],
     },
     {
       id: 'distribuidor', name: 'Passadís', kind: 'room', color: '#c89b6a',
-      x: 270, z: 655, w: 575, d: 100,
+      x: 270, z: 595, w: 625, d: 100,
       notes: 'Passadís que uneix el menjador amb el bany 1, el bany 2, l’office i el dormitori. 4,60 m² al projecte.',
       estimated: true,
       openings: [],
     },
     {
       id: 'office', name: 'Office', kind: 'room', color: '#c9b9a0',
-      x: 270, z: 755, w: 205, d: 275,
+      x: 320, z: 695, w: 205, d: 275,
       notes: 'Office: 205 (paret de la finestra) × 275 (croquis). Finestra simple de 107: 36 fins a la paret de 275 i 60 fins a l’armari.',
       estimated: false,
       openings: [
@@ -83,21 +90,21 @@ export const DEFAULT_PLAN = {
     },
     {
       id: 'armario-dorm', name: 'Armari dormitori', kind: 'room', color: '#bfb3a0',
-      x: 475, z: 755, w: 60, d: 195,
+      x: 525, z: 695, w: 60, d: 195,
       notes: 'Armari encastat del dormitori: 60 de fons (cota del croquis); la llargada (195) és estimada.',
       estimated: true,
       openings: [{ wall: 'E', offset: 10, width: 175, type: 'paso' }],
     },
     {
       id: 'armario-office', name: 'Armari office', kind: 'room', color: '#bfb3a0',
-      x: 475, z: 950, w: 60, d: 80,
+      x: 525, z: 890, w: 60, d: 80,
       notes: 'Armari petit de l’office, al costat de la finestra, a l’extrem de la columna d’armaris. Estimat.',
       estimated: true,
       openings: [{ wall: 'W', offset: 5, width: 70, type: 'paso' }],
     },
     {
       id: 'dormitorio', name: 'Dormitori', kind: 'room', color: '#c08e5e',
-      x: 535, z: 755, w: 310, d: 310,
+      x: 585, z: 695, w: 310, d: 310,
       notes: 'Dormitori 310 × 310 (confirmat). Finestral doble de terra a sostre de 164 (confirmat), a la part dreta de la paret; la posició és estimada a partir de la foto. Sostre inclinat que baixa cap al finestral.',
       estimated: false,
       openings: [
