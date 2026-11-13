@@ -176,7 +176,8 @@ function setView(v) {
 // ---------------------------------------------------------------- plano 3D
 const wallMat = new THREE.MeshStandardMaterial({ color: 0xf3f1ec, roughness: 0.9 });
 const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x2b2926, roughness: 0.9 });
-const glassMat = new THREE.MeshStandardMaterial({ color: 0x9fc3d8, transparent: true, opacity: 0.35, roughness: 0.1 });
+const glassMat = new THREE.MeshStandardMaterial({ color: 0x8fbfdc, transparent: true, opacity: 0.55, roughness: 0.1 });
+const windowMat = new THREE.MeshStandardMaterial({ color: 0x6fb1d6, roughness: 0.6 });
 const railMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.5, roughness: 0.4 });
 const voidMat = new THREE.MeshStandardMaterial({ color: 0x5b6066, roughness: 0.8 });
 
@@ -346,8 +347,16 @@ function rebuildPlan() {
           wallPiece(e.axis, e.line, a, b, 0, 4, t, wallTopMat, false);
         }
         if (o.type === 'ventana') {
-          wallPiece(e.axis, e.line, a, b, 0, Math.min(90, H), t, wallMat);
-          if (H > 90) wallPiece(e.axis, e.line, a, b, 90, Math.min(210, H), 2, glassMat, false);
+          // antepecho de 90; con paredes bajas se dibuja más bajo para que el cristal se vea desde arriba
+          const sill = H > 150 ? 90 : Math.round(H * 0.4);
+          wallPiece(e.axis, e.line, a, b, 0, Math.min(sill, H), t, wallMat);
+          if (H > sill) wallPiece(e.axis, e.line, a, b, sill, Math.min(210, H), 2, glassMat, false);
+        }
+        if (o.type === 'ventana' || o.type === 'ventanal') {
+          // franja azul en el suelo para que la ventana se vea también en la vista en planta
+          const strip = new THREE.Mesh(new THREE.BoxGeometry(e.axis === 'x' ? b - a : t + 4, 0.8, e.axis === 'x' ? t + 4 : b - a), windowMat);
+          if (e.axis === 'x') strip.position.set((a + b) / 2, 0.4, e.line); else strip.position.set(e.line, 0.4, (a + b) / 2);
+          planGroup.add(strip);
         }
         if (o.type === 'puerta' && H > 20) {
           // marco fino para que la puerta se vea en el suelo
