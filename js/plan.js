@@ -9,7 +9,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 10, // v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 11, // v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -52,17 +52,17 @@ export const DEFAULT_PLAN = {
     },
     {
       id: 'bano', name: 'Baño', kind: 'room', color: '#9aa3a8',
-      x: 580, z: 470, w: 280, d: 185,
-      notes: 'Baño 1 (bañera, inodoro y bidé), 5,00 m² en el proyecto. Encima del tramo final del pasillo; la puerta está en el rincón donde acaba el pasillo.',
-      estimated: true,
-      openings: [{ wall: 'S', offset: 205, width: 70, type: 'puerta' }],
+      x: 670, z: 465, w: 190, d: 190,
+      notes: 'Baño 1: 190 × 190 según el croquis (bañera, inodoro y bidé). Encima del tramo final del pasillo; la puerta está en el rincón donde acaba el pasillo.',
+      estimated: false,
+      openings: [{ wall: 'S', offset: 110, width: 70, type: 'puerta' }],
     },
     {
       id: 'bano2', name: 'Baño 2', kind: 'room', color: '#a7b1b6',
-      x: 860, z: 615, w: 150, d: 140,
-      notes: 'Baño 2, al final del pasillo: se entra por la pared del fondo del pasillo, al lado de la puerta del baño 1. Medidas estimadas (≈2,1 m²).',
-      estimated: true,
-      openings: [{ wall: 'W', offset: 40, width: 70, type: 'puerta' }],
+      x: 860, z: 620, w: 107, d: 145,
+      notes: 'Baño 2: 107 × 145 según el croquis (145 a lo largo, 107 de fondo). Se entra por la pared del fondo del pasillo, al lado de la puerta del baño 1.',
+      estimated: false,
+      openings: [{ wall: 'W', offset: 45, width: 70, type: 'puerta' }],
     },
     {
       id: 'distribuidor', name: 'Pasillo', kind: 'room', color: '#c89b6a',
