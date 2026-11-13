@@ -27,6 +27,10 @@ export const CATALOG = {
   nevera:     { label: 'Nevera',           w: 60,  d: 65,  h: 185, color: '#f2f2f0', role: 'wall' },
   rentadora:  { label: 'Rentadora',        w: 60,  d: 60,  h: 85,  color: '#f2f2f0', role: 'wall' },
   campana:    { label: 'Campana extractora', w: 60, d: 50, h: 40,  color: '#9ea3a8', role: 'wall', elev: 155 },
+  litera:     { label: 'Llitera',          w: 90,  d: 200, h: 170, color: '#f4f4f2', role: 'bed' },
+  banyera:    { label: 'Banyera',          w: 170, d: 70,  h: 55,  color: '#f6f6f4', role: 'wall' },
+  vater:      { label: 'Vàter',            w: 38,  d: 55,  h: 42,  color: '#f6f6f4', role: 'wall' },
+  lavabo:     { label: 'Lavabo amb moble', w: 70,  d: 45,  h: 85,  color: '#f2efe9', role: 'wall' },
   caja:       { label: 'Objecte genèric',  w: 60,  d: 60,  h: 60,  color: '#8899aa', role: 'wall' },
 };
 
@@ -223,6 +227,51 @@ export function buildFurniture(item) {
       box(g, w, Math.min(h, 12), d, 0, 0, 0, metal);
       box(g, w * 0.5, h - Math.min(h, 12), d * 0.5, 0, Math.min(h, 12), -d * 0.2, metal);
       box(g, w * 0.5, 60, d * 0.5, 0, h, -d * 0.2, metal);
+      break;
+    }
+    case 'litera': {
+      // Llitera: dos matalassos, quatre pals, baranes a dalt i escala al costat del peu.
+      const post = mat('#e8e8e4', { roughness: 0.5, metalness: 0.3 });
+      const bedding = mat('#f7f7f5', { roughness: 0.9 });
+      const lowY = Math.min(35, h * 0.22), upY = h - 45;
+      for (const x of [-w / 2 + 2, w / 2 - 2]) for (const z of [-d / 2 + 2, d / 2 - 2]) box(g, 4, h, 4, x, 0, z, post);
+      for (const y of [lowY, upY]) {
+        box(g, w - 4, 6, d - 4, 0, y, 0, dark);
+        box(g, w - 8, 14, d - 8, 0, y + 6, 0, bedding);
+        box(g, w - 20, 6, 30, 0, y + 20, -d / 2 + 22, main); // coixí al capçal
+      }
+      for (const z of [-d / 2 + 2, d / 2 - 2]) box(g, w - 4, 2, 2, 0, upY + 26, z, post);
+      for (const x of [-w / 2 + 2, w / 2 - 2]) box(g, 2, 2, d - 4, x, upY + 26, 0, post);
+      for (let k = 0; k < 5; k++) box(g, 2, 2, 24, w / 2 + 1, lowY + 12 + k * 18, d / 2 - 14, post); // escala
+      break;
+    }
+    case 'banyera': {
+      // Banyera: cos blanc amb la cubeta enfonsada.
+      box(g, w, h, d, 0, 0, 0, main);
+      box(g, w - 14, 1.5, d - 14, 0, h - 1.2, 0, mat('#d6e6ec', { roughness: 0.3 }));
+      const spout = cyl(g, 1.2, 6, -w / 2 + 12, h, 0, metal); spout.castShadow = false;
+      break;
+    }
+    case 'vater': {
+      // Vàter suspès: tassa amb tapa i placa de la cisterna a la paret (darrere, local -z).
+      box(g, w, 12, d - 12, 0, 0, 0, main);
+      const bowl = box(g, w - 4, 14, d - 14, 0, 0, 1, main);
+      bowl.position.y = Math.max(8, h - 22);
+      box(g, w - 2, 4, d - 12, 0, Math.max(14, h - 8), 0, mat('#ffffff', { roughness: 0.4 }));
+      box(g, w, 2, 6, 0, 0, -d / 2 + 3, dark);
+      box(g, w + 10, Math.max(30, h * 1.1), 3, 0, h - 2, -d / 2 + 1.5, mat('#f0f0ee', { roughness: 0.5 }));
+      break;
+    }
+    case 'lavabo': {
+      // Lavabo: moble suspès amb calaixos, pica a sobre, aixeta i mirall a la paret.
+      const cabH = Math.min(50, h * 0.6);
+      box(g, w, cabH, d - 4, 0, h - cabH - 8, -2, main);
+      box(g, w - 2, 0.6, 0.6, 0, h - cabH / 2 - 8, d / 2 - 1.5, dark);
+      box(g, w + 2, 3, d, 0, h - 11, 0, mat('#c9b45a', { roughness: 0.5 }));
+      box(g, Math.min(55, w - 10), 10, Math.min(38, d - 8), 0, h - 10, 0, mat('#ffffff', { roughness: 0.3 }));
+      const tap = cyl(g, 1.2, 12, 0, h - 2, -d / 2 + 8, metal); tap.castShadow = false;
+      const mirror = box(g, w, 60, 1.2, 0, h + 20, -d / 2 + 0.6, mat('#c7d6dc', { roughness: 0.05, metalness: 0.6 }));
+      mirror.castShadow = false;
       break;
     }
     case 'armario': {
