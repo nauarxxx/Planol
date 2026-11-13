@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 21, // v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 22, // v22: mobles de tot el pis segons el vídeo (menjador, dormitori, office amb llitera, banys); porta del bany 2 cap enfora; v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -76,7 +76,7 @@ export const DEFAULT_PLAN = {
       x: 895, z: 560, w: 107, d: 145,
       notes: 'Bany 2: 107 × 145 segons el croquis (145 de llarg, 107 de fons). S’hi entra per la paret del fons del passadís, al costat de la porta del bany 1.',
       estimated: false,
-      openings: [{ wall: 'W', offset: 45, width: 70, type: 'puerta' }],
+      openings: [{ wall: 'W', offset: 45, width: 70, type: 'puerta', swing: 'out' }],
     },
     {
       id: 'distribuidor', name: 'Passadís', kind: 'room', color: '#c89b6a',
@@ -127,5 +127,29 @@ export const DEFAULT_PLAN = {
     { id: 'fix-nevera', type: 'nevera', name: 'Nevera', w: 60, d: 65, h: 185, elev: 0, color: '#f2f2f0', x: 235, z: 342.5, rot: 180, roomId: 'cocina', locked: true },
     { id: 'fix-placa', type: 'encimeraPlaca', name: 'Taulell amb placa', w: 160, d: 55, h: 90, elev: 0, color: '#e9e4da', x: 32.5, z: 205, rot: 90, roomId: 'cocina', locked: true },
     { id: 'fix-campana', type: 'campana', name: 'Campana extractora', w: 60, d: 50, h: 40, elev: 155, color: '#9ea3a8', x: 30, z: 255, rot: 90, roomId: 'cocina', locked: true },
+    // Menjador (vídeo): taula de fusta amb 4 cadires blanques a prop de la cuina, sofà gris a la paret de l'oest tocant a la terrassa, tauleta blanca, moble baix blanc amb la tele a la paret de l'est entre la porta d'entrada i el passadís.
+    { id: 'fix-taula', type: 'mesa', name: 'Taula de menjador', w: 140, d: 80, h: 75, elev: 0, color: '#c89b5a', x: 135, z: 540, rot: 90, roomId: 'salon', locked: false },
+    { id: 'fix-cadira1', type: 'silla', name: 'Cadira', w: 45, d: 50, h: 90, elev: 0, color: '#f0eee8', x: 67, z: 510, rot: 90, roomId: 'salon', locked: false },
+    { id: 'fix-cadira2', type: 'silla', name: 'Cadira', w: 45, d: 50, h: 90, elev: 0, color: '#f0eee8', x: 67, z: 570, rot: 90, roomId: 'salon', locked: false },
+    { id: 'fix-cadira3', type: 'silla', name: 'Cadira', w: 45, d: 50, h: 90, elev: 0, color: '#f0eee8', x: 203, z: 510, rot: 270, roomId: 'salon', locked: false },
+    { id: 'fix-cadira4', type: 'silla', name: 'Cadira', w: 45, d: 50, h: 90, elev: 0, color: '#f0eee8', x: 203, z: 570, rot: 270, roomId: 'salon', locked: false },
+    { id: 'fix-sofa', type: 'sofa', name: 'Sofà', w: 190, d: 90, h: 85, elev: 0, color: '#6f7378', x: 50, z: 715, rot: 90, roomId: 'salon', locked: false },
+    { id: 'fix-tauleta', type: 'mesaCentro', name: 'Tauleta de centre', w: 90, d: 55, h: 45, elev: 0, color: '#f4f4f2', x: 135, z: 715, rot: 90, roomId: 'salon', locked: false },
+    { id: 'fix-mobletv', type: 'muebleTv', name: 'Moble TV', w: 77, d: 39, h: 77, elev: 0, color: '#f4f4f2', x: 245.5, z: 528, rot: 270, roomId: 'salon', locked: false },
+    { id: 'fix-tv', type: 'tv', name: 'Televisor', w: 80, d: 8, h: 50, elev: 77, color: '#151515', x: 251, z: 528, rot: 270, roomId: 'salon', locked: false },
+    // Dormitori (vídeo): llit de matrimoni amb el capçal a la paret de l'est (quadres i aplics), tauletes blanques a cada costat, cortines al finestral.
+    { id: 'fix-llit', type: 'cama', name: 'Llit', w: 150, d: 200, h: 55, elev: 0, color: '#e9e7e2', x: 790, z: 860, rot: 270, roomId: 'dormitorio', locked: false },
+    { id: 'fix-tauleta-n', type: 'mesita', name: 'Tauleta de nit', w: 45, d: 40, h: 50, elev: 0, color: '#f4f4f2', x: 870, z: 763, rot: 270, roomId: 'dormitorio', locked: false },
+    { id: 'fix-tauleta-s', type: 'mesita', name: 'Tauleta de nit', w: 45, d: 40, h: 50, elev: 0, color: '#f4f4f2', x: 870, z: 957, rot: 270, roomId: 'dormitorio', locked: false },
+    // Office (vídeo): llitera blanca de metall sota el sostre inclinat i una tauleta petita.
+    { id: 'fix-llitera', type: 'litera', name: 'Llitera', w: 90, d: 200, h: 170, elev: 0, color: '#f4f4f2', x: 372, z: 802, rot: 0, roomId: 'office', locked: false },
+    { id: 'fix-tauleta-o', type: 'mesita', name: 'Tauleta', w: 45, d: 40, h: 50, elev: 0, color: '#f4f4f2', x: 350, z: 930, rot: 0, roomId: 'office', locked: false },
+    // Bany 1 (vídeo): banyera amb cortina a la paret de l'oest, vàter suspès i lavabo amb moble blanc i mirall a la paret del nord.
+    { id: 'fix-banyera', type: 'banyera', name: 'Banyera', w: 170, d: 70, h: 55, elev: 0, color: '#f6f6f4', x: 745, z: 495, rot: 90, roomId: 'bano', locked: true },
+    { id: 'fix-vater1', type: 'vater', name: 'Vàter', w: 38, d: 55, h: 42, elev: 0, color: '#f6f6f4', x: 800, z: 438, rot: 180, roomId: 'bano', locked: true },
+    { id: 'fix-lavabo1', type: 'lavabo', name: 'Lavabo', w: 70, d: 45, h: 85, elev: 0, color: '#f2efe9', x: 855, z: 433, rot: 180, roomId: 'bano', locked: true },
+    // Bany 2 (vídeo): lavabo amb moble fosc i mirall, vàter al fons.
+    { id: 'fix-vater2', type: 'vater', name: 'Vàter', w: 38, d: 55, h: 42, elev: 0, color: '#f6f6f4', x: 970, z: 584, rot: 270, roomId: 'bano2', locked: true },
+    { id: 'fix-lavabo2', type: 'lavabo', name: 'Lavabo', w: 60, d: 40, h: 85, elev: 0, color: '#3a3330', x: 977, z: 670, rot: 270, roomId: 'bano2', locked: true },
   ],
 };
