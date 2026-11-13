@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 15, // v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 16, // v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -33,9 +33,9 @@ export const DEFAULT_PLAN = {
       ],
     },
     {
-      id: 'salon', name: 'Sala-menjador', kind: 'room', color: '#c89b6a',
+      id: 'salon', name: 'Menjador', kind: 'room', color: '#c89b6a',
       x: 0, z: 380, w: 270, d: 440,
-      notes: 'Sala-menjador 270 × 440 segons les cotes del croquis (440 de llarg per la paret exterior, 270 d’ample; paret de la tele 275). Entrada des del replà, a la paret de la tele. Sense finestra: la llum entra per la porta de vidre doble de la terrassa (≈160, estimada). Sostre inclinat que baixa cap a la terrassa.',
+      notes: 'Menjador 270 × 440 segons les cotes del croquis (440 de llarg per la paret exterior, 270 d’ample; paret de la tele 275). Entrada des del replà, a la paret de la tele. Sense finestra: la llum entra per la porta de vidre doble de la terrassa (≈160, estimada). Sostre inclinat que baixa cap a la terrassa.',
       estimated: false,
       openings: [
         { wall: 'E', offset: 15, width: 85, type: 'puerta' },
@@ -46,7 +46,7 @@ export const DEFAULT_PLAN = {
     {
       id: 'terraza', name: 'Terrassa', kind: 'terrace', color: '#b8673f',
       x: 0, z: 820, w: 268, d: 130,
-      notes: 'Terrassa de la sala: 268 × 130 segons el croquis (≈3,5 m²).',
+      notes: 'Terrassa del menjador: 268 × 130 segons el croquis (≈3,5 m²).',
       estimated: false,
       openings: [],
     },
@@ -67,7 +67,7 @@ export const DEFAULT_PLAN = {
     {
       id: 'distribuidor', name: 'Passadís', kind: 'room', color: '#c89b6a',
       x: 270, z: 655, w: 575, d: 100,
-      notes: 'Passadís que uneix la sala amb el bany 1, el bany 2, l’office i el dormitori. 4,60 m² al projecte.',
+      notes: 'Passadís que uneix el menjador amb el bany 1, el bany 2, l’office i el dormitori. 4,60 m² al projecte.',
       estimated: true,
       openings: [],
     },
