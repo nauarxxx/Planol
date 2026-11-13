@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=25';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=26';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
@@ -431,6 +431,7 @@ const glassMat = new THREE.MeshStandardMaterial({ color: 0x8fbfdc, transparent: 
 const windowMat = new THREE.MeshStandardMaterial({ color: 0x6fb1d6, roughness: 0.6 });
 const railMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.5, roughness: 0.4 });
 const voidMat = new THREE.MeshStandardMaterial({ color: 0x5b6066, roughness: 0.8 });
+const beamMarkMat = new THREE.MeshStandardMaterial({ color: 0x4a4540, roughness: 0.9, transparent: true, opacity: 0.45 });
 const swingMat = new THREE.LineBasicMaterial({ color: 0x8a6a4a });
 // Portes: 1 = oberta, 0 = tancada (per defecte obertes, com al plànol). En tocar-ne una, s'obre o es tanca amb animació.
 const doors = {};
@@ -575,7 +576,13 @@ function rebuildPlan() {
       // Pilar: bloc massís de terra a sostre. Biga: bloc penjat del sostre, des de l'alçada «h0» (per defecte 210) fins al sostre.
       const y0 = r.kind === 'beam' ? Math.min(fullH - 5, r.h0 || 210) : 0;
       const y1 = r.kind === 'beam' ? fullH : H;
-      if (y1 > y0) {
+      if (r.kind === 'beam' && H < y0) {
+        // amb parets baixes o en planta la biga no es penja (quedaria un bloc flotant): es marca al terra com al plànol
+        const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, 0.8, r.d), beamMarkMat);
+        m.position.set(r.x + r.w / 2, 0.4, r.z + r.d / 2);
+        m.userData.wall = { room: r, axis: 'x', line: r.z, a: r.x, b: r.x + r.w, side: 'biga' };
+        planGroup.add(m);
+      } else if (y1 > y0) {
         const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, y1 - y0, r.d), [wallMat, wallMat, r.kind === 'beam' ? wallMat : wallTopMat, wallMat, wallMat, wallMat]);
         m.position.set(r.x + r.w / 2, (y0 + y1) / 2, r.z + r.d / 2);
         m.castShadow = true; m.receiveShadow = true;
@@ -2066,7 +2073,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v25',
+  version: 'v26',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
