@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { DEFAULT_PLAN } from './plan.js';
 import { CATALOG, buildFurniture, newItem } from './furniture.js';
 import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=26';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=27';
 import { mergeStates } from './merge.js';
 import { prefs, applyPrefs, initSettings } from './settings.js';
 import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
@@ -34,10 +34,13 @@ function migratePlan(s) {
   const fresh = clone(DEFAULT_PLAN);
   s.rooms = fresh.rooms;
   s.version = fresh.version;
-  for (const it of s.items || []) {
+  s.items = s.items || [];
+  for (const it of s.items) {
     const r = roomAt(s.rooms, it.x, it.z);
     it.roomId = r ? r.id : (s.rooms.find((x) => x.kind === 'room') || {}).id;
   }
+  // mobles fixos del plànol (p. ex. els de la cuina) que encara no hi siguin
+  for (const it of fresh.items || []) if (!s.items.some((x) => x.id === it.id)) s.items.push(clone(it));
   return s;
 }
 
@@ -2073,7 +2076,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v26',
+  version: 'v27',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,

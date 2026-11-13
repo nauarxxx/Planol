@@ -21,6 +21,12 @@ export const CATALOG = {
   lampara:    { label: 'Làmpada de peu',   w: 35,  d: 35,  h: 165, color: '#d8c9a0', role: 'corner' },
   planta:     { label: 'Planta',           w: 40,  d: 40,  h: 110, color: '#3f7a3a', role: 'corner' },
   cockpit:    { label: 'Simulador cockpit', w: 150, d: 90, h: 100, color: '#2a2a2e', role: 'desk' },
+  encimera:   { label: 'Taulell de cuina',  w: 120, d: 55,  h: 90,  color: '#e9e4da', role: 'wall' },
+  encimeraPica: { label: 'Taulell amb pica', w: 120, d: 55, h: 90,  color: '#e9e4da', role: 'wall' },
+  encimeraPlaca: { label: 'Taulell amb placa', w: 160, d: 55, h: 90, color: '#e9e4da', role: 'wall' },
+  nevera:     { label: 'Nevera',           w: 60,  d: 65,  h: 185, color: '#f2f2f0', role: 'wall' },
+  rentadora:  { label: 'Rentadora',        w: 60,  d: 60,  h: 85,  color: '#f2f2f0', role: 'wall' },
+  campana:    { label: 'Campana extractora', w: 60, d: 50, h: 40,  color: '#9ea3a8', role: 'wall', elev: 155 },
   caja:       { label: 'Objecte genèric',  w: 60,  d: 60,  h: 60,  color: '#8899aa', role: 'wall' },
 };
 
@@ -133,7 +139,6 @@ export function buildFurniture(item) {
       // Simulador de conducció: xassís amb rails, seient baquet reclinat al darrere, pedals, volant i tres pantalles al davant (llarg = w, ample = d).
       const s = Math.min(1.6, Math.max(0.6, h / 100)); // escala vertical respecte als 100 cm de referència
       const seatMat = mat(shade(c, 1.15), { roughness: 0.8 });
-      const screen = mat('#0b0d12', { roughness: 0.2, metalness: 0.3 });
       const frame = mat('#1c1c20', { metalness: 0.5, roughness: 0.45 });
       const rail = Math.min(10, d * 0.1);
       // xassís: dos rails llargs i dos travessers
@@ -161,14 +166,63 @@ export function buildFurniture(item) {
       const wheel = new THREE.Mesh(new THREE.TorusGeometry(15 * Math.min(1, s), 2.6, 10, 28), dark);
       wheel.position.set(w / 2 - 68, 60 * s, 0); wheel.rotation.y = Math.PI / 2; wheel.rotation.x = 0.35; wheel.castShadow = true;
       g.add(wheel);
-      // suport i tres pantalles corbades al davant, fins a l'alçada total
-      box(g, 8, h - 45 * s, 10, w / 2 - 12, 0, 0, frame);
-      const sh = Math.min(45 * s, h * 0.45), sy = h - sh - 1, cw = Math.min(50, d * 0.5), swd = Math.max(20, (d - cw) / 2 + 6);
-      box(g, 2.5, sh, cw, w / 2 - 8, sy, 0, screen);
-      for (const sgn of [-1, 1]) {
-        const p = box(g, 2.5, sh, swd, 0, 0, 0, screen);
-        p.position.set(w / 2 - 8 - Math.sin(0.55) * swd / 2, sy + sh / 2, sgn * (cw / 2 + Math.cos(0.55) * swd / 2)); p.rotation.y = -sgn * 0.55;
+      // suport del volant: columna vertical al capdavant del xassís (sense pantalles: només seient, volant i pedals)
+      box(g, 8, 40 * s, 10, w / 2 - 40, 0, 0, frame);
+      break;
+    }
+    case 'encimera':
+    case 'encimeraPica':
+    case 'encimeraPlaca': {
+      // Taulell de cuina: mobles baixos amb sòcol i taulell de granit; variant amb pica i aixeta o amb placa d'inducció.
+      const granite = mat('#5f5d60', { roughness: 0.35, metalness: 0.1 });
+      const top = 4, plinth = 8;
+      box(g, w - 4, plinth, d - 6, 0, 0, -3, dark);
+      box(g, w, h - top - plinth, d, 0, plinth, 0, main);
+      const doors = Math.max(1, Math.round(w / 60));
+      for (let i = 1; i < doors; i++) box(g, 0.6, h - top - plinth - 4, 0.6, -w / 2 + (w / doors) * i, plinth + 2, d / 2 + 0.3, dark);
+      for (let i = 0; i < doors; i++) box(g, 12, 1.2, 1.5, -w / 2 + (w / doors) * (i + 0.5), h - top - 8, d / 2 + 0.8, metal);
+      box(g, w + 2, top, d + 2, 0, h - top, 1, granite);
+      if (item.type === 'encimeraPica') {
+        const sx = Math.min(w / 2 - 6, 0), bw = Math.min(45, w - 12), bd = Math.min(38, d - 14);
+        box(g, bw, 1.2, bd, sx, h - 1.1, -2, mat('#c9cccf', { metalness: 0.7, roughness: 0.3 }));
+        box(g, bw - 6, 0.8, bd - 6, sx, h - 0.6, -2, mat('#8a9096', { metalness: 0.6, roughness: 0.35 }));
+        const tap = cyl(g, 1.2, 18, sx, h, -d / 2 + 6, metal);
+        const spout = box(g, 2, 2, 12, sx, h + 16, -d / 2 + 11, metal);
+        spout.castShadow = false; tap.castShadow = false;
       }
+      if (item.type === 'encimeraPlaca') {
+        const px = Math.min(w / 2 - 32, w / 4), pw = Math.min(58, w - 8), pd = Math.min(50, d - 6);
+        box(g, pw, 0.8, pd, px, h, 0, mat('#0d0f12', { roughness: 0.15, metalness: 0.4 }));
+        for (const [ox, oz] of [[-13, -11], [13, -11], [-13, 11], [13, 11]]) { const r = cyl(g, 7, 0.4, px + ox, h + 0.8, oz, mat('#2a2d33', { roughness: 0.3 })); r.castShadow = false; }
+      }
+      break;
+    }
+    case 'nevera': {
+      // Nevera combi: dues portes (congelador a baix), nanses verticals.
+      box(g, w, h, d, 0, 0, 0, main);
+      const split = h * 0.38;
+      box(g, w - 2, 0.6, 0.6, 0, split, d / 2 + 0.3, dark);
+      box(g, 2, Math.min(60, h * 0.3), 2.5, -w / 2 + 7, split + 12, d / 2 + 1.2, metal);
+      box(g, 2, Math.min(28, split * 0.6), 2.5, -w / 2 + 7, split - Math.min(28, split * 0.6) - 6, d / 2 + 1.2, metal);
+      break;
+    }
+    case 'rentadora': {
+      // Rentadora de càrrega frontal: ull de bou rodó i quadre de comandaments a dalt.
+      box(g, w, h, d, 0, 0, 0, main);
+      const r = Math.min(w, h) * 0.3;
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 2, 28), dark);
+      ring.rotation.x = Math.PI / 2; ring.position.set(0, h * 0.45, d / 2 + 1); g.add(ring);
+      const glass = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.75, r * 0.75, 1, 28), mat('#30343a', { roughness: 0.2, metalness: 0.3 }));
+      glass.rotation.x = Math.PI / 2; glass.position.set(0, h * 0.45, d / 2 + 2.2); g.add(glass);
+      box(g, w - 8, 6, 1, 0, h - 10, d / 2 + 0.5, dark);
+      const knob = cyl(g, 3, 1.5, w / 2 - 12, h - 8.5, d / 2 + 1, metal); knob.rotation.x = Math.PI / 2;
+      break;
+    }
+    case 'campana': {
+      // Campana extractora: cos d'acer i xemeneia cap al sostre.
+      box(g, w, Math.min(h, 12), d, 0, 0, 0, metal);
+      box(g, w * 0.5, h - Math.min(h, 12), d * 0.5, 0, Math.min(h, 12), -d * 0.2, metal);
+      box(g, w * 0.5, 60, d * 0.5, 0, h, -d * 0.2, metal);
       break;
     }
     case 'armario': {
