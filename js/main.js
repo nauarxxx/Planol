@@ -966,8 +966,10 @@ function renderProps(onlyPos = false) {
 // --- Pestaña Distribuir
 function renderDistribuir() {
   const el = $('#tab-distribuir');
-  if (!roomById(ui.layoutRoom)) {
-    const withItems = usableRooms().find((r) => state.items.some((i) => i.roomId === r.id));
+  if (!roomById(ui.layoutRoom) || (!ui.proposals.length && !state.items.some((i) => i.roomId === ui.layoutRoom))) {
+    // Per defecte, l'habitació del moble seleccionat o la primera que tingui mobles.
+    const sel = itemById(ui.selected);
+    const withItems = (sel && roomById(sel.roomId)) || usableRooms().find((r) => state.items.some((i) => i.roomId === r.id));
     ui.layoutRoom = (withItems || usableRooms()[0])?.id;
   }
   const room = roomById(ui.layoutRoom);
