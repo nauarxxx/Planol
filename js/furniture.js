@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from '../vendor/addons/geometries/RoundedBoxGeometry.js';
-import { shapeRects, hasWing } from './geom.js?v=49';
+import { shapeRects, hasWing } from './geom.js?v=50';
 export { shapeRects, hasWing };
 
 // Catálogo de tipos de mueble. w = ancho (X local), d = fondo (Z local), h = alto. cm.
@@ -384,7 +384,14 @@ export function buildFurniture(item, opts = {}) {
     }
     case 'monitor': {
       // Monitor (27″ ≈ 61 × 36 de pantalla): peu, braç i pantalla mirant a +z.
-      const ph = Math.min(h - 10, w * 0.6), pt = 2.5, screen = mat('#0b0d12', { roughness: 0.2, metalness: 0.3 });
+      // item.arm: monitor penjat en un braç (p. ex. damunt d'un altre): sense peu, només el pal del braç al darrere
+      const ph = item.arm ? Math.min(h - 1, w * 0.6) : Math.min(h - 10, w * 0.6), pt = 2.5, screen = mat('#0b0d12', { roughness: 0.2, metalness: 0.3 });
+      if (item.arm) {
+        box(g, 4, h, 3, 0, 0, -d / 2 + 4, dark);
+        box(g, w, ph, pt, 0, h - ph, -d / 2 + 7, main);
+        const sa = box(g, w - 2, ph - 2, 0.6, 0, h - ph + 1, -d / 2 + 7 + pt / 2 + 0.3, screen); sa.castShadow = false;
+        break;
+      }
       box(g, Math.min(24, w * 0.4), 1.5, Math.min(18, d - 2), 0, 0, -d / 2 + Math.min(18, d - 2) / 2 + 1, dark);
       box(g, 5, h - ph / 2, 3, 0, 1.5, -d / 2 + 4, dark);
       box(g, w, ph, pt, 0, h - ph, -d / 2 + 7, main);

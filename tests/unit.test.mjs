@@ -386,7 +386,7 @@ test('migració a la v28: si l’usuari havia canviat mides, les seves habitacio
 test('office: propostes amb el simulador, la pantalla i dos escriptoris amb dos monitors hi caben', () => {
   const st = plan(), of = st.rooms.find((r) => r.id === 'office'), t = st.wallThickness;
   const props = officeProposals(of, t);
-  assert.ok(props.length >= 3);
+  assert.ok(props.length >= 2);
   const swings = allSwings(st.rooms);
   const arm = st.rooms.find((r) => r.id === 'armario-office'), op = arm.openings[0];
   const front = { x0: arm.x - 60, x1: arm.x, z0: arm.z + op.offset, z1: arm.z + op.offset + op.width }; // davant de l'armari
@@ -408,7 +408,11 @@ test('office: propostes amb el simulador, la pantalla i dos escriptoris amb dos 
     }
     // la pantalla, davant del volant
     const sim = its.find((i) => i.type === 'cockpit'), tv = its.find((i) => i.type === 'tvParet');
-    assert.ok(Math.abs(tv.x - sim.x) < 10 && tv.z < sim.z);
+    assert.ok(Math.abs(tv.x - sim.x) < 15 && tv.z < sim.z);
+    // pantalla de 50″ penjada a la paret (no al simulador), sense tapar la porta
+    assert.ok(tv.w >= 110 && tv.d <= 6 && aabb(tv).z0 <= innerRect(of, t).z0 + 0.5);
+    const door = of.openings.find((o) => o.wall === 'N' && o.type === 'puerta');
+    assert.ok(aabb(tv).x1 <= of.x + door.offset, `${p.name}: la pantalla tapa la porta`);
   }
 });
 
@@ -416,9 +420,29 @@ test('migració a la v29: les propostes de l’office es desen per votar, un sol
   const old = plan(); old.version = 28; old.saved = [];
   const s = migratePlan(old);
   const mine = s.saved.filter((p) => p.roomId === 'office');
-  assert.equal(mine.length, 3);
+  assert.equal(mine.length, 2);
   assert.ok(mine.every((p) => p.who === 'WALL-E' && p.comments.length === 1));
   assert.equal(addOfficeProposals(s), 0);
   s.saved = s.saved.filter((p) => p.id !== 'office-sim-2'); s.version = 28;
-  assert.equal(migratePlan(s).saved.filter((p) => p.roomId === 'office').length, 3); // si es torna a migrar des d'una versió vella, hi tornen
+  assert.equal(migratePlan(s).saved.filter((p) => p.roomId === 'office').length, 2); // si es torna a migrar des d'una versió vella, hi tornen
+});
+
+test('migració a la v30: porta de l’office a la cantonada de l’armari i propostes refetes amb la pantalla de 50″', () => {
+  const old = plan(); old.version = 29;
+  const of = old.rooms.find((r) => r.id === 'office');
+  of.openings[0] = { wall: 'N', offset: 110, width: 80, type: 'puerta' };
+  const tv43 = { id: 'of-tvParet-1', type: 'tvParet', w: 97, d: 5, h: 57, elev: 100, x: 384, z: 792.5, rot: 0, roomId: 'office' };
+  old.saved = [1, 2, 3].map((n) => ({ id: `office-sim-${n}`, roomId: 'office', name: 'vella', who: 'WALL-E', items: [tv43], votes: { a: 1 }, comments: [{ id: `office-sim-${n}-c`, who: 'WALL-E', text: 'vella' }, { id: 'x', who: 'Ainhoa', text: 'm’agrada' }] }));
+  old.roomsEdited = true; // amb mides editades, la porta també es corregeix
+  const s = migratePlan(old);
+  const d = s.rooms.find((r) => r.id === 'office').openings[0];
+  assert.deepEqual([d.offset, d.hinge], [125, 'b']);
+  const mine = s.saved.filter((p) => p.roomId === 'office');
+  assert.deepEqual(mine.map((p) => p.id), ['office-sim-1', 'office-sim-2']);
+  for (const p of mine) {
+    assert.equal(p.items.find((i) => i.type === 'tvParet').w, 112);
+    assert.deepEqual(p.votes, { a: 1 });
+    assert.equal(p.comments.length, 2);
+    assert.notEqual(p.comments[0].text, 'vella');
+  }
 });

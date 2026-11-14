@@ -5,30 +5,30 @@ import { EffectComposer } from '../vendor/addons/postprocessing/EffectComposer.j
 import { RenderPass } from '../vendor/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from '../vendor/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from '../vendor/addons/postprocessing/OutputPass.js';
-import { DEFAULT_PLAN } from './plan.js?v=49';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=49';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=49';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=49';
-import { mergeStates } from './merge.js?v=49';
-import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=49';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=49';
-import { initAssistant } from './assistant.js?v=49';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=49';
-import { initMeasure } from './measure.js?v=49';
-import { initColorPicker } from './colorpicker.js?v=49';
-import { initPhotoAdd } from './photo.js?v=49';
-import { initTape } from './tape.js?v=49';
-import { checkZones } from './zones.js?v=49';
-import { fitCheck } from './fit.js?v=49';
-import { initShop, STATUS, statusOf } from './shop.js?v=49';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=49';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=49';
-import { drawPreview as drawRoomPreview } from './preview.js?v=49';
-import { arSupported, startAR as startARView } from './ar.js?v=49';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=49';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=49';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=49';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=49';
+import { DEFAULT_PLAN } from './plan.js?v=50';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=50';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=50';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=50';
+import { mergeStates } from './merge.js?v=50';
+import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=50';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=50';
+import { initAssistant } from './assistant.js?v=50';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=50';
+import { initMeasure } from './measure.js?v=50';
+import { initColorPicker } from './colorpicker.js?v=50';
+import { initPhotoAdd } from './photo.js?v=50';
+import { initTape } from './tape.js?v=50';
+import { checkZones } from './zones.js?v=50';
+import { fitCheck } from './fit.js?v=50';
+import { initShop, STATUS, statusOf } from './shop.js?v=50';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=50';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=50';
+import { drawPreview as drawRoomPreview } from './preview.js?v=50';
+import { arSupported, startAR as startARView } from './ar.js?v=50';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=50';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=50';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=50';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=50';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -3393,7 +3393,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v49',
+  version: 'v50',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,

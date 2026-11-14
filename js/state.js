@@ -1,7 +1,7 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=49';
-import { roomAt } from './geom.js?v=49';
-import { officeProposals } from './officeplans.js?v=49';
+import { DEFAULT_PLAN } from './plan.js?v=50';
+import { roomAt } from './geom.js?v=50';
+import { officeProposals } from './officeplans.js?v=50';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -74,6 +74,17 @@ function toInner28(s, fresh) {
   for (const sc of s.scenes || []) for (const it of sc.items || []) movePoint28(it, oldRects, newRects);
 }
 
+// v30: la porta de l'office és a la cantonada de l'armari (paret de dalt, costat de l'est) i s'obre contra aquesta paret.
+// Per a plànols amb mides editades: es manté l'amplada de la porta i es posa a 5 cm de la cantonada.
+export function moveOfficeDoor30(s) {
+  const r = (s.rooms || []).find((x) => x.id === 'office');
+  const d = r && (r.openings || []).find((o) => o.wall === 'N' && o.type === 'puerta');
+  if (!d) return;
+  const t = s.wallThickness || 10;
+  d.offset = Math.max(t / 2, r.w - t / 2 - 5 - d.width);
+  if (!d.doorEdited) d.hinge = 'b';
+}
+
 // opts.reset: torna a posar el plànol per defecte (eina de desenvolupador) sense moure els mobles com si vinguessin d'una versió antiga
 export function migratePlan(s, opts = {}) {
   if (!s || (s.version || 1) >= DEFAULT_PLAN.version) return s;
@@ -93,6 +104,8 @@ export function migratePlan(s, opts = {}) {
     // l'usuari ha canviat mides de parets o d'habitacions: es conserven i només s'hi afegeixen les habitacions noves
     const have = new Set(s.rooms.map((r) => r.id));
     for (const r of fresh.rooms) if (!have.has(r.id)) s.rooms.push(r);
+    // v30: la porta de l'office va a la cantonada de l'armari (5 cm de paret), amb la frontissa en aquest costat
+    if (from < 30) moveOfficeDoor30(s);
   } else {
     // es conserva el color de les parets pintades
     const paint = Object.fromEntries((s.rooms || []).filter((r) => r.walls).map((r) => [r.id, r.walls]));
@@ -122,6 +135,8 @@ export function migratePlan(s, opts = {}) {
   }
   // v29: propostes de l'office amb el simulador i dos escriptoris (objectiu de la persona), per votar-les i aplicar-les des de Propostes
   if (from < 29) addOfficeProposals(s);
+  // v30: la pantalla del simulador és de 50″ i va penjada a la paret cap on mira: es refan les propostes de WALL-E (es guarden els vots i els comentaris)
+  else if (from < 30) addOfficeProposals(s, Date.now(), { replace: true });
   // mobles fixos del plànol (p. ex. els de la cuina) que encara no hi siguin, tret dels que l'usuari hagi esborrat expressament
   const removed = new Set(s.removedFixed || []);
   for (const it of fresh.items || []) {
@@ -135,14 +150,28 @@ export function migratePlan(s, opts = {}) {
 
 
 // Les desa a «Propostes per votar» de l'office (un sol cop: si s'esborren, no tornen).
-export function addOfficeProposals(s, now = Date.now()) {
+export function addOfficeProposals(s, now = Date.now(), { replace = false } = {}) {
   const room = (s.rooms || []).find((r) => r.id === 'office');
   if (!room) return 0;
   const list = (s.saved ||= []);
   let n = 0;
-  officeProposals(room, s.wallThickness || 10).forEach((p, i) => {
+  const props = officeProposals(room, s.wallThickness || 10);
+  // en refer-les, les propostes antigues de WALL-E que ja no hi caben (p. ex. la de la pantalla de 43″ amb escriptoris a banda i banda) se'n van
+  if (replace && props.length) {
+    const keep = list.filter((x) => !/^office-sim-\d+$/.test(x.id) || +x.id.slice(11) <= props.length);
+    list.splice(0, list.length, ...keep);
+  }
+  props.forEach((p, i) => {
     const id = `office-sim-${i + 1}`;
-    if (list.some((x) => x.id === id)) return;
+    const old = list.find((x) => x.id === id);
+    if (old && replace) {
+      old.name = p.name; old.items = p.items;
+      const c = (old.comments || []).find((x) => x.id === `${id}-c`);
+      if (c) c.text = p.note;
+      n++;
+      return;
+    }
+    if (old || replace) return; // esborrada per la persona: no torna
     list.push({ id, roomId: room.id, name: p.name, who: 'WALL-E', at: now + i, items: p.items, votes: {}, comments: [{ id: `${id}-c`, who: 'WALL-E', at: now + i, text: p.note }], goals: [] });
     n++;
   });
