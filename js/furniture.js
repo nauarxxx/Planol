@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { shapeRects, hasWing } from './geom.js?v=40';
+import { shapeRects, hasWing } from './geom.js?v=41';
 export { shapeRects, hasWing };
 
 // Catálogo de tipos de mueble. w = ancho (X local), d = fondo (Z local), h = alto. cm.
@@ -110,8 +110,12 @@ export function photoMaterial(src, faceW, faceH, extra = {}) {
   return m;
 }
 
+// Cada peça d'un moble s'encongeix una mica (d'1 a 4 mm per cara, diferent per a cada peça i per a cada moble): així dues peces
+// que es toquen o un moble arran d'una paret mai no tenen dues cares al mateix pla, que es veurien parpellejar.
+let partN = 0, partSalt = 0;
 function box(group, w, h, d, x, y, z, material) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(w, 0.5), Math.max(h, 0.5), Math.max(d, 0.5)), material);
+  const e = 0.1 + 0.075 * ((partN++ + partSalt) % 5);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(w - 2 * e, 0.5), Math.max(h - 2 * e, 0.5), Math.max(d - 2 * e, 0.5)), material);
   m.position.set(x, y + h / 2, z);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -261,6 +265,7 @@ function buildFireplace(g, item, main, dark, metal) {
 // opts.photo: foto del moble (dataURL). Un quadre la mostra sempre; la resta, si item.photoLook, com una caixa amb la foto al davant.
 export function buildFurniture(item, opts = {}) {
   const g = new THREE.Group();
+  partN = 0; partSalt = [...String(item.id || item.type)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 997, 0) % 5;
   if (opts.photo && item.photoLook && item.type !== 'quadre') {
     const { w, d, h } = item, side = mat(item.color);
     const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(w, 0.5), Math.max(h, 0.5), Math.max(d, 0.5)), [side, side, side, side, photoMaterial(opts.photo, w, h), side]);
@@ -407,8 +412,9 @@ export function buildFurniture(item, opts = {}) {
       box(g, w + 2, top, d + 2, 0, h - top, 1, granite);
       if (item.type === 'encimeraPica') {
         const sx = Math.min(w / 2 - 6, 0), bw = Math.min(45, w - 12), bd = Math.min(38, d - 14);
-        box(g, bw, 1.2, bd, sx, h - 1.1, -2, mat('#c9cccf', { metalness: 0.7, roughness: 0.3 }));
-        box(g, bw - 6, 0.8, bd - 6, sx, h - 0.6, -2, mat('#8a9096', { metalness: 0.6, roughness: 0.35 }));
+        // la vora de la pica sobresurt 5 mm del taulell i el fons 5 mm més: prou perquè cap cara coincideixi
+        box(g, bw, 1.5, bd, sx, h - 1, -2, mat('#c9cccf', { metalness: 0.7, roughness: 0.3 }));
+        box(g, bw - 6, 1.5, bd - 6, sx, h - 0.5, -2, mat('#8a9096', { metalness: 0.6, roughness: 0.35 }));
         const tap = cyl(g, 1.2, 18, sx, h, -d / 2 + 6, metal);
         const spout = box(g, 2, 2, 12, sx, h + 16, -d / 2 + 11, metal);
         spout.castShadow = false; tap.castShadow = false;
@@ -565,11 +571,12 @@ export function buildFurniture(item, opts = {}) {
     }
     case 'estanteria': {
       const t = 2.5;
-      box(g, t, h, d, -w / 2 + t / 2, 0, 0, main);
-      box(g, t, h, d, w / 2 - t / 2, 0, 0, main);
+      // laterals i prestatges davant del fons (1 cm), no a dins: cap cara del fons queda al mateix pla que una altra
+      box(g, t, h, d - 1, -w / 2 + t / 2, 0, 0.5, main);
+      box(g, t, h, d - 1, w / 2 - t / 2, 0, 0.5, main);
       box(g, w, h, 1, 0, 0, -d / 2 + 0.5, dark);
       const n = Math.max(2, Math.round(h / 35));
-      for (let i = 0; i <= n; i++) box(g, w - 2 * t, t, d, 0, Math.min(i * (h / n), h - t), 0, main);
+      for (let i = 0; i <= n; i++) box(g, w - 2 * t, t, d - 1, 0, Math.min(i * (h / n), h - t), 0.5, main); // davant del fons, no a dins
       break;
     }
     case 'comoda':

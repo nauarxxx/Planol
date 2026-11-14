@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=40';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=40';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=40';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=40';
-import { mergeStates } from './merge.js?v=40';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=40';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=40';
-import { initAssistant } from './assistant.js?v=40';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=40';
-import { initMeasure } from './measure.js?v=40';
-import { initColorPicker } from './colorpicker.js?v=40';
-import { initPhotoAdd } from './photo.js?v=40';
-import { initTape } from './tape.js?v=40';
-import { checkZones } from './zones.js?v=40';
-import { fitCheck } from './fit.js?v=40';
-import { initShop, STATUS, statusOf } from './shop.js?v=40';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=40';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=40';
-import { drawPreview as drawRoomPreview } from './preview.js?v=40';
-import { arSupported, startAR as startARView } from './ar.js?v=40';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=40';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=40';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=40';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=40';
+import { DEFAULT_PLAN } from './plan.js?v=41';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=41';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=41';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=41';
+import { mergeStates } from './merge.js?v=41';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=41';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=41';
+import { initAssistant } from './assistant.js?v=41';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=41';
+import { initMeasure } from './measure.js?v=41';
+import { initColorPicker } from './colorpicker.js?v=41';
+import { initPhotoAdd } from './photo.js?v=41';
+import { initTape } from './tape.js?v=41';
+import { checkZones } from './zones.js?v=41';
+import { fitCheck } from './fit.js?v=41';
+import { initShop, STATUS, statusOf } from './shop.js?v=41';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=41';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=41';
+import { drawPreview as drawRoomPreview } from './preview.js?v=41';
+import { arSupported, startAR as startARView } from './ar.js?v=41';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=41';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=41';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=41';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=41';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -583,7 +583,7 @@ function windowLeaves(r, o, e, a, b, y0, y1, n) {
   const key = r.id + '|w' + (idx < 0 ? Math.round(a) : idx);
   const inward = e.axis === 'x' ? (e.line === r.z ? 1 : -1) : (e.line === r.x ? 1 : -1);
   const ix = e.axis === 'x' ? 0 : inward, iz = e.axis === 'x' ? inward : 0;
-  const h = y1 - y0, lw = (b - a) / n;
+  const h = y1 - y0 - 0.4, lw = (b - a) / n; // 4 mm per sota del que hi ha a sobre (paret o cantell de paret baixa)
   for (let k = 0; k < n; k++) {
     // frontissa a l'extrem exterior de cada fulla; la fulla s'estén cap al centre de l'obertura
     const hinge = n === 1 ? a : k === 0 ? a : b;
@@ -643,8 +643,10 @@ function wallPiece(axis, line, a, b, y0, y1, t, material, cap = true, inSide = 0
   // cara de dins: índex 4/5 (+z/−z) per a parets al llarg de x, 0/1 (+x/−x) per a les de z
   const inner = [material, material, top, material, material, material];
   inner[axis === 'x' ? (inSide > 0 ? 4 : 5) : (inSide > 0 ? 0 : 1)] = paint || material;
-  if (paint && cap) inner[2] = paintTop(paint); // la part de dalt també, perquè la paret pintada es vegi en planta i amb les parets baixes
-  wallBox(axis, axis === 'x' ? line + inSide * t / 4 : line + inSide * t / 4, a, b, y0, y1, t / 2, inner, t / 2, t / 2);
+  if (paint && cap) inner[2] = paintTop(paint, axis); // la part de dalt també, perquè la paret pintada es vegi en planta i amb les parets baixes
+  // sense allargar-la pels extrems: si no, als racons i on dues habitacions segueixen la mateixa línia (cuina i menjador)
+  // dues cares quedarien al mateix pla i, amb colors diferents, parpellejarien
+  wallBox(axis, line + inSide * t / 4, a, b, y0, y1, t / 2, inner, 0, 0);
   // meitat de fora, només on a l'altre costat no hi ha cap habitació que la dibuixi
   const covered = [];
   for (const r2 of state.rooms) {
@@ -662,16 +664,38 @@ let tagEdge = null; // paret que s'està construint (habitació, eix, extrems)
 const paintCache = new Map();
 function paintMat(hex) {
   if (!hex) return null;
-  if (!paintCache.has(hex)) { const m = wallMat.clone(); m.color.set(hex); paintCache.set(hex, m); }
+  if (!paintCache.has(hex)) {
+    const m = wallMat.clone(); m.color.set(hex);
+    // si mai coincideix amb una altra cara al mateix pla, guanya sempre la pintada (no parpelleja)
+    m.polygonOffset = true; m.polygonOffsetFactor = -1; m.polygonOffsetUnits = -1;
+    paintCache.set(hex, m);
+  }
   return paintCache.get(hex);
 }
 // Cantell de dalt d'una paret pintada: el mateix color, sense ombres (en planta es veu com una línia del color triat).
 const paintTopCache = new Map();
-function paintTop(pm) {
-  const hex = '#' + pm.color.getHexString();
-  if (!paintTopCache.has(hex)) paintTopCache.set(hex, new THREE.MeshBasicMaterial({ color: pm.color.clone() }));
-  return paintTopCache.get(hex);
+// Als racons, el cantell de dalt de les dues parets es toca: les de l'eix x queden sempre per sobre de les de l'eix z.
+function paintTop(pm, axis = 'x') {
+  const key = '#' + pm.color.getHexString() + axis;
+  if (!paintTopCache.has(key)) {
+    const u = axis === 'x' ? -3 : -2;
+    paintTopCache.set(key, new THREE.MeshBasicMaterial({ color: pm.color.clone(), polygonOffset: true, polygonOffsetFactor: u, polygonOffsetUnits: u }));
+  }
+  return paintTopCache.get(key);
 }
+// Trossos d'una línia que no cauen sobre cap paret d'habitació (per no dibuixar baranes ni res a dins d'una paret).
+function freeOfWalls(axis, line, a, b, self) {
+  const covered = [];
+  for (const r2 of state.rooms) {
+    if (r2 === self || r2.kind !== 'room') continue;
+    const lines = axis === 'x' ? [r2.z, r2.z + r2.d] : [r2.x, r2.x + r2.w];
+    if (!lines.some((l) => Math.abs(l - line) <= 1)) continue;
+    const lo = axis === 'x' ? r2.x : r2.z, hi = axis === 'x' ? r2.x + r2.w : r2.z + r2.d;
+    if (hi > a && lo < b) covered.push([lo, hi]);
+  }
+  return subtractIntervals(a, b, covered);
+}
+const RAIL_TOP = 99.3; // la barana no arriba mai just a l'alçada d'una paret baixa (100), perquè no hi hagi dues cares al mateix pla
 const WALL_KEY = { nord: 'N', sud: 'S', oest: 'W', est: 'E' };
 const WALL_TXT = { N: 'de dalt', S: 'de baix', W: 'de l’esquerra', E: 'de la dreta' };
 
@@ -730,16 +754,17 @@ function rebuildPlan() {
     if (r.kind === 'pillar' || r.kind === 'beam') {
       // Pilar: bloc massís de terra a sostre. Biga: bloc penjat del sostre, des de l'alçada «h0» (per defecte 210) fins al sostre.
       const y0 = r.kind === 'beam' ? Math.min(fullH - 5, r.h0 || 210) : 0;
-      const y1 = r.kind === 'beam' ? fullH : H;
+      // la biga queda 4 mm per sota del sostre i el pilar i la biga 2 mm per dins de la seva planta: cap cara coincideix amb una paret
+      const y1 = r.kind === 'beam' ? fullH - 0.4 : H;
       if (r.kind === 'beam' && H < y0) {
         // amb parets baixes o en planta la biga no es penja (quedaria un bloc flotant): es marca al terra com al plànol
-        const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, 0.8, r.d), beamMarkMat);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(r.w - 0.6, 0.8, r.d - 0.6), beamMarkMat);
         m.position.set(r.x + r.w / 2, 0.4, r.z + r.d / 2);
         m.userData.wall = { room: r, axis: 'x', line: r.z, a: r.x, b: r.x + r.w, side: 'biga', key: 'N', inSide: -1, whole: true };
         planGroup.add(m);
       } else if (y1 > y0) {
         const pm = paintMat(r.walls?.N) || wallMat;
-        const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, y1 - y0, r.d), [pm, pm, r.kind === 'beam' ? pm : wallTopMat, pm, pm, pm]);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(r.w - 0.4, y1 - y0, r.d - 0.4), [pm, pm, r.kind === 'beam' ? pm : wallTopMat, pm, pm, pm]);
         m.position.set(r.x + r.w / 2, (y0 + y1) / 2, r.z + r.d / 2);
         m.castShadow = true; m.receiveShadow = true;
         m.userData.wall = { room: r, axis: 'x', line: r.z, a: r.x, b: r.x + r.w, side: r.kind === 'beam' ? 'biga' : 'pilar', key: 'N', inSide: -1, whole: true };
@@ -772,7 +797,7 @@ function rebuildPlan() {
       // Barandilla: oeste, este (más corta), sur y la diagonal.
       const rail = (x1, z1, x2, z2) => {
         const len = Math.hypot(x2 - x1, z2 - z1), ang = Math.atan2(-(z2 - z1), x2 - x1);
-        for (const [y0, h, th, mat] of [[95, 5, 5, railMat], [5, 90, 1.5, glassMat]]) {
+        for (const [y0, h, th, mat] of [[RAIL_TOP - 5, 5, 4.8, railMat], [5, RAIL_TOP - 10, 1.5, glassMat]]) {
           const m = new THREE.Mesh(new THREE.BoxGeometry(len + th, h, th), mat);
           m.position.set((x1 + x2) / 2, y0 + h / 2, (z1 + z2) / 2);
           m.rotation.y = ang;
@@ -781,9 +806,10 @@ function rebuildPlan() {
         }
       };
       rail(r.x, r.z, r.x + r.w, r.z + r.d - r.d2);
-      rail(r.x, r.z, r.x, r.z + r.d);
-      rail(r.x + r.w, r.z + r.d - r.d2, r.x + r.w, r.z + r.d);
-      rail(r.x, r.z + r.d, r.x + r.w, r.z + r.d);
+      // les vores rectes, només on no hi ha la paret d'una habitació (la barana quedaria dins la paret i parpellejaria)
+      for (const [a, b] of freeOfWalls('z', r.x, r.z, r.z + r.d, r)) rail(r.x, a, r.x, b);
+      for (const [a, b] of freeOfWalls('z', r.x + r.w, r.z + r.d - r.d2, r.z + r.d, r)) rail(r.x + r.w, a, r.x + r.w, b);
+      for (const [a, b] of freeOfWalls('x', r.z + r.d, r.x, r.x + r.w, r)) rail(a, r.z + r.d, b, r.z + r.d);
       if (ui.labels) {
         const l = makeLabel([r.name, `${fmtLen(r.w, 0)} × ${fmtLen(r.d, 0)} / ${fmtLen(r.d2, 1)}`, 'vora en diagonal'], r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.8, r.d * 0.6);
         l.position.set(r.x + r.w * 0.45, 0.6, r.z + r.d * 0.6);
@@ -812,9 +838,9 @@ function rebuildPlan() {
       const cuts = ops.map((o) => [Math.max(o.a, e.a), Math.min(o.b, e.b)]);
       const solid = subtractIntervals(e.a, e.b, cuts);
       if (r.kind === 'terrace') {
-        for (const [a, b] of solid) {
-          wallPiece(e.axis, e.line, a, b, 95, 100, 5, railMat, false);
-          wallPiece(e.axis, e.line, a, b, 5, 95, 1.5, glassMat, false);
+        for (const [a, b] of solid.flatMap(([a0, b0]) => freeOfWalls(e.axis, e.line, a0, b0, r))) {
+          wallPiece(e.axis, e.line, a, b, RAIL_TOP - 5, RAIL_TOP, 4.8, railMat, false);
+          wallPiece(e.axis, e.line, a, b, 5, RAIL_TOP - 5, 1.5, glassMat, false);
         }
         continue;
       }
@@ -825,7 +851,7 @@ function rebuildPlan() {
       tagEdge = edgeTag;
       if (paint && (ui.view === 'top' || H < 60)) {
         // en planta (o amb les parets amagades) la paret pintada es marca amb una franja del seu color a tocar de la paret
-        const bw = 12, off = e.line + inSide * (t / 2 + bw / 2), bm = paintTop(paint);
+        const bw = 12, off = e.line + inSide * (t / 2 + bw / 2), bm = paintTop(paint, e.axis);
         for (const [a, b] of solid) {
           const m = new THREE.Mesh(e.axis === 'x' ? new THREE.BoxGeometry(b - a, 0.6, bw) : new THREE.BoxGeometry(bw, 0.6, b - a), bm);
           if (e.axis === 'x') m.position.set((a + b) / 2, 0.5, off); else m.position.set(off, 0.5, (a + b) / 2);
@@ -841,8 +867,9 @@ function rebuildPlan() {
         if (o.type === 'ventanal') {
           // finestral de terra a sostre: dues fulles de vidre que s'obren cap a dins en tocar-les, amb un muntant al mig
           const mid = (a + b) / 2;
-          wallPiece(e.axis, e.line, mid - 2, mid + 2, 0, top, t, wallTopMat, false);
-          wallPiece(e.axis, e.line, a, b, 0, 4, t, wallTopMat, false);
+          // una mica més prims que la paret i sense allargar: cap cara al mateix pla que la paret
+          wallBox(e.axis, e.line, mid - 2, mid + 2, 0, top, t - 0.6, wallTopMat, 0, 0);
+          wallBox(e.axis, e.line, a + 0.3, b - 0.3, 0, 4, t - 0.6, wallTopMat, 0, 0);
           windowLeaves(r, o, e, a, b, 4, top, 2);
         }
         if (o.type === 'ventana') {
@@ -853,13 +880,13 @@ function rebuildPlan() {
         }
         if (o.type === 'ventana' || o.type === 'ventanal') {
           // franja azul en el suelo para que la ventana se vea también en la vista en planta
-          const strip = new THREE.Mesh(new THREE.BoxGeometry(e.axis === 'x' ? b - a : t + 4, 0.8, e.axis === 'x' ? t + 4 : b - a), windowMat);
+          const strip = new THREE.Mesh(new THREE.BoxGeometry(e.axis === 'x' ? b - a - 1 : t + 4, 0.8, e.axis === 'x' ? t + 4 : b - a - 1), windowMat);
           if (e.axis === 'x') strip.position.set((a + b) / 2, 0.4, e.line); else strip.position.set(e.line, 0.4, (a + b) / 2);
           planGroup.add(strip);
         }
         if (o.type === 'puerta' && H > 20) {
           // marco fino para que la puerta se vea en el suelo
-          const frame = new THREE.Mesh(new THREE.BoxGeometry(e.axis === 'x' ? b - a : t + 2, 0.6, e.axis === 'x' ? t + 2 : b - a), wallTopMat);
+          const frame = new THREE.Mesh(new THREE.BoxGeometry(e.axis === 'x' ? b - a - 0.6 : t + 2, 0.6, e.axis === 'x' ? t + 2 : b - a - 0.6), wallTopMat);
           if (e.axis === 'x') frame.position.set((a + b) / 2, 0.3, e.line); else frame.position.set(e.line, 0.3, (a + b) / 2);
           planGroup.add(frame);
         }
@@ -881,7 +908,7 @@ function rebuildPlan() {
         // la fulla, penjada de la frontissa: gira entre tancada (seguint la paret) i oberta (cap a dins)
         const key = r.id + '|' + (r.openings || []).indexOf(op);
         doorSpots.push({ key, x: sw.hx + sw.wx * sw.r / 2, z: sw.hz + sw.wz * sw.r / 2 });
-        const h = Math.min(H, 205);
+        const h = Math.min(H - 0.4, 205); // una mica per sota de les parets baixes: el cantell de la porta no coincideix amb el de la paret
         const pivot = new THREE.Group();
         pivot.position.set(sw.hx, 0, sw.hz);
         const leaf = new THREE.Mesh(new THREE.BoxGeometry(sw.r, h, 3), doorMat);
@@ -2933,7 +2960,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v40',
+  version: 'v41',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -3033,7 +3060,63 @@ applyCfg();
 if (prefs.startView === 'top') setView('top');
 
 // Acceso para depuración desde la consola.
+// Cares de dues peces del plànol que cauen al mateix pla, mirant cap al mateix costat i amb materials diferents:
+// la targeta gràfica no sap quina posar davant i parpellegen («z-fighting»). Ha de tornar sempre una llista buida.
+function zFightFaces(tol = 0.05, groups = [planGroup, itemsGroup]) {
+  // Cares planes de tot el que es dibuixa (parets, terres, mobles) que queden al mateix pla, mirant cap al mateix costat,
+  // es trepitgen i tenen un material diferent: aquestes són les que parpellegen.
+  const faces = [], solids = [], N = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], v = new THREE.Vector3(), q = new THREE.Quaternion(), bb = new THREE.Box3();
+  for (const g0 of groups) g0.updateMatrixWorld(true);
+  const meshes = [];
+  for (const g0 of groups) g0.traverseVisible((m) => { if (m.isMesh && (m.geometry?.type === 'BoxGeometry' || m.geometry?.type === 'PlaneGeometry')) meshes.push(m); });
+  for (const m of meshes) {
+    m.getWorldQuaternion(q);
+    bb.setFromObject(m);
+    const box = [[bb.min.x, bb.max.x], [bb.min.y, bb.max.y], [bb.min.z, bb.max.z]];
+    const mats = Array.isArray(m.material) ? m.material : Array(6).fill(m.material);
+    const plane = m.geometry.type === 'PlaneGeometry';
+    const square = [[1, 0, 0], [0, 1, 0]].every((n) => { v.fromArray(n).applyQuaternion(q); return [0, 1, 2].some((k) => Math.abs(v.getComponent(k)) > 0.999); });
+    if (!plane && square && !mats.some((mt) => mt.transparent)) solids.push({ m, box });
+    for (let i = 0; i < (plane ? 1 : 6); i++) {
+      const mat = plane ? m.material : mats[i];
+      if (!mat || mat.visible === false || mat.opacity === 0) continue;
+      v.fromArray(plane ? [0, 0, 1] : N[i]).applyQuaternion(q);
+      const ax = [0, 1, 2].find((k) => Math.abs(v.getComponent(k)) > 0.999);
+      if (ax === undefined) continue; // girada en diagonal: no es compara
+      const geo = v.getComponent(ax) > 0 ? 1 : -1, sgn = geo * (mat.side === THREE.BackSide ? -1 : 1); // una cara de dins es veu des de l'altre costat
+      if (ax === 1 && geo < 0 && box[1][0] < 1) continue; // la cara de sota a terra no es veu mai
+      faces.push({ m, ax, sgn, at: geo > 0 ? box[ax][1] : box[ax][0], r: box.filter((_, k) => k !== ax), mat });
+    }
+  }
+  // la part comuna de les dues cares, mirada una mica per davant: si tota cau dins d'una altra peça, no es pot veure
+  const hidden = (f, q) => {
+    const lo = [0, 1].map((k) => Math.max(f.r[k][0], q.r[k][0]) + 0.1), hi = [0, 1].map((k) => Math.min(f.r[k][1], q.r[k][1]) - 0.1);
+    const other = [0, 1, 2].filter((k) => k !== f.ax);
+    for (const u of [0, 0.5, 1]) for (const w of [0, 0.5, 1]) {
+      const pt = [];
+      pt[f.ax] = f.at + f.sgn * 0.15; pt[other[0]] = lo[0] + (hi[0] - lo[0]) * u; pt[other[1]] = lo[1] + (hi[1] - lo[1]) * w;
+      if (!solids.some((sb) => sb.m !== f.m && sb.m !== q.m && sb.box.every(([a, b], k) => pt[k] > a - 0.01 && pt[k] < b + 0.01))) return false;
+    }
+    return true;
+  };
+  const out = [];
+  for (let i = 0; i < faces.length; i++) for (let j = i + 1; j < faces.length; j++) {
+    const f = faces[i], q = faces[j];
+    if (f.m === q.m || f.ax !== q.ax || f.sgn !== q.sgn || Math.abs(f.at - q.at) > tol) continue;
+    const o0 = Math.min(f.r[0][1], q.r[0][1]) - Math.max(f.r[0][0], q.r[0][0]), o1 = Math.min(f.r[1][1], q.r[1][1]) - Math.max(f.r[1][0], q.r[1][0]);
+    if (o0 <= 0.3 || o1 <= 0.3) continue;
+    const same = f.mat === q.mat || (f.mat.color && q.mat.color && f.mat.color.equals(q.mat.color) && f.mat.map === q.mat.map && f.mat.type === q.mat.type);
+    const off = (mt) => (mt.polygonOffset ? mt.polygonOffsetUnits : 0);
+    if (same || off(f.mat) !== off(q.mat)) continue; // amb un desplaçament diferent sempre guanya la mateixa: no parpelleja
+    if (hidden(f, q)) continue; // just davant hi ha una altra peça massissa (p. ex. la meitat de la paret del costat): no es veu
+    const who = (m) => { let n = m, id = ''; while (n && !id) { id = n.userData.itemId || ''; n = n.parent; } return (m.userData.wall ? `${m.userData.wall.room.name} ${m.userData.wall.key}` : id ? 'moble ' + id : m.userData.roomId ? 'terra ' + m.userData.roomId : '?') + ` [${Object.values(m.geometry.parameters).slice(0, 3).map((k) => +(+k).toFixed(1)).join('×')}]`; };
+    out.push({ axis: 'xyz'[f.ax], at: Math.round(f.at * 10) / 10, a: who(f.m), b: who(q.m), area: Math.round(o0 * o1) });
+  }
+  return out;
+}
+
 window.planta3d = {
+  zFightFaces,
   screenOf(x, z, y = 40) {
     const v = new THREE.Vector3(x, y, z).project(camera);
     const r = renderer.domElement.getBoundingClientRect();
