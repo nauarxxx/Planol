@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { shapeRects, hasWing } from './geom.js?v=36';
+export { shapeRects, hasWing };
 
 // Catálogo de tipos de mueble. w = ancho (X local), d = fondo (Z local), h = alto. cm.
 // El frente del mueble mira hacia +Z local (hacia donde mira quien se sienta / la pantalla).
@@ -64,7 +66,6 @@ export const SHAPE_SIZES = {
     electrica: { w: 100, d: 18, h: 55, elev: 40, bw: 86, bh: 22 },
   },
 };
-export const hasWing = (shape) => shape === 'Le' || shape === 'Ld' || shape === 'U';
 // Paràmetres que es poden ajustar per a la forma actual: [clau, etiqueta, valor per defecte].
 export function shapeParams(type, shape) {
   const P = SHAPE_PARAMS[type];
@@ -75,17 +76,6 @@ export function shapeParams(type, shape) {
   return Object.entries(P).filter(([k]) => !only || only.includes(k)).map(([k, [l, dv]]) => [k, l, dv]);
 }
 // Rectangles [x0, ample, z0, fons] que formen una peça en L o en U dins la petjada w × d (esquena a −z).
-export function shapeRects(item) {
-  const { w, d } = item, shape = item.shape || 'recte';
-  if (!hasWing(shape)) return [[-w / 2, w, -d / 2, d]];
-  const def = SHAPE_PARAMS[item.type] || {};
-  const sd = Math.min(d, Math.max(40, +item.sd || def.sd?.[1] || 90));
-  const lw = Math.min(w / 2 - 2, Math.max(30, +item.lw || def.lw?.[1] || 90));
-  const r = [[-w / 2, w, -d / 2, sd]];
-  if (shape === 'Le' || shape === 'U') r.push([-w / 2, lw, -d / 2 + sd, d - sd]);
-  if (shape === 'Ld' || shape === 'U') r.push([w / 2 - lw, lw, -d / 2 + sd, d - sd]);
-  return r;
-}
 
 const matCache = new Map();
 function mat(color, opts = {}) {

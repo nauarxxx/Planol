@@ -3,9 +3,9 @@
 // sillas alrededor de la mesa, cama con cabecero en la pared...), las puntúa y devuelve
 // las mejores que sean distintas entre sí.
 
-import { CATALOG } from './furniture.js?v=35';
-import { evalGoals } from './goals.js?v=35';
-import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, structItems, DEG } from './geom.js?v=35';
+import { CATALOG } from './furniture.js?v=36';
+import { evalGoals } from './goals.js?v=36';
+import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, structItems, DEG } from './geom.js?v=36';
 
 function mulberry32(seed) {
   return function () {

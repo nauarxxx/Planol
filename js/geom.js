@@ -26,8 +26,41 @@ function project(cs, ax) {
   return [mn, mx];
 }
 
+// Mobles amb forma (sofà o escriptori en L o en U): la planta no és un rectangle sencer sinó el cos principal més les ales.
+// Cada peça és [x0, ample, z0, fons] en coordenades locals del moble (esquena a −z).
+const WING_DEF = { sofa: { sd: 90, lw: 90 }, escritorio: { sd: 60, lw: 60 } };
+export const hasWing = (shape) => shape === 'Le' || shape === 'Ld' || shape === 'U';
+export function shapeRects(item) {
+  const { w, d } = item, shape = item.shape || 'recte';
+  if (!hasWing(shape)) return [[-w / 2, w, -d / 2, d]];
+  const def = WING_DEF[item.type] || { sd: 90, lw: 90 };
+  const sd = Math.min(d, Math.max(40, +item.sd || def.sd));
+  const lw = Math.min(w / 2 - 2, Math.max(30, +item.lw || def.lw));
+  const r = [[-w / 2, w, -d / 2, sd]];
+  if (sd < d - 0.5) {
+    if (shape === 'Le' || shape === 'U') r.push([-w / 2, lw, -d / 2 + sd, d - sd]);
+    if (shape === 'Ld' || shape === 'U') r.push([w / 2 - lw, lw, -d / 2 + sd, d - sd]);
+  }
+  return r;
+}
+// Les peces d'un moble com a rectangles orientats del món ({x, z, w, d, rot}); un moble normal és una sola peça.
+export function parts(it) {
+  if (!hasWing(it.shape) || !WING_DEF[it.type]) return [it];
+  const a = (it.rot || 0) * DEG, c = Math.cos(a), s = Math.sin(a);
+  return shapeRects(it).map(([x0, w, z0, d]) => {
+    const lx = x0 + w / 2, lz = z0 + d / 2;
+    return { x: it.x + lx * c + lz * s, z: it.z - lx * s + lz * c, w, d, rot: it.rot || 0 };
+  });
+}
+
 // Separating Axis Theorem entre dos rectángulos orientados. Devuelve true si se solapan.
+// Si algun dels dos té forma (L, U), es comprova peça a peça: una tauleta dins de la U del sofà no hi xoca.
 export function overlaps(a, b, pad = 0) {
+  const pa = parts(a), pb = parts(b);
+  if (pa.length > 1 || pb.length > 1 || pa[0] !== a || pb[0] !== b) return pa.some((x) => pb.some((y) => overlapsRect(x, y, pad)));
+  return overlapsRect(a, b, pad);
+}
+function overlapsRect(a, b, pad = 0) {
   // Descarte ràpid: si les caixes envolvents no es toquen, no cal el SAT.
   const ra = (Math.hypot(a.w, a.d) / 2 + pad), rb = (Math.hypot(b.w, b.d) / 2 + pad);
   if (Math.abs(a.x - b.x) > ra + rb || Math.abs(a.z - b.z) > ra + rb) return false;
