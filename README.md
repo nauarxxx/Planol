@@ -8,6 +8,7 @@ Web app estàtica per veure el pis en 3D a escala, crear mobles amb mides person
 - **Moure:** arrossega el moble amb el ratolí. R gira 90°, Q/E giren 15°, les fletxes el mouen 1 cm (Maj: 10 cm), Supr l'esborra, Ctrl+D el duplica i Ctrl+Z desfà.
 - **Distribuir:** tria una habitació i prem *Genera propostes*. Fes clic en una proposta per aplicar-la. Els mobles marcats com a *Fix* no es mouen.
 - **Plànol:** totes les mides de les habitacions, l'alçada del sostre i les portes i finestres es poden editar. Les mides que no sortien al plànol original estan marcades com a *estimades*.
+- **Parets:** toca una paret per veure la mida d'aquell tros i de la paret sencera, pintar-la o canviar-ne la mida. Si canvies un tros, la paret sencera es manté i s'ajusta el tros del costat que triïs; si canvies la paret sencera, l'habitació creix pel costat triat i el que hi ha al darrere (habitacions, pilars, bigues i mobles) es desplaça.
 - **Dades:** tot es desa al navegador i al núvol. Es pot exportar i importar un `.json` i treure una captura.
 
 ## Publicar a GitHub Pages
@@ -23,6 +24,7 @@ L'app queda a https://nauarxxx.github.io/Planol/
 - `js/layout.js`: generador de distribucions
 - `js/geom.js`: geometria 2D (xocs, buits)
 - `js/main.js`: escena 3D, interacció i interfície
+- `js/walledit.js`: canviar la mida d'una paret o d'un tros i adaptar-hi el pis
 - `js/state.js`: càrrega de l'estat i migració del plànol
 - `js/preview.js`: miniatures en planta (propostes)
 - `js/goals.js`: objectius de les propostes i la seva explicació

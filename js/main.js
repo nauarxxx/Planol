@@ -1,28 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=37';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=37';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=37';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=37';
-import { mergeStates } from './merge.js?v=37';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=37';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=37';
-import { initAssistant } from './assistant.js?v=37';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=37';
-import { initMeasure } from './measure.js?v=37';
-import { initColorPicker } from './colorpicker.js?v=37';
-import { initPhotoAdd } from './photo.js?v=37';
-import { initTape } from './tape.js?v=37';
-import { checkZones } from './zones.js?v=37';
-import { fitCheck } from './fit.js?v=37';
-import { initShop, STATUS, statusOf } from './shop.js?v=37';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=37';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=37';
-import { drawPreview as drawRoomPreview } from './preview.js?v=37';
-import { arSupported, startAR as startARView } from './ar.js?v=37';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=37';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=37';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=37';
+import { DEFAULT_PLAN } from './plan.js?v=38';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=38';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=38';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=38';
+import { mergeStates } from './merge.js?v=38';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=38';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=38';
+import { initAssistant } from './assistant.js?v=38';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=38';
+import { initMeasure } from './measure.js?v=38';
+import { initColorPicker } from './colorpicker.js?v=38';
+import { initPhotoAdd } from './photo.js?v=38';
+import { initTape } from './tape.js?v=38';
+import { checkZones } from './zones.js?v=38';
+import { fitCheck } from './fit.js?v=38';
+import { initShop, STATUS, statusOf } from './shop.js?v=38';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=38';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=38';
+import { drawPreview as drawRoomPreview } from './preview.js?v=38';
+import { arSupported, startAR as startARView } from './ar.js?v=38';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=38';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=38';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=38';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=38';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -34,7 +35,7 @@ const logAdd = (kind, msg) => { logBuf.push(`${new Date().toLocaleTimeString('ca
 window.addEventListener('error', (e) => logAdd('✖', `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
 window.addEventListener('unhandledrejection', (e) => logAdd('✖', String(e.reason?.message || e.reason)));
 { const ce = console.error.bind(console), cw = console.warn.bind(console); console.error = (...a) => { logAdd('✖', a.map(String).join(' ')); ce(...a); }; console.warn = (...a) => { logAdd('⚠', a.map(String).join(' ')); cw(...a); }; }
-const ui = { wallSel: null, wallAll: false, selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false, propHist: {}, propN: {}, propK: {} };
+const ui = { ws: null, wallSel: null, wallAll: false, selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false, propHist: {}, propN: {}, propK: {} };
 const isMobile = () => window.matchMedia('(max-width: 800px)').matches;
 let tape = null; // cinta mètrica (es crea amb l'escena)
 let installPrompt = null; // event d'instal·lació de la PWA (Chrome/Edge/Android)
@@ -1423,6 +1424,8 @@ function renderWallPanel() {
   el.innerHTML = `
     <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(cur || '#f3f1ec')}"></span>${w.whole ? esc(w.room.name) : `Paret ${WALL_TXT[w.key] || ''} · ${esc(w.room.name)}`}<button class="close" id="wp-close" title="Tanca">×</button></h3>
     <div class="dist">${w.over ? 'Damunt d’un buit de ' : 'Aquest tros: '}<b>${fmtLen(Math.round(w.b - w.a), 1)}</b> de llarg · ${fmtLen(state.ceiling || 250, 1)} d’alt${w.edgeB !== undefined && Math.round(w.edgeB - w.edgeA) - Math.round(w.b - w.a) > 1 ? ` · paret sencera ${fmtLen(Math.round(w.edgeB - w.edgeA), 1)}` : ''}</div>
+    ${wallSizeHtml(w)}
+    <h4 class="wp-sub">🎨 Color</h4>
     <div class="swatches">${WALL_PALETTE.map(([c, n]) => `<button type="button" data-c="${c}" title="${n} ${c}" class="${cur === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>
     <div class="row c2">
       <label>Color<input type="color" id="wp-color" value="${esc(cur || '#f3f1ec')}" /></label>
@@ -1440,6 +1443,96 @@ function renderWallPanel() {
   $('#wp-hex').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); hexApply(); } });
   $('#wp-hex').addEventListener('input', (e) => e.target.classList.remove('bad'));
   $('#wp-clear').addEventListener('click', () => paintWall(w, null, all()));
+  bindWallSize(w);
+}
+
+// --- Mida de la paret: es canvia des del mateix panell i el pis s'hi adapta (js/walledit.js).
+const wallSingle = (w) => !w.over && Math.round((w.edgeB ?? w.b) - (w.edgeA ?? w.a)) - Math.round(w.b - w.a) <= 1;
+function wallSizeUi(w) {
+  const id = `${w.room.id}|${w.key}|${Math.round(w.a)}|${Math.round(w.b)}`;
+  if (ui.ws?.id !== id) {
+    const keep = ui.ws?.keep;
+    ui.ws = { id, mode: wallSingle(w) ? 'whole' : 'piece', side: keep || { piece: defaultSide(state, w, 'piece'), whole: defaultSide(state, w, 'whole') } };
+  }
+  return ui.ws;
+}
+function wallSideHtml(w) {
+  const ws = wallSizeUi(w), info = sideInfo(state, w, ws.mode);
+  return `<span>${ws.mode === 'piece' ? 'Què es mou per fer-hi lloc' : 'Per quin extrem creix o s’escurça'}</span>${[-1, 1].map((s) => `<button type="button" data-side="${s}" class="${ws.side[ws.mode] === s ? 'on' : ''}"><b>${info[s].dir}</b><small>${esc(info[s].what)}</small></button>`).join('')}`;
+}
+function wallSizeHtml(w) {
+  const r = w.room;
+  if (w.whole || (r.kind === 'terrace' && r.d2 > 0 && r.d2 < r.d)) return '';
+  const len = Math.round(w.b - w.a), whole = Math.round((w.edgeB ?? w.b) - (w.edgeA ?? w.a)), single = wallSingle(w);
+  return `<h4 class="wp-sub">📏 Mida</h4>
+    <div class="wsize">
+      <div class="row ${single ? '' : 'c2'}">
+        ${single ? '' : `<label>${w.over ? 'Aquest buit' : 'Aquest tros'} (cm)<input type="number" id="wp-len" inputmode="numeric" min="1" step="1" value="${len}" /></label>`}
+        <label>${single ? 'Llargada de la paret' : 'Paret sencera'} (cm)<input type="number" id="wp-whole" inputmode="numeric" min="20" step="1" value="${whole}" /></label>
+      </div>
+      <div class="wside" id="wp-side">${wallSideHtml(w)}</div>
+      <div class="btns"><button type="button" class="btn small" id="wp-size">✓ Aplica la mida</button></div>
+    </div>`;
+}
+function bindWallSize(w) {
+  const box = $('#wp-side');
+  if (!box) return;
+  const ws = wallSizeUi(w);
+  const setMode = (m) => { if (ws.mode !== m) { ws.mode = m; box.innerHTML = wallSideHtml(w); } };
+  $('#wp-len')?.addEventListener('focus', () => setMode('piece'));
+  $('#wp-whole').addEventListener('focus', () => setMode('whole'));
+  for (const id of ['#wp-len', '#wp-whole']) {
+    const inp = $(id); if (!inp) continue;
+    inp.addEventListener('input', () => { inp.classList.remove('bad'); setMode(id === '#wp-len' ? 'piece' : 'whole'); });
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyWallSize(); } });
+  }
+  // pointerdown per no perdre el focus de la casella (al mòbil es tancaria el teclat i es perdria el mode)
+  box.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-side]'); if (!b) return;
+    ws.side[ws.mode] = +b.dataset.side;
+    box.innerHTML = wallSideHtml(w);
+  });
+  $('#wp-size').addEventListener('pointerdown', (e) => e.preventDefault());
+  $('#wp-size').addEventListener('click', applyWallSize);
+}
+// Tros de paret (amb les seves mides actuals) que hi ha entre a i b d'una paret.
+function wallTagAt(room, key, sel) {
+  const e = edgeOf(room, key), segs = wallSegments(state.rooms, room, key);
+  const mid = (sel.a + sel.b) / 2;
+  const sg = segs.find((s) => Math.abs(s.a - sel.a) <= 1.5 && Math.abs(s.b - sel.b) <= 1.5) || segs.find((s) => s.a <= mid && mid <= s.b) || segs[0];
+  const side = Object.keys(WALL_KEY).find((k) => WALL_KEY[k] === key);
+  return { room, axis: e.axis, line: e.line, a: sg.a, b: sg.b, side, key, inSide: key === 'N' || key === 'W' ? 1 : -1, edgeA: e.a, edgeB: e.b, over: sg.solid ? undefined : sg.ops[0].type };
+}
+function applyWallSize() {
+  const w = ui.wallSel, ws = ui.ws;
+  if (!w || !ws) return;
+  const mode = ws.mode, inp = $(mode === 'piece' ? '#wp-len' : '#wp-whole');
+  if (!inp) return;
+  const before = JSON.stringify(state);
+  const totalBefore = Math.round((w.edgeB ?? w.b) - (w.edgeA ?? w.a));
+  const res = editWall(state, w, mode, inp.value, ws.side[mode]);
+  if (!res.ok) { if (!res.same) { inp.classList.add('bad'); toast(res.msg); } return; }
+  pushHistory(before);
+  state.roomsEdited = true;
+  save(); rebuildPlan(); rebuildItems(); renderAll();
+  const nw = wallTagAt(w.room, w.key, res.sel);
+  ui.ws = { id: null, keep: ws.side };
+  showWallMeasure(nw);
+  if (ui.ws) ui.ws.mode = mode === 'piece' && !wallSingle(nw) ? 'piece' : 'whole';
+  renderWallPanel();
+  const L = (v) => fmtLen(v, 1);
+  let msg;
+  if (res.kind === 'keep') msg = `Fet ✓ Aquest tros fa ${L(Math.round(nw.b - nw.a))}. La paret sencera continua fent ${L(res.total)} i el tros del costat ara en fa ${L(res.absorbed)}.`;
+  else {
+    const grow = res.total >= totalBefore;
+    msg = `Fet ✓ La paret sencera ara fa ${L(res.total)} (abans ${L(totalBefore)}).`;
+    if (res.moved.length) msg += ` S’ha desplaçat: ${res.moved.join(', ')}.`;
+    if (res.stretched.length) msg += ` També s’ha ${grow ? 'allargat' : 'escurçat'}: ${res.stretched.join(', ')}.`;
+    if (res.items) msg += ` ${res.items === 1 ? 'Un moble s’ha mogut' : res.items + ' mobles s’han mogut'} amb la paret.`;
+  }
+  toast(msg);
+  if (+prefs.vib) navigator.vibrate?.(12);
 }
 
 renderer.domElement.addEventListener('pointermove', (e) => {
@@ -2519,6 +2612,7 @@ function renderPlano() {
       else if (k === 'floor') { if (inp.value) r.floor = inp.value; else delete r.floor; }
       else if (['w', 'd', 'd2', 'x', 'z'].includes(k)) {
         r[k] = +inp.value || 0;
+        state.roomsEdited = true;
         if (k === 'w' || k === 'd') r.estimated = card.querySelector('[data-k=estimated]').checked;
       } else r[k] = inp.value;
       ui.addRoom = r.id;
@@ -2811,7 +2905,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v37',
+  version: 'v38',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2878,7 +2972,7 @@ let toastT = 0;
 function toast(msg) {
   const el = document.getElementById('toast'); if (!el) return;
   el.textContent = msg; el.hidden = false; clearTimeout(toastT); relayout();
-  toastT = setTimeout(() => { el.hidden = true; }, 3500);
+  toastT = setTimeout(() => { el.hidden = true; }, Math.max(3500, String(msg).length * 55));
 }
 // Aplica els ajustos avançats que no es llegeixen al moment.
 function applyCfg() {
