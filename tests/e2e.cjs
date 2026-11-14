@@ -78,6 +78,25 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     await p.focus('#p-name').catch(() => {}); await ev(() => document.activeElement?.blur()); await sleep(50);
     return 0;
   });
+  await step('porta: toc llarg, tipus i sentit d’obertura', async () => {
+    const sc = await ev(() => { planta3d.setView('3d'); const r = planta3d.state.rooms.find((x) => x.id === 'bano'); planta3d.frameCamera(r); const o = r.openings[0]; return [r.x + o.offset + o.width / 2, r.z + r.d + 15]; });
+    await sleep(500);
+    const [x, y] = await ev(([px, pz]) => planta3d.screenOf(px, pz, 0), sc);
+    await p.mouse.move(x, y); await p.mouse.down(); await sleep(750); await p.mouse.up(); await sleep(200);
+    must(await p.isVisible('#wallpanel [data-kind="llibre"]'), 'el toc llarg no obre el panell de la porta');
+    let zf = 0;
+    for (const k of ['corredissa', 'llibre', 'doble', 'batent']) {
+      await p.click(`#wallpanel [data-kind="${k}"]`); await sleep(150);
+      const kind = await ev(() => planta3d.state.rooms.find((x) => x.id === 'bano').openings[0].door || 'batent');
+      must(kind === k, `tipus ${k} → ${kind}`);
+      zf += await ev(() => planta3d.zFightFaces().length);
+    }
+    await p.click('#wallpanel [data-swing="out"]'); await sleep(150);
+    must(await ev(() => planta3d.state.rooms.find((x) => x.id === 'bano').openings[0].swing === 'out'), 'sentit cap a fora');
+    await p.click('#wallpanel [data-swing="in"]'); await p.click('#dp-close'); await sleep(100);
+    must(zf === 0, `${zf} cares superposades en canviar el tipus de porta`);
+    return 0;
+  });
   await step('panell del moble: zones, notes i vot', async () => {
     const id = await ev(() => { const s = planta3d.state.items.find((i) => i.type === 'sofa'); planta3d.api.select(s.id); return s.id; });
     await sleep(200);

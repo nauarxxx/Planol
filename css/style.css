@@ -649,3 +649,11 @@ ul.log li { padding: 5px 0; border-bottom: 1px dashed var(--line, #ddd); }
 .ar-canvas { position: fixed; inset: 0; z-index: 9998; }
 #hint.lg-off { visibility: hidden; }
 #props.lg-off, #wallpanel.lg-off { visibility: hidden; }
+#wallpanel .wside.w3 { grid-template-columns: 1fr 1fr 1fr; }
+#wallpanel .dkinds button b { white-space: nowrap; }
+#wallpanel .dwarn { margin: 4px 0 8px; font-size: 12px; color: var(--bad); }
+#wallpanel .wp-door { margin: 0 0 10px; }
+@media (max-width: 800px) {
+  #wallpanel .dkinds button small { display: none; }
+  #wallpanel .dkinds button, #wallpanel .wside button { min-height: 38px; }
+}

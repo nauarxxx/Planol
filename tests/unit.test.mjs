@@ -9,7 +9,7 @@ import { checkZones } from '../js/zones.js';
 import { fitScale, scaleSvg } from '../js/sheet.js';
 import { generateLayouts } from '../js/layout.js';
 import { evalGoals } from '../js/goals.js';
-import { aabb, overlaps, roomAt, parts, doorSwing, boxHitsSwing } from '../js/geom.js';
+import { aabb, overlaps, roomAt, parts, doorSwing, doorSwings, doorKind, doorFace, doorSymbols, slideFits, boxHitsSwing } from '../js/geom.js';
 import { migratePlan } from '../js/state.js';
 import { editWall, wallSegments } from '../js/walledit.js';
 
@@ -287,4 +287,53 @@ test('plànol v27: banys com a la realitat i cap porta xoca amb els mobles', () 
   }
   for (const id of ['fix-banyera', 'fix-vater1', 'fix-lavabo1']) assert.equal(roomAt(st.rooms, it(id).x, it(id).z).id, 'bano');
   for (const id of ['fix-vater2', 'fix-lavabo2']) assert.equal(roomAt(st.rooms, it(id).x, it(id).z).id, 'bano2');
+});
+
+test('tipus de porta: normal, doble, plegable i corredissa ocupen el lloc que toca', () => {
+  const r = { id: 'h', x: 0, z: 0, w: 400, d: 300 };
+  const op = { wall: 'N', offset: 100, width: 80, type: 'puerta' };
+  const at = (x, z) => ({ x0: x - 1, x1: x + 1, z0: z - 1, z1: z + 1 });
+  const hits = (o, x, z) => doorSwings(r, o).some((sw) => boxHitsSwing(at(x, z), sw));
+  // normal, frontissa a l'esquerra (x 100), cap a dins: escombra fins a 80 cm
+  assert.equal(doorKind(op), 'batent');
+  assert.ok(hits(op, 120, 60) && !hits(op, 120, 85));
+  // cap a fora: el lloc és a l'altre costat de la paret
+  assert.ok(hits({ ...op, swing: 'out' }, 120, -60) && !hits({ ...op, swing: 'out' }, 120, 30));
+  // doble: dues fulles de 40, una a cada extrem
+  const dbl = { ...op, door: 'doble' };
+  assert.equal(doorSwings(r, dbl).length, 2);
+  assert.ok(hits(dbl, 110, 30) && hits(dbl, 170, 30) && !hits(dbl, 140, 50));
+  // plegable: no s'allunya més de 40 cm de la paret
+  const llibre = { ...op, door: 'llibre' };
+  assert.ok(hits(llibre, 110, 35) && !hits(llibre, 110, 45) && !hits(llibre, 170, 25));
+  // corredissa per dins: només una franja a tocar de la paret, cap a la frontissa (esquerra); amagada a la paret no ocupa res
+  const cor = { ...op, door: 'corredissa', hinge: 'a' };
+  assert.ok(hits(cor, 50, 5) && !hits(cor, 50, 20) && !hits(cor, 140, 40));
+  assert.equal(doorSwings(r, { ...cor, swing: 'wall' }).length, 0);
+  // les antigues «no es dibuixa» són corredisses amagades
+  assert.deepEqual([doorKind({ ...op, swing: 'none' }), doorFace({ ...op, swing: 'none' })], ['corredissa', 'wall']);
+  for (const k of ['batent', 'doble', 'llibre', 'corredissa']) assert.ok(doorSymbols(r, { ...op, door: k }).length > 0, `sense símbol: ${k}`);
+});
+
+test('migració: el tipus i el sentit de les portes canviats per l’usuari es conserven', () => {
+  const v = DEFAULT_PLAN.version;
+  try {
+    DEFAULT_PLAN.version = v + 1;
+    const old = plan(); old.version = v;
+    const b1 = room(old, 'Bany 1').openings.find((o) => o.type === 'puerta');
+    Object.assign(b1, { door: 'corredissa', swing: 'wall', hinge: 'a', doorEdited: true });
+    const s = migratePlan(old), o = room(s, 'Bany 1').openings.find((x) => x.type === 'puerta');
+    assert.deepEqual([o.door, o.swing, o.hinge], ['corredissa', 'wall', 'a']);
+    // les que no s'han tocat segueixen el plànol
+    assert.equal(room(s, 'Bany 2').openings.find((x) => x.type === 'puerta').swing, 'out');
+  } finally { DEFAULT_PLAN.version = v; }
+});
+
+test('corredissa: només hi cap si per on llisca hi ha paret sencera', () => {
+  const st = plan();
+  const b1 = room(st, 'Bany 1'), op = b1.openings.find((o) => o.type === 'puerta');
+  // la porta del Bany 1 és a la cantonada de la dreta: cap a la paret del Bany 2 no hi ha lloc; cap a l'altre costat, sí
+  assert.ok(!slideFits(st.rooms, b1, { ...op, door: 'corredissa', hinge: 'b' }));
+  assert.ok(slideFits(st.rooms, b1, { ...op, door: 'corredissa', hinge: 'a' }));
+  assert.ok(slideFits(st.rooms, b1, { ...op, door: 'corredissa', hinge: 'a', swing: 'out' }));
 });

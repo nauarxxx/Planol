@@ -1,6 +1,6 @@
 // Plànol en 2D sobre un canvas (per comparar escenes i per imprimir / desar en PDF), amb cotes.
-import { corners, allOpenings, allSwings, swingArc, DEG } from './geom.js?v=43';
-import { CATALOG } from './furniture.js?v=43';
+import { corners, allOpenings, allDoorSymbols, DEG } from './geom.js?v=44';
+import { CATALOG } from './furniture.js?v=44';
 
 // Dibuixa el plànol complet. opts: { items, cotes, labels, furnitureDims, pad, bg, highlight }
 export function drawPlan(cv, st, opts = {}) {
@@ -54,9 +54,8 @@ export function drawPlan(cv, st, opts = {}) {
   }
   // batents
   ctx.strokeStyle = '#6b5234'; ctx.lineWidth = 1;
-  for (const sw of allSwings(rooms)) {
-    const arc = swingArc(sw, 12);
-    ctx.beginPath(); ctx.moveTo(X(sw.hx), Z(sw.hz)); arc.forEach(([x, z]) => ctx.lineTo(X(x), Z(z))); ctx.closePath(); ctx.stroke();
+  for (const sym of allDoorSymbols(rooms, 12)) {
+    ctx.beginPath(); sym.pts.forEach(([x, z], k) => (k ? ctx.lineTo(X(x), Z(z)) : ctx.moveTo(X(x), Z(z)))); if (sym.closed) ctx.closePath(); ctx.stroke();
   }
   // mobles
   const sorted = [...items].sort((a, b) => (a.type === 'alfombra' ? -1 : 0) - (b.type === 'alfombra' ? -1 : 0) || (a.elev || 0) - (b.elev || 0));
@@ -189,9 +188,8 @@ export function scaleSvg(st, { scale = 50, paper = 'A4', landscape = true, roomI
     out.push(`<line x1="${ax}" y1="${az}" x2="${bx}" y2="${bz}" stroke="${win ? '#cfe6f5' : '#ffffff'}" stroke-width="${t + 1.5}"/>`);
     if (win) out.push(`<line x1="${ax}" y1="${az}" x2="${bx}" y2="${bz}" stroke="#2b2926" stroke-width="1"/>`);
   }
-  for (const sw of allSwings(st.rooms)) {
-    const arc = swingArc(sw, 16);
-    out.push(`<path d="M${sw.hx},${sw.hz} ${arc.map(([x, z]) => `L${x.toFixed(1)},${z.toFixed(1)}`).join(' ')} Z" fill="none" stroke="#6b5234" stroke-width="0.8"/>`);
+  for (const sym of allDoorSymbols(st.rooms, 16)) {
+    out.push(`<path d="${sym.pts.map(([x, z], k) => `${k ? 'L' : 'M'}${x.toFixed(1)},${z.toFixed(1)}`).join(' ')}${sym.closed ? ' Z' : ''}" fill="none" stroke="#6b5234" stroke-width="0.8"/>`);
   }
   if (items) {
     const its = [...st.items].filter((i) => !roomId || i.roomId === roomId).sort((a, c) => (a.type === 'alfombra' ? -1 : 0) - (c.type === 'alfombra' ? -1 : 0) || (a.elev || 0) - (c.elev || 0));

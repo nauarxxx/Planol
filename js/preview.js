@@ -1,5 +1,5 @@
 // Miniatura en planta d'una estança amb els seus mobles (targetes de propostes, comparació, propostes desades).
-import { corners, allOpenings, allSwings, swingArc, DEG } from './geom.js?v=43';
+import { corners, allOpenings, allDoorSymbols, DEG } from './geom.js?v=44';
 
 export function drawPreview(cv, room, p, items, rooms) {
   const ctx = cv.getContext('2d');
@@ -38,12 +38,11 @@ export function drawPreview(cv, room, p, items, rooms) {
   }
   // batents de les portes
   ctx.strokeStyle = 'rgba(90,60,30,.7)'; ctx.lineWidth = 1;
-  for (const sw of allSwings(rooms)) {
-    if (sw.x1 < room.x || sw.x0 > room.x + room.w || sw.z1 < room.z || sw.z0 > room.z + room.d) continue;
-    const arc = swingArc(sw, 10);
-    ctx.beginPath(); ctx.moveTo(X(sw.hx), Z(sw.hz));
-    arc.forEach(([x, z]) => ctx.lineTo(X(x), Z(z)));
-    ctx.closePath(); ctx.stroke();
+  for (const sym of allDoorSymbols(rooms, 10)) {
+    if (sym.x1 < room.x || sym.x0 > room.x + room.w || sym.z1 < room.z || sym.z0 > room.z + room.d) continue;
+    ctx.beginPath(); sym.pts.forEach(([x, z], k) => (k ? ctx.lineTo(X(x), Z(z)) : ctx.moveTo(X(x), Z(z))));
+    if (sym.closed) ctx.closePath();
+    ctx.stroke();
   }
   const its = items.map((i) => ({ ...i, ...(p.placements[i.id] || {}) }));
   its.sort((a, b) => (a.type === 'alfombra' ? -1 : 0) - (b.type === 'alfombra' ? -1 : 0) || (a.elev || 0) - (b.elev || 0));
