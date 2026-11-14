@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { shapeRects, hasWing } from './geom.js?v=39';
+import { shapeRects, hasWing } from './geom.js?v=40';
 export { shapeRects, hasWing };
 
 // Catálogo de tipos de mueble. w = ancho (X local), d = fondo (Z local), h = alto. cm.

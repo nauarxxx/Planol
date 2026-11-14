@@ -1,5 +1,5 @@
 // Miniatura en planta d'una estança amb els seus mobles (targetes de propostes, comparació, propostes desades).
-import { corners, allOpenings, allSwings, swingArc, DEG } from './geom.js?v=39';
+import { corners, allOpenings, allSwings, swingArc, DEG } from './geom.js?v=40';
 
 export function drawPreview(cv, room, p, items, rooms) {
   const ctx = cv.getContext('2d');

@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=39';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=39';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=39';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=39';
-import { mergeStates } from './merge.js?v=39';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=39';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=39';
-import { initAssistant } from './assistant.js?v=39';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=39';
-import { initMeasure } from './measure.js?v=39';
-import { initColorPicker } from './colorpicker.js?v=39';
-import { initPhotoAdd } from './photo.js?v=39';
-import { initTape } from './tape.js?v=39';
-import { checkZones } from './zones.js?v=39';
-import { fitCheck } from './fit.js?v=39';
-import { initShop, STATUS, statusOf } from './shop.js?v=39';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=39';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=39';
-import { drawPreview as drawRoomPreview } from './preview.js?v=39';
-import { arSupported, startAR as startARView } from './ar.js?v=39';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=39';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=39';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=39';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=39';
+import { DEFAULT_PLAN } from './plan.js?v=40';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=40';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=40';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=40';
+import { mergeStates } from './merge.js?v=40';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=40';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=40';
+import { initAssistant } from './assistant.js?v=40';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=40';
+import { initMeasure } from './measure.js?v=40';
+import { initColorPicker } from './colorpicker.js?v=40';
+import { initPhotoAdd } from './photo.js?v=40';
+import { initTape } from './tape.js?v=40';
+import { checkZones } from './zones.js?v=40';
+import { fitCheck } from './fit.js?v=40';
+import { initShop, STATUS, statusOf } from './shop.js?v=40';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=40';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=40';
+import { drawPreview as drawRoomPreview } from './preview.js?v=40';
+import { arSupported, startAR as startARView } from './ar.js?v=40';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=40';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=40';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=40';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=40';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -66,7 +66,7 @@ function save(remote = true) {
     const gl = document.getElementById('g-log'); if (gl) gl.innerHTML = logHtml(state, esc, ui.logAll ? 200 : 25);
   } catch (e) { console.warn('historial', e); }
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignorar */ }
-  if (remote) saveRemote(() => state, setSync);
+  if (remote && !remoteHold) saveRemote(() => state, setSync);
 }
 function setSync(st, json) {
   if (st === 'guardado' && json) { cloudBase = JSON.parse(json); cloudCount('writes'); }
@@ -2810,6 +2810,7 @@ loop();
 // ---------------------------------------------------------------- inicio de sesión (Firebase)
 // Sincronitza ara: baixa l'estat del núvol, el fusiona amb els canvis d'aquí, el puja i comprova si hi ha una versió nova de l'app.
 let syncing = false;
+let remoteHold = false; // s'ha entrat sense connexió amb el núvol: no s'hi puja res fins que n'arribi l'estat (per no trepitjar-lo)
 async function syncNow() {
   if (syncing) return;
   const b = document.getElementById('sync-btn');
@@ -2819,6 +2820,7 @@ async function syncNow() {
     const r = await loadRemote();
     if (r) {
       cloudCount('reads');
+      remoteHold = false;
       const merged = mergeStates(cloudBase, state, r.state);
       cloudBase = clone(r.state);
       const changed = JSON.stringify(merged) !== JSON.stringify(state);
@@ -2861,18 +2863,24 @@ if (cloudEnabled) {
   initCloud({
     onSignedOut: () => showGate(loginHtml()),
     onDenied: (email, msg) => showGate(loginHtml(msg ? esc(msg) : `El compte <b>${esc(email || '')}</b> no té accés. Fes servir un compte autoritzat amb el correu verificat.`)),
-    onSignedIn: (u, initial) => {
+    onSignedIn: (u, initial, offline) => {
       document.getElementById('gate').hidden = true;
       const acc = document.getElementById('account');
       acc.hidden = false;
       cloudCount('reads');
-      if (initial) { history.past = []; history.future = []; const v = initial.version || 1; cloudBase = clone(initial); state = migratePlan(initial); changeLog.reset(state); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
+      if (offline) {
+        // sense connexió amb el núvol: s'obre amb la còpia d'aquest dispositiu i s'espera que torni la connexió
+        remoteHold = true;
+        setSync('sense connexió');
+        toast('⚠️ Ara no hi ha connexió amb el núvol: veus la còpia d’aquest dispositiu. Quan torni la connexió es carregarà la darrera versió.');
+      } else if (initial) { history.past = []; history.future = []; const v = initial.version || 1; cloudBase = clone(initial); state = migratePlan(initial); changeLog.reset(state); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
       else save();
       setTimeout(() => { applyCfg(); api.dev?.bkAutoCheck(); }, 1500);
     },
     onRemoteState: (s, by) => {
       // Fusió amb els canvis locals que encara no s'han desat: no es perd res de cap dels dos.
       cloudCount('reads');
+      if (remoteHold) { remoteHold = false; toast('☁️ Connexió recuperada: carregada la darrera versió del núvol.'); }
       const merged = mergeStates(cloudBase, state, s);
       cloudBase = clone(s);
       const needsResave = JSON.stringify(merged) !== JSON.stringify(s);
@@ -2925,7 +2933,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v39',
+  version: 'v40',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
