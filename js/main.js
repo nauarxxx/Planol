@@ -1,17 +1,18 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=32';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem } from './furniture.js?v=32';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=32';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=32';
-import { mergeStates } from './merge.js?v=32';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=32';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=32';
-import { initAssistant } from './assistant.js?v=32';
-import { drawPlan, printSheet } from './sheet.js?v=32';
-import { initMeasure } from './measure.js?v=32';
-import { initColorPicker } from './colorpicker.js?v=32';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=32';
+import { DEFAULT_PLAN } from './plan.js?v=33';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem } from './furniture.js?v=33';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=33';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=33';
+import { mergeStates } from './merge.js?v=33';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=33';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=33';
+import { initAssistant } from './assistant.js?v=33';
+import { drawPlan, printSheet } from './sheet.js?v=33';
+import { initMeasure } from './measure.js?v=33';
+import { initColorPicker } from './colorpicker.js?v=33';
+import { initPhotoAdd } from './photo.js?v=33';
+import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=33';
 
 // ---------------------------------------------------------------- estado
 const STORE_KEY = 'planta3d-v1';
@@ -280,7 +281,7 @@ function setView(v) {
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
   const fv = document.querySelector('#tb-fab .v'); if (fv) fv.textContent = { '3d': '3D', top: '2D', walk: '🚶' }[v];
   document.getElementById('walkbar').hidden = v !== 'walk';
-  document.getElementById('hint').textContent = v === 'walk' ? 'Arrossega per mirar · roda o + / − per al zoom · toca una porta, una finestra o un moble · fletxes / WASD o els botons per caminar · 🧭 per mirar movent el mòbil' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
+  document.getElementById('hint').textContent = v === 'walk' ? 'Toca el terra per anar-hi · arrossega per mirar · fletxes / WASD o el joystick per caminar · toca portes, finestres i mobles · el mapa et porta on toquis' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
   if (v === 'walk' && was !== 'walk') {
     select(null);
     const ent = entranceDoor();
@@ -294,31 +295,125 @@ function setView(v) {
       if (r) { walk.x = r.x + r.w / 2; walk.z = r.z + r.d / 2; }
       walk.yaw = Math.PI;
     }
-    walk.pitch = 0; walk.last = performance.now();
+    walk.pitch = 0; walk.last = performance.now(); walk.target = null;
     setWalkFov(walk.fov);
+    const wr = document.getElementById('wk-room'); if (wr) wr.innerHTML = '<option value="">Ves a…</option>' + usableRooms().map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    requestAnimationFrame(drawMinimap);
   }
   if (v !== 'walk') { stopGyro(); pointers.clear(); }
   rebuildPlan();
   requestRender();
 }
+// Parets per on no es pot passar al passeig: les vores de cada habitació, terrassa i pilar, menys les portes, els passos i els finestrals.
+let walkWallsCache = null;
+function walkWalls() {
+  if (walkWallsCache) return walkWallsCache;
+  const pass = allOpenings(state.rooms).filter((o) => ['puerta', 'paso', 'ventanal'].includes(o.type));
+  const segs = [];
+  for (const r of state.rooms) {
+    if (!['room', 'terrace', 'pillar'].includes(r.kind || 'room')) continue;
+    const edges = [{ axis: 'x', line: r.z, a: r.x, b: r.x + r.w }, { axis: 'x', line: r.z + r.d, a: r.x, b: r.x + r.w }, { axis: 'z', line: r.x, a: r.z, b: r.z + r.d }, { axis: 'z', line: r.x + r.w, a: r.z, b: r.z + r.d }];
+    for (const e of edges) {
+      const cuts = r.kind === 'pillar' ? [] : pass.filter((o) => o.axis === e.axis && Math.abs(o.line - e.line) <= 1).map((o) => [o.a, o.b]);
+      for (const [a, b] of subtractIntervals(e.a, e.b, cuts)) segs.push({ ...e, a, b });
+    }
+  }
+  return (walkWallsCache = segs);
+}
+function wallGap(x, z) {
+  let m = Infinity;
+  for (const g of walkWalls()) {
+    const [u, v] = g.axis === 'x' ? [x, z] : [z, x];
+    const du = u < g.a ? g.a - u : u > g.b ? u - g.b : 0;
+    m = Math.min(m, Math.hypot(du, v - g.line));
+  }
+  return m;
+}
+// Mou el visitant si no travessa cap paret (o si se n'allunya); si topa, prova de lliscar al llarg de la paret.
+function walkTry(nx, nz) {
+  const R = 22, here = wallGap(walk.x, walk.z);
+  const ok = (x, z) => { const g = wallGap(x, z); return g >= R || g >= here - 0.01; };
+  if (ok(nx, nz)) { walk.x = nx; walk.z = nz; return true; }
+  if (ok(nx, walk.z)) { walk.x = nx; return true; }
+  if (ok(walk.x, nz)) { walk.z = nz; return true; }
+  return false;
+}
+let doorSpots = [];
 function walkStep(now) {
   const dt = Math.min(0.1, (now - walk.last) / 1000); walk.last = now;
   let f = 0, s = 0;
   const k = walk.keys;
   if (k.has('f')) f += 1; if (k.has('b')) f -= 1; if (k.has('l')) s -= 1; if (k.has('r')) s += 1;
+  if (walk.joy) { f += walk.joy.f; s += walk.joy.s; }
   let moved = false;
+  const v = cfgGet('walkSpeed') * dt; // cm per segon
   if (f || s) {
-    const v = cfgGet('walkSpeed') * dt; // cm per segon
+    walk.target = null;
     const dirx = -Math.sin(walk.yaw), dirz = -Math.cos(walk.yaw); // cap on mira (yaw 0 = -z)
-    const nx = walk.x + (dirx * f + -dirz * s) * v, nz = walk.z + (dirz * f + dirx * s) * v;
-    const b = planBounds();
-    walk.x = Math.min(b.x1 - 10, Math.max(b.x0 + 10, nx)); walk.z = Math.min(b.z1 - 10, Math.max(b.z0 + 10, nz));
+    const n = Math.max(1, Math.hypot(f, s));
+    walkTry(walk.x + (dirx * f + -dirz * s) * v / n, walk.z + (dirz * f + dirx * s) * v / n);
     moved = true;
+  } else if (walk.target) {
+    // camina sol fins al punt tocat, girant-se de mica en mica cap allà
+    const dx = walk.target.x - walk.x, dz = walk.target.z - walk.z, dist = Math.hypot(dx, dz);
+    if (dist < 12) walk.target = null;
+    else {
+      const want = Math.atan2(-dx, -dz);
+      let dy = want - walk.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      if (!walk.q) walk.yaw += dy * Math.min(1, dt * 5);
+      const st = Math.min(dist, v * 1.2);
+      if (!walkTry(walk.x + dx / dist * st, walk.z + dz / dist * st)) walk.target = null;
+    }
+    moved = true;
+  }
+  if (moved) {
+    const b = planBounds();
+    walk.x = Math.min(b.x1 - 10, Math.max(b.x0 + 10, walk.x)); walk.z = Math.min(b.z1 - 10, Math.max(b.z0 + 10, walk.z));
+    // les portes tancades s'obren soles quan t'hi acostes
+    for (const d of doorSpots) if (Math.hypot(d.x - walk.x, d.z - walk.z) < 95 && (doors[d.key] ?? 1) < 0.5 && !doorAnims.has(d.key)) toggleDoor(d.key);
+    drawMinimap();
   }
   walkCam.position.set(walk.x, cfgGet('eyeHeight'), walk.z);
   if (walk.q) walkCam.quaternion.copy(walk.q);
   else walkCam.rotation.set(walk.pitch, walk.yaw, 0, 'YXZ');
   return moved;
+}
+// Salta a una habitació: al centre, mirant cap a la paret més llunyana.
+function walkToRoom(r) {
+  if (!r) return;
+  walk.x = r.x + r.w / 2; walk.z = r.z + r.d / 2; walk.target = null;
+  walk.yaw = r.w > r.d ? Math.PI / 2 : 0; walk.pitch = 0;
+  requestRender(); drawMinimap();
+}
+// Minimapa del passeig: plànol vist des de dalt amb on ets i cap on mires; tocar-lo et porta a aquell punt.
+const minimap = { cv: null, s: 1, ox: 0, oz: 0 };
+function drawMinimap() {
+  const cv = minimap.cv || (minimap.cv = document.getElementById('wk-map'));
+  if (!cv || cv.hidden || ui.view !== 'walk') return;
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height, b = planBounds(), pad = 8;
+  const sc = Math.min((W - 2 * pad) / (b.x1 - b.x0), (H - 2 * pad) / (b.z1 - b.z0));
+  Object.assign(minimap, { s: sc, ox: pad + ((W - 2 * pad) - (b.x1 - b.x0) * sc) / 2 - b.x0 * sc, oz: pad + ((H - 2 * pad) - (b.z1 - b.z0) * sc) / 2 - b.z0 * sc });
+  const X = (x) => minimap.ox + x * sc, Z = (z) => minimap.oz + z * sc;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(20,19,18,.78)'; ctx.beginPath(); ctx.roundRect(0, 0, W, H, 12); ctx.fill();
+  for (const r of state.rooms) {
+    if (r.kind === 'void' || r.kind === 'beam') continue;
+    ctx.fillStyle = r.kind === 'pillar' ? '#777' : r.kind === 'terrace' ? 'rgba(217,134,77,.35)' : 'rgba(240,236,228,.22)';
+    ctx.fillRect(X(r.x), Z(r.z), r.w * sc, r.d * sc);
+  }
+  ctx.strokeStyle = '#f3efe8'; ctx.lineWidth = 1.6; ctx.beginPath();
+  for (const g of walkWalls()) { if (g.axis === 'x') { ctx.moveTo(X(g.a), Z(g.line)); ctx.lineTo(X(g.b), Z(g.line)); } else { ctx.moveTo(X(g.line), Z(g.a)); ctx.lineTo(X(g.line), Z(g.b)); } }
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(160,150,140,.75)';
+  for (const it of state.items) { if (it.type === 'alfombra') continue; const a = aabb(it); ctx.fillRect(X(a.x0), Z(a.z0), (a.x1 - a.x0) * sc, (a.z1 - a.z0) * sc); }
+  if (walk.target) { ctx.fillStyle = '#ffd04a'; ctx.beginPath(); ctx.arc(X(walk.target.x), Z(walk.target.z), 3, 0, 7); ctx.fill(); }
+  // tu: punt i con de visió
+  const px = X(walk.x), pz = Z(walk.z), yaw = walk.q ? new THREE.Euler().setFromQuaternion(walk.q, 'YXZ').y : walk.yaw;
+  const dx = -Math.sin(yaw), dz = -Math.cos(yaw), half = (walkCam.fov * (walkCam.aspect || 1)) * DEG / 2, L = 26;
+  ctx.fillStyle = 'rgba(217,134,77,.38)'; ctx.beginPath(); ctx.moveTo(px, pz);
+  for (const a of [-half, half]) { const c = Math.cos(a), sn = Math.sin(a); ctx.lineTo(px + (dx * c - dz * sn) * L, pz + (dz * c + dx * sn) * L); }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#d9864d'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, pz, 5, 0, 7); ctx.fill(); ctx.stroke();
 }
 // Giroscopi: orientació del dispositiu → càmera (cal permís a l'iPhone).
 let gyroHandler = null;
@@ -611,6 +706,7 @@ function makeLabel(lines, color = '#2b2926', bg = 'rgba(255,255,255,0.82)', maxW
 function rebuildPlan() {
   requestRender();
   disposeGroup(planGroup);
+  walkWallsCache = null; doorSpots = [];
   const t = state.wallThickness || 10;
   const H = wallHeight();
   const fullH = state.ceiling || 250;
@@ -755,6 +851,7 @@ function rebuildPlan() {
       if (H > 20) {
         // la fulla, penjada de la frontissa: gira entre tancada (seguint la paret) i oberta (cap a dins)
         const key = r.id + '|' + (r.openings || []).indexOf(op);
+        doorSpots.push({ key, x: sw.hx + sw.wx * sw.r / 2, z: sw.hz + sw.wz * sw.r / 2 });
         const h = Math.min(H, 205);
         const pivot = new THREE.Group();
         pivot.position.set(sw.hx, 0, sw.hz);
@@ -907,17 +1004,19 @@ function updateOverlays() {
 // Cotes: distància del moble seleccionat a les quatre parets de la seva habitació.
 const measureGroup = new THREE.Group();
 overlayGroup.add(measureGroup);
-const measureMat = new THREE.LineBasicMaterial({ color: 0x1e88e5 });
+const measureMat = new THREE.LineBasicMaterial({ color: 0x1e88e5, depthTest: false });
+const measureBadMat = new THREE.LineBasicMaterial({ color: 0xe53935, depthTest: false });
 const measureLabelCache = new Map();
-function measureLabel(text) {
-  let tex = measureLabelCache.get(text);
+function measureLabel(text, bad = false) {
+  const key = (bad ? '!' : '') + text;
+  let tex = measureLabelCache.get(key);
   if (!tex) {
     const c = document.createElement('canvas');
     const ctx = c.getContext('2d');
     ctx.font = '700 40px system-ui, sans-serif';
     c.width = Math.ceil(ctx.measureText(text).width) + 28; c.height = 56;
     ctx.font = '700 40px system-ui, sans-serif';
-    ctx.fillStyle = '#1e88e5';
+    ctx.fillStyle = bad ? '#e53935' : '#1e88e5';
     ctx.beginPath(); ctx.roundRect(0, 0, c.width, c.height, 14); ctx.fill();
     ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(text, c.width / 2, c.height / 2 + 2);
@@ -925,7 +1024,7 @@ function measureLabel(text) {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.userData.w = c.width; tex.userData.h = c.height;
     if (measureLabelCache.size > 300) { for (const t of measureLabelCache.values()) t.dispose(); measureLabelCache.clear(); }
-    measureLabelCache.set(text, tex);
+    measureLabelCache.set(key, tex);
   }
   const sc = 0.42;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(tex.userData.w * sc, tex.userData.h * sc), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false }));
@@ -933,51 +1032,80 @@ function measureLabel(text) {
   m.renderOrder = 5;
   return m;
 }
+// Distància lliure del moble cap a cada costat fins al primer obstacle: la paret, un altre moble (que estigui a la mateixa alçada)
+// o un pilar. Si toca o s'encavalca, la distància és ≤ 0 (i la cota surt en vermell).
 function wallDistances(it) {
   const r = roomById(it.roomId);
   if (!r || r.kind === 'void') return null;
   const R = innerRect(r, state.wallThickness || 10);
   const b = aabb(it);
-  return { R, b, W: b.x0 - R.x0, E: R.x1 - b.x1, N: b.z0 - R.z0, S: R.z1 - b.z1 };
+  const out = { R, b, W: { v: b.x0 - R.x0, at: R.x0, what: 'paret' }, E: { v: R.x1 - b.x1, at: R.x1, what: 'paret' }, N: { v: b.z0 - R.z0, at: R.z0, what: 'paret' }, S: { v: R.z1 - b.z1, at: R.z1, what: 'paret' } };
+  const y0 = it.elev || 0, y1 = y0 + it.h;
+  const obst = [];
+  if (it.type !== 'alfombra') for (const o of state.items) {
+    if (o === it || o.type === 'alfombra') continue;
+    const o0 = o.elev || 0; if (o0 + o.h <= y0 + 0.5 || y1 <= o0 + 0.5) continue;
+    if ((it.type === 'silla' && ['mesa', 'escritorio'].includes(o.type)) || (o.type === 'silla' && ['mesa', 'escritorio'].includes(it.type))) continue;
+    obst.push({ box: aabb(o), what: o.name });
+  }
+  for (const st of structItems(state.rooms)) if (st.kind === 'pillar' || y1 > st.h0 + 0.5) obst.push({ box: aabb(st), what: st.name });
+  const ov = (a0, a1, c0, c1) => Math.min(a1, c1) - Math.max(a0, c0) > 1;
+  for (const { box: o, what } of obst) {
+    if (ov(b.z0, b.z1, o.z0, o.z1)) {
+      if (o.x0 < b.x0 && b.x0 - o.x1 < out.W.v) out.W = { v: b.x0 - o.x1, at: o.x1, what };
+      if (o.x1 > b.x1 && o.x0 - b.x1 < out.E.v) out.E = { v: o.x0 - b.x1, at: o.x0, what };
+    }
+    if (ov(b.x0, b.x1, o.x0, o.x1)) {
+      if (o.z0 < b.z0 && b.z0 - o.z1 < out.N.v) out.N = { v: b.z0 - o.z1, at: o.z1, what };
+      if (o.z1 > b.z1 && o.z0 - b.z1 < out.S.v) out.S = { v: o.z0 - b.z1, at: o.z0, what };
+    }
+  }
+  return out;
 }
 function updateMeasures(sel) {
-  for (const o of measureGroup.children) { o.geometry.dispose(); o.material.dispose(); } // la textura (cache) no es destrueix
+  for (const o of measureGroup.children) { o.geometry.dispose(); if (o.material !== measureMat && o.material !== measureBadMat) o.material.dispose(); } // la textura (cache) no es destrueix
   measureGroup.clear();
   if (!sel || !ui.measures) return;
   const d = wallDistances(sel);
   if (!d) return;
-  const { R, b } = d;
+  const { b } = d;
+  const hit = ui.conflicts?.has(sel.id); // si el moble xoca amb alguna cosa, totes les cotes en vermell
   const y = (sel.elev || 0) + 2.5;
-  const pts = [];
+  const ptsOk = [], ptsBad = [];
   const mx = (b.x0 + b.x1) / 2, mz = (b.z0 + b.z1) / 2;
   const segs = [
-    { k: 'W', v: d.W, a: [R.x0, mz], c: [b.x0, mz], tick: 'z' },
-    { k: 'E', v: d.E, a: [b.x1, mz], c: [R.x1, mz], tick: 'z' },
-    { k: 'N', v: d.N, a: [mx, R.z0], c: [mx, b.z0], tick: 'x' },
-    { k: 'S', v: d.S, a: [mx, b.z1], c: [mx, R.z1], tick: 'x' },
+    { v: d.W.v, a: [d.W.at, mz], c: [b.x0, mz], tick: 'z' },
+    { v: d.E.v, a: [b.x1, mz], c: [d.E.at, mz], tick: 'z' },
+    { v: d.N.v, a: [mx, d.N.at], c: [mx, b.z0], tick: 'x' },
+    { v: d.S.v, a: [mx, b.z1], c: [mx, d.S.at], tick: 'x' },
   ];
   for (const s of segs) {
-    if (s.v < 0.5) continue;
+    const bad = hit || s.v < 0.5;
+    if (Math.abs(s.v) < 0.5 && !hit) continue;
+    const pts = bad ? ptsBad : ptsOk;
     pts.push(s.a[0], y, s.a[1], s.c[0], y, s.c[1]);
     const t = 6;
     for (const p of [s.a, s.c]) {
       if (s.tick === 'z') pts.push(p[0], y, p[1] - t, p[0], y, p[1] + t);
       else pts.push(p[0] - t, y, p[1], p[0] + t, y, p[1]);
     }
-    const l = measureLabel(fmtLen(s.v));
+    const l = measureLabel(s.v < -0.5 ? `xoca ${fmtLen(-s.v)}` : fmtLen(Math.max(0, s.v)), bad);
     l.position.set((s.a[0] + s.c[0]) / 2, y + 0.5, (s.a[1] + s.c[1]) / 2);
-    if (s.tick === 'z') l.position.z -= 14; else l.position.x += 0;
+    if (s.tick === 'z') l.position.z -= 14;
     measureGroup.add(l);
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  measureGroup.add(new THREE.LineSegments(geo, measureMat));
+  for (const [pts, mat] of [[ptsOk, measureMat], [ptsBad, measureBadMat]]) {
+    if (!pts.length) continue;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const ln = new THREE.LineSegments(geo, mat); ln.renderOrder = 4; measureGroup.add(ln);
+  }
 }
 function distHtml(it) {
   const d = wallDistances(it);
   if (!d) return '';
-  const f = (v) => `<b>${Math.round(v)}</b>`;
-  return `A les parets: esq. ${f(d.W)} · dreta ${f(d.E)} · dalt ${f(d.N)} · baix ${f(d.S)} cm`;
+  const f = (o) => o.v < -0.5 ? `<b class="bad" title="Xoca amb ${esc(o.what)}">xoca ${Math.round(-o.v)}</b>` : `<b title="Fins a: ${esc(o.what)}">${Math.round(Math.max(0, o.v))}</b>`;
+  return `Espai lliure: esq. ${f(d.W)} · dreta ${f(d.E)} · dalt ${f(d.N)} · baix ${f(d.S)} cm`;
 }
 
 // ---------------------------------------------------------------- interacción
@@ -1055,7 +1183,9 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
       drag = { look: true, pinch: { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, fov0: walk.fov }, x: e.clientX, y: e.clientY, x0: -1e9, y0: -1e9 };
       capture(e); return;
     }
-    drag = { look: true, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, item: near(ih) && (!dh || ih.distance <= dh.distance) ? ih.object.userData.itemId : null, door: near(dh) && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null, wall: near(wh) ? wh.object.userData.wall : null };
+    const fp = floorPoint(), fd = fp ? fp.distanceTo(walkCam.position) : Infinity;
+    drag = { look: true, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, item: near(ih) && (!dh || ih.distance <= dh.distance) ? ih.object.userData.itemId : null, door: near(dh) && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null, wall: near(wh) ? wh.object.userData.wall : null,
+      floor: fp && fd < 1500 && (!wh || fd < wh.distance) && (!ih || fd < ih.distance) ? { x: fp.x, z: fp.z } : null };
     capture(e); return;
   }
   setPointer(e);
@@ -1252,6 +1382,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) {
       if (drag.item) { select(drag.item); if (+prefs.vib) navigator.vibrate?.(8); }
       else if (drag.door) toggleDoor(drag.door);
+      else if (drag.floor && roomAt(state.rooms, drag.floor.x, drag.floor.z)) { walk.target = drag.floor; requestRender(); } // toca el terra: hi vas caminant
       else if (drag.wall) showWallMeasure(drag.wall);
     }
     drag = null; return;
@@ -1320,6 +1451,37 @@ function select(id) {
   renderItemList();
 }
 
+// Enganxa un moble d'esquena a la paret més propera (o, si és de cantonada, a la cantonada més propera amb l'esquena a les dues parets).
+// L'esquena del moble és el seu costat −Z local i, en una cantonera, també el −X.
+function snapItem(it, corner = false) {
+  const r = roomById(it.roomId); if (!r) return;
+  const R = innerRect(r, state.wallThickness || 10);
+  const dirs = (rot) => { const a = rot * DEG, c = Math.round(Math.cos(a)), sn = Math.round(Math.sin(a)); return { back: [-sn, -c], left: [-c, sn] }; };
+  const same = (u, v) => u[0] === v[0] && u[1] === v[1];
+  let best = null;
+  if (corner) {
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const cx = sx < 0 ? R.x0 : R.x1, cz = sz < 0 ? R.z0 : R.z1, dist = Math.hypot(it.x - cx, it.z - cz);
+      for (const rot of [0, 90, 180, 270]) {
+        const { back, left } = dirs(rot);
+        const ok = (same(back, [sx, 0]) && same(left, [0, sz])) || (same(back, [0, sz]) && same(left, [sx, 0]));
+        if (ok && (!best || dist < best.dist)) best = { dist, rot, sx, sz };
+      }
+    }
+    if (!best) return;
+    it.rot = best.rot;
+    const b = aabb({ ...it, x: 0, z: 0 });
+    it.x = Math.round(best.sx < 0 ? R.x0 - b.x0 : R.x1 - b.x1); it.z = Math.round(best.sz < 0 ? R.z0 - b.z0 : R.z1 - b.z1);
+    return;
+  }
+  const walls = [{ out: [-1, 0], d: it.x - R.x0 }, { out: [1, 0], d: R.x1 - it.x }, { out: [0, -1], d: it.z - R.z0 }, { out: [0, 1], d: R.z1 - it.z }];
+  walls.sort((a, b) => a.d - b.d);
+  const w = walls[0];
+  it.rot = [0, 90, 180, 270].find((rot) => same(dirs(rot).back, w.out));
+  const b = aabb({ ...it, x: 0, z: 0 });
+  if (w.out[0]) { it.x = Math.round(w.out[0] < 0 ? R.x0 - b.x0 : R.x1 - b.x1); it.z = Math.round(Math.min(R.z1 - b.z1, Math.max(R.z0 - b.z0, it.z))); }
+  else { it.z = Math.round(w.out[1] < 0 ? R.z0 - b.z0 : R.z1 - b.z1); it.x = Math.round(Math.min(R.x1 - b.x1, Math.max(R.x0 - b.x0, it.x))); }
+}
 function duplicate(it) {
   commit();
   const c = { ...clone(it), id: newItem(it.type).id, x: it.x + 20, z: it.z + 20, locked: false };
@@ -1443,8 +1605,35 @@ document.querySelectorAll('#walkbar [data-walk]').forEach((b) => {
   b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
 });
 document.getElementById('wk-gyro').addEventListener('click', toggleGyro);
+// Joystick (mòbil): arrossega el polze en qualsevol direcció per caminar; com més lluny del centre, més ràpid.
+{
+  const joy = document.getElementById('wk-joy'), knob = joy?.querySelector('span');
+  if (joy) {
+    const end = () => { walk.joy = null; knob.style.transform = ''; };
+    const move = (e) => {
+      const r = joy.getBoundingClientRect(), R = r.width / 2;
+      let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R); const L = Math.hypot(dx, dy);
+      if (L > R) { dx *= R / L; dy *= R / L; }
+      knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      const dz = 0.12; const n = (v) => (Math.abs(v) < dz ? 0 : v);
+      walk.joy = { f: n(-dy / R), s: n(dx / R) }; walk.target = null; requestRender();
+    };
+    joy.addEventListener('pointerdown', (e) => { e.preventDefault(); try { joy.setPointerCapture(e.pointerId); } catch (err) { /* res */ } move(e); });
+    joy.addEventListener('pointermove', (e) => { if (walk.joy || e.buttons) move(e); });
+    joy.addEventListener('pointerup', end); joy.addEventListener('pointercancel', end);
+  }
+}
+document.getElementById('wk-room')?.addEventListener('change', (e) => { walkToRoom(roomById(e.target.value)); e.target.value = ''; });
+document.getElementById('wk-maptog')?.addEventListener('click', () => { const cv = document.getElementById('wk-map'); cv.hidden = !cv.hidden; document.getElementById('wk-maptog').classList.toggle('on', !cv.hidden); drawMinimap(); });
+document.getElementById('wk-map')?.addEventListener('pointerdown', (e) => {
+  const cv = e.currentTarget, r = cv.getBoundingClientRect();
+  const x = ((e.clientX - r.left) * cv.width / r.width - minimap.ox) / minimap.s, z = ((e.clientY - r.top) * cv.height / r.height - minimap.oz) / minimap.s;
+  const room = roomAt(state.rooms, x, z);
+  if (room && !STRUCT.has(room.kind) && room.kind !== 'void') { walk.x = x; walk.z = z; walk.target = null; requestRender(); drawMinimap(); }
+});
 document.getElementById('wk-exit').addEventListener('click', () => setView('3d'));
 const openMeasure = initMeasure();
+const openPhotoAdd = initPhotoAdd({ roomOptions: () => roomOptions(addForm.roomId), toast, addItems, saveToCatalog, openMeasure, log: (t) => console.warn(t) });
 
 // Barra flotant (mòbil) per al moble seleccionat.
 const selbar = document.getElementById('selbar');
@@ -1491,7 +1680,7 @@ function renderMuebles() {
       <label>Quantitat<input type="number" id="f-qty" min="1" max="30" value="${f.qty}" /></label>
     </div>
     <div class="row"><label>Habitació<select id="f-room">${roomOptions(f.roomId)}</select></label></div>
-    <div class="btns"><button class="btn" id="f-add">Afegeix al plànol</button><button class="btn secondary" id="f-save-cat" title="Desa aquest moble al catàleg per tornar-lo a afegir d’un toc">★ Desa al catàleg</button><button class="btn secondary" id="f-measure" title="Mesura un moble amb una foto i un full A4">📷 Mesura amb foto</button></div>
+    <div class="btns"><button class="btn" id="f-add">Afegeix al plànol</button><button class="btn secondary" id="f-photo" title="Fes o tria una foto del moble amb les mides: les llegeixo i l’afegeixo al plànol">📷 Des d’una foto</button><button class="btn secondary" id="f-save-cat" title="Guarda aquest moble a «Els meus mobles» per tornar-lo a afegir d’un toc, quan vulguis i a qualsevol habitació">★ Desa a «Els meus mobles»</button></div>
     <p class="note">Exemple ràpid: <button class="btn secondary small" id="f-example">2 cadires + 2 taules + TV</button> a l’habitació triada.</p>
     <h2>Els meus mobles</h2>
     <div id="catalog"></div>
@@ -1519,22 +1708,29 @@ function renderMuebles() {
     addItems('tv', { name: 'Televisor' }, 1, room);
   });
   $('#f-save-cat').addEventListener('click', () => { read(); saveToCatalog({ type: f.type, name: f.name, w: f.w, d: f.d, h: f.h, elev: f.elev, color: f.color }); });
-  $('#f-measure').addEventListener('click', () => openMeasure((dims) => { Object.assign(f, dims); renderMuebles(); }));
+  $('#f-photo').addEventListener('click', () => { read(); openPhotoAdd(f.roomId); });
   renderCatalog();
   renderItemList();
 }
 
 // --- Catàleg dels mobles reals (es desa al núvol amb el plànol)
-function saveToCatalog(src) {
+// «Els meus mobles»: una llista de mobles propis (o vistos a la botiga) amb nom, mides, color, foto i enllaç,
+// per tornar-los a afegir al plànol d'un toc quan es vulgui. Es desa amb el plànol (també al núvol).
+async function saveToCatalog(src, file = null) {
+  let photo = '';
+  if (file) { try { photo = await shrinkImage(file, cfgGet('catalogPhoto'), 0.72); } catch (e) { /* sense foto */ } }
   commit();
-  (state.catalog ||= []).push({ id: 'c' + Math.random().toString(36).slice(2, 8), type: src.type, name: src.name, w: src.w, d: src.d, h: src.h, elev: src.elev || 0, color: src.color, url: '', photo: '' });
+  const id = 'c' + Math.random().toString(36).slice(2, 8);
+  (state.catalog ||= []).push({ id, type: src.type, name: src.name, w: src.w, d: src.d, h: src.h, elev: src.elev || 0, color: src.color, url: '', photo });
   save(); renderCatalog();
+  toast(`★ «${src.name}» desat a Els meus mobles.`);
+  return id;
 }
 function renderCatalog() {
   const el = $('#catalog');
   if (!el) return;
   const cat = state.catalog || [];
-  if (!cat.length) { el.innerHTML = '<p class="note">Desa aquí els mobles que ja teniu (o els que mireu a la botiga) amb el nom, les mides i una foto, i afegeix-los al plànol d’un sol toc. Omple el formulari de dalt i prem «★ Desa al catàleg», o fes-ho des d’un moble ja col·locat.</p>'; return; }
+  if (!cat.length) { el.innerHTML = '<p class="note">Aquí es guarden els vostres mobles (els que ja teniu o els que mireu a la botiga) amb el nom, les mides, el color i una foto, per afegir-los al plànol d’un sol toc quan vulgueu, a qualsevol habitació i tantes vegades com calgui. S’hi desen amb «★ Desa a Els meus mobles» (del formulari de dalt o d’un moble ja col·locat) i, automàticament, amb «📷 Des d’una foto».</p>'; return; }
   el.innerHTML = `<div class="cat">${cat.map((c) => `
     <div class="cat-card" data-id="${c.id}">
       <label class="cat-photo" title="Toca per posar o canviar la foto">${c.photo ? `<img src="${c.photo}" alt="" />` : '<span>📷</span>'}<input type="file" accept="image/*" hidden /></label>
@@ -1618,6 +1814,7 @@ function renderProps(onlyPos = false) {
   const bad = ui.conflicts?.get(it.id);
   el.innerHTML = `
     <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(it.color)}"></span>${esc(it.name)} ${bad ? `<span class="badge bad">${esc(bad)}</span>` : ''}<button class="close" id="p-close" title="Tanca">×</button></h3>
+    ${(() => { const ph = it.catalogId && (state.catalog || []).find((c) => c.id === it.catalogId)?.photo; return ph ? `<img class="p-photo" src="${ph}" alt="Foto del moble" />` : ''; })()}
     <div class="dist" id="p-dist">${distHtml(it)}</div>
     <div class="row c2">
       <label>Nom<input type="text" id="p-name" value="${esc(it.name)}" /></label>
@@ -1644,6 +1841,7 @@ function renderProps(onlyPos = false) {
     <div class="btns">
       <button class="btn secondary small" id="p-rl">⟲ 90°</button>
       <button class="btn secondary small" id="p-rr">⟳ 90°</button>
+      <button class="btn secondary small" id="p-snap" title="${it.shape === 'cantonera' ? 'Porta’l a la cantonada més propera, amb l’esquena a les dues parets' : 'Enganxa’l d’esquena a la paret més propera'}">${it.shape === 'cantonera' ? '◢ A la cantonada' : '⇲ A la paret'}</button>
       <button class="btn secondary small" id="p-dup">Duplica</button>
       <button class="btn secondary small" id="p-cat" title="Desa al catàleg dels meus mobles">★</button>
       <button class="btn danger small" id="p-del">Elimina</button>
@@ -1666,6 +1864,7 @@ function renderProps(onlyPos = false) {
     if (preset) Object.assign(it, preset); // p. ex. una estufa és alta i estreta, una elèctrica es penja a la paret
     for (const [k, , dv] of shapeParams(it.type, it.shape)) if (!it[k]) it[k] = dv;
     if (hasWing(it.shape) && it.d < (it.sd || 0) + 40) it.d = (it.sd || 60) + 70;
+    if (it.type === 'llarFoc' && it.shape === 'cantonera') snapItem(it, true); // la cantonera va directa a la cantonada més propera
   }, true));
   $('#p-x').addEventListener('change', () => apply(() => { it.x = num('#p-x'); }));
   $('#p-z').addEventListener('change', () => apply(() => { it.z = num('#p-z'); }));
@@ -1681,6 +1880,7 @@ function renderProps(onlyPos = false) {
   $('#p-rl').addEventListener('click', () => rotate(it, -90));
   $('#p-rr').addEventListener('click', () => rotate(it, 90));
   $('#p-dup').addEventListener('click', () => duplicate(it));
+  $('#p-snap').addEventListener('click', () => apply(() => snapItem(it, it.shape === 'cantonera'), true));
   $('#p-cat').addEventListener('click', () => { saveToCatalog(it); document.querySelector('.tabs button[data-tab=muebles]')?.click(); });
   $('#p-del').addEventListener('click', () => removeItem(it.id));
 }
@@ -1755,16 +1955,17 @@ async function generateProposal(room) {
   const H = propHist(room.id), n = ui.propN[room.id] || 0;
   const cur = roomItemsOf(room.id);
   const kits = roomKits(room);
-  const vary = !!$('#d-vary')?.checked;
   const locked = cur.filter((i) => i.locked);
   let items, label;
-  if (!cur.length || (vary && kits.length && n % 2 === 1)) {
+  // Dues funcions: si l'estança ja té mobles (que es poden moure), només es tornen a col·locar, sense afegir ni treure res;
+  // si no en té cap, es proposa un equipament típic i la seva col·locació.
+  if (cur.length === locked.length) {
     if (!kits.length) { toast(`${room.name}: aquesta estança no necessita mobles. Afegeix-ne des de la pestanya Mobles si vols.`); return; }
     const k = (ui.propK[room.id] || 0) % kits.length; // cada cop un equipament diferent, en ordre
     ui.propK[room.id] = k + 1;
     items = locked.concat(kitItems(room, kits[k]));
     label = `Equipament ${k + 1} de ${kits.length}`;
-  } else { items = clone(cur); label = 'Mateixos mobles'; }
+  } else { items = clone(cur); label = 'Redistribució'; }
   if (!items.length) { toast('No hi ha mobles per col·locar.'); return; }
   ui.propN[room.id] = n + 1;
   propBusy = true;
@@ -1796,20 +1997,24 @@ function renderDistribuir() {
   const room = roomById(ui.layoutRoom);
   const its = roomItemsOf(ui.layoutRoom);
   const locked = its.filter((i) => i.locked).length;
+  const movable = its.length - locked;
   const kits = roomKits(room);
   const H = propHist(room.id);
-  const allKit = its.length > 0 && its.every((i) => i.fromKit || i.locked);
-  const vary = ui.propVary?.[room.id] ?? (!its.length || allKit);
   const snap = H.idx >= 0 ? H.list[H.idx] : null;
+  const furnish = !movable; // estança sense mobles mòbils → es proposen mobles nous
   el.innerHTML = `
     <h2>Propostes</h2>
     <div class="row"><label>Estança<select id="d-room">${roomOptions(ui.layoutRoom)}</select></label></div>
-    <p class="note">${its.length ? `${its.length} mobles a ${esc(room.name)}${locked ? `, ${locked} de fixos (no es mouen)` : ''}.` : kits.length ? `${esc(room.name)} encara no té mobles: et proposaré un equipament típic (${kits.length} variants) i la seva col·locació.` : `${esc(room.name)} no necessita mobles.`}
-    Cada cop que premis <b>Genera una proposta</b> en veuràs una altra, directament al 3D. Si una d’abans t’agradava més, torna-hi amb ◀.</p>
-    <label class="chk"><input type="checkbox" id="d-vary" ${vary ? 'checked' : ''} ${kits.length ? '' : 'disabled'}/> Pot canviar els mobles (alterna mateixos mobles / un altre equipament)</label>
+    <div class="mode-card ${furnish ? 'furnish' : 'move'}">
+      <b>${furnish ? '🛋 Moblar l’estança' : '🔀 Redistribuir els mobles'}</b>
+      <p>${furnish
+        ? (kits.length ? `${esc(room.name)} no té mobles${locked ? ` (a part dels ${locked} fixos)` : ''}: et proposo un equipament típic i com col·locar-lo. Cada proposta en prova un altre (${kits.length} variants).` : `${esc(room.name)} no necessita mobles. Si en vols, afegeix-ne des de la pestanya Mobles.`)
+        : `Torno a col·locar els ${movable} mobles de ${esc(room.name)} <b>sense afegir-ne ni treure’n cap</b>${locked ? ` (els ${locked} fixos no es mouen)` : ''}.`}</p>
+    </div>
     <div class="btns">
-      <button class="btn" id="d-gen" ${its.length || kits.length ? '' : 'disabled'}>✨ Genera una proposta</button>
+      <button class="btn" id="d-gen" ${furnish && !kits.length ? 'disabled' : ''}>✨ ${furnish ? 'Proposa mobles' : 'Redistribueix'}</button>
       <button class="btn secondary" id="d-focus">Mostra l’estança</button>
+      ${movable ? `<button class="btn secondary" id="d-empty" title="Treu els mobles que no són fixos (es pot desfer) per poder demanar un equipament nou">🗑 Buida l’estança</button>` : ''}
     </div>
     <div class="progress" id="d-prog" hidden><div class="bar"></div><span></span></div>
     ${H.list.length ? `<div class="prop-nav">
@@ -1820,8 +2025,14 @@ function renderDistribuir() {
     ${snap?.alts?.length ? `<p class="note">Altres col·locacions amb els mateixos mobles (toca’n una per aplicar-la):</p>` : ''}
     <div class="layouts" id="d-cards"></div>
     ${H.list.length > 1 ? '<div class="btns"><button class="btn secondary small" id="d-cmp">⇆ Compara les propostes</button></div>' : ''}`;
+  $('#d-empty')?.addEventListener('click', () => {
+    commit();
+    state.removedFixed = [...new Set([...(state.removedFixed || []), ...its.filter((i) => !i.locked && i.id.startsWith('fix-')).map((i) => i.id)])];
+    state.items = state.items.filter((i) => i.roomId !== room.id || i.locked);
+    if (ui.selected && !itemById(ui.selected)) ui.selected = null;
+    save(); rebuildItems(); renderAll(); toast(`${room.name} buidada. Ara pots demanar un equipament nou (↶ per desfer).`);
+  });
   $('#d-room').addEventListener('change', (e) => { ui.layoutRoom = e.target.value; renderDistribuir(); });
-  $('#d-vary').addEventListener('change', (e) => { (ui.propVary ||= {})[room.id] = e.target.checked; });
   $('#d-focus').addEventListener('click', () => frameCamera(room));
   $('#d-gen').addEventListener('click', () => generateProposal(room));
   $('#d-prev')?.addEventListener('click', () => { if (H.idx > 0) { H.idx--; setRoomItems(room, H.list[H.idx].items); } });
@@ -2314,7 +2525,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v32',
+  version: 'v33',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2419,7 +2630,7 @@ window.planta3d = {
     const r = renderer.domElement.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
-  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, rebuildItems,
+  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, minimap, rebuildItems,
   showWall(roomId, key) { let w = null; planGroup.traverse((o) => { const u = o.userData.wall; if (!w && u && u.room.id === roomId && u.key === key) w = u; }); showWallMeasure(w); return !!w; },
   get wallSel() { return ui.wallSel ? { room: ui.wallSel.room.id, key: ui.wallSel.key } : null; },
   camAz() { const c = ui.view === 'top' ? controlsTop : controls3d; const o = c.object.position.clone().sub(c.target); return Math.atan2(o.x, o.z); } };
