@@ -214,8 +214,8 @@ function applyRealism() {
   renderer.toneMappingExposure = (on ? 1.0 : 1.05) * cfgGet('expo') / 100;
   if (real.gtao) {
     const r = cfgGet('aoRad'), k = cfgGet('ao') / 100;
-    real.gtao.updateGtaoMaterial({ radius: r, distanceExponent: 1, thickness: r * 0.6, scale: 2 * Math.max(1, k), samples: 16, distanceFallOff: 1 });
-    real.gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, radiusExponent: 1, rings: 2, samples: 16 });
+    real.gtao.updateGtaoMaterial({ radius: r, distanceExponent: 1, thickness: r * 0.5, scale: 1.6 * Math.max(1, k), samples: 16, distanceFallOff: 1 });
+    real.gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 10, radiusExponent: 1, rings: 2, samples: 16 });
     real.gtao.blendIntensity = Math.min(1, k);
   }
   scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
