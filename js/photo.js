@@ -2,8 +2,8 @@
 // Es llegeix el text de la imatge amb Tesseract (vendor/ocr, sense cap servei extern) i se'n treuen l'amplada, el fons
 // i l'alçada, el tipus de moble i un color aproximat. Tot es pot corregir abans d'afegir-lo al plànol.
 
-import { CATALOG } from './furniture.js?v=38';
-import { TYPES } from './assistant.js?v=38';
+import { CATALOG } from './furniture.js?v=39';
+import { TYPES } from './assistant.js?v=39';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’'`´]/g, ' ');
 const EXTRA = [ // paraules en anglès i francès que surten a les fitxes de les botigues
