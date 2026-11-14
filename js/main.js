@@ -1,28 +1,28 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=36';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=36';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=36';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=36';
-import { mergeStates } from './merge.js?v=36';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=36';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=36';
-import { initAssistant } from './assistant.js?v=36';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=36';
-import { initMeasure } from './measure.js?v=36';
-import { initColorPicker } from './colorpicker.js?v=36';
-import { initPhotoAdd } from './photo.js?v=36';
-import { initTape } from './tape.js?v=36';
-import { checkZones } from './zones.js?v=36';
-import { fitCheck } from './fit.js?v=36';
-import { initShop, STATUS, statusOf } from './shop.js?v=36';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=36';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=36';
-import { drawPreview as drawRoomPreview } from './preview.js?v=36';
-import { arSupported, startAR as startARView } from './ar.js?v=36';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=36';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=36';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=36';
+import { DEFAULT_PLAN } from './plan.js?v=37';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=37';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=37';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=37';
+import { mergeStates } from './merge.js?v=37';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=37';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=37';
+import { initAssistant } from './assistant.js?v=37';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=37';
+import { initMeasure } from './measure.js?v=37';
+import { initColorPicker } from './colorpicker.js?v=37';
+import { initPhotoAdd } from './photo.js?v=37';
+import { initTape } from './tape.js?v=37';
+import { checkZones } from './zones.js?v=37';
+import { fitCheck } from './fit.js?v=37';
+import { initShop, STATUS, statusOf } from './shop.js?v=37';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=37';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=37';
+import { drawPreview as drawRoomPreview } from './preview.js?v=37';
+import { arSupported, startAR as startARView } from './ar.js?v=37';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=37';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=37';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=37';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -811,20 +811,25 @@ function rebuildPlan() {
         }
         continue;
       }
-      for (const [a, b] of solid) wallPiece(e.axis, e.line, a, b, 0, H, t, wallMat, true, inSide, paint);
+      // cada tros de paret entre portes, passos o finestres és un tros a part: en tocar-lo surt la seva mida, no la de la paret sencera
+      const edgeTag = tagEdge;
+      const piece = (a, b, over) => { tagEdge = { ...edgeTag, a, b, edgeA: e.a, edgeB: e.b, over }; };
+      for (const [a, b] of solid) { piece(a, b); wallPiece(e.axis, e.line, a, b, 0, H, t, wallMat, true, inSide, paint); }
+      tagEdge = edgeTag;
       if (paint && (ui.view === 'top' || H < 60)) {
         // en planta (o amb les parets amagades) la paret pintada es marca amb una franja del seu color a tocar de la paret
         const bw = 12, off = e.line + inSide * (t / 2 + bw / 2), bm = paintTop(paint);
         for (const [a, b] of solid) {
           const m = new THREE.Mesh(e.axis === 'x' ? new THREE.BoxGeometry(b - a, 0.6, bw) : new THREE.BoxGeometry(bw, 0.6, b - a), bm);
           if (e.axis === 'x') m.position.set((a + b) / 2, 0.5, off); else m.position.set(off, 0.5, (a + b) / 2);
-          m.userData.wall = tagEdge;
+          m.userData.wall = { ...edgeTag, a, b, edgeA: e.a, edgeB: e.b };
           planGroup.add(m);
         }
       }
       for (const o of ops) {
         const a = Math.max(o.a, e.a), b = Math.min(o.b, e.b);
         const top = o.type === 'paso' ? 220 : o.type === 'ventanal' ? Math.min(H, 240) : 210;
+        piece(a, b, o.type);
         if (H > top) wallPiece(e.axis, e.line, a, b, top, H, t, wallMat, true, inSide, paint);
         if (o.type === 'ventanal') {
           // finestral de terra a sostre: dues fulles de vidre que s'obren cap a dins en tocar-les, amb un muntant al mig
@@ -852,6 +857,7 @@ function rebuildPlan() {
           planGroup.add(frame);
         }
       }
+      tagEdge = edgeTag;
     }
     // Batents de les portes d'aquesta habitació: arc al terra i la fulla oberta.
     for (const op of r.openings || []) {
@@ -1344,7 +1350,10 @@ function drawWallMeasure() {
   const ops = allOpenings(state.rooms).filter((o) => o.axis === w.axis && Math.abs(o.line - w.line) <= 1 && o.b > w.a && o.a < w.b);
   const OPN = { puerta: 'porta', paso: 'pas', ventanal: 'finestral', ventana: 'finestra' };
   const lines = [fmtLen(len, 1), `${w.room.name} · ${fmtLen(H, 1)} d’alt`];
-  if (ops.length) lines.push(ops.map((o) => `${OPN[o.type] || o.type} de ${fmtLen(Math.round(Math.min(o.b, w.b) - Math.max(o.a, w.a)), 1)}`).join(' · '));
+  const whole = w.edgeB !== undefined ? Math.round(w.edgeB - w.edgeA) : null;
+  if (w.over) lines[0] = `${OPN[w.over] || w.over} de ${fmtLen(len, 1)}`; // s'ha tocat la paret de damunt d'una porta o d'una finestra
+  else if (whole && whole - len > 1) lines.push(`tros de la paret ${WALL_TXT[w.key] || ''} (sencera: ${fmtLen(whole, 1)})`);
+  if (ops.length && !w.over && !(whole && whole - len > 1)) lines.push(ops.map((o) => `${OPN[o.type] || o.type} de ${fmtLen(Math.round(Math.min(o.b, w.b) - Math.max(o.a, w.a)), 1)}`).join(' · '));
   // costat des d'on es mira: el de la càmera (en planta, el de dins de l'habitació)
   const camPos = camera.position;
   let side = w.inSide || 1;
@@ -1413,7 +1422,7 @@ function renderWallPanel() {
   el.hidden = false;
   el.innerHTML = `
     <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(cur || '#f3f1ec')}"></span>${w.whole ? esc(w.room.name) : `Paret ${WALL_TXT[w.key] || ''} · ${esc(w.room.name)}`}<button class="close" id="wp-close" title="Tanca">×</button></h3>
-    <div class="dist">${fmtLen(Math.round(w.b - w.a), 1)} de llarg · ${fmtLen(state.ceiling || 250, 1)} d’alt</div>
+    <div class="dist">${w.over ? 'Damunt d’un buit de ' : 'Aquest tros: '}<b>${fmtLen(Math.round(w.b - w.a), 1)}</b> de llarg · ${fmtLen(state.ceiling || 250, 1)} d’alt${w.edgeB !== undefined && Math.round(w.edgeB - w.edgeA) - Math.round(w.b - w.a) > 1 ? ` · paret sencera ${fmtLen(Math.round(w.edgeB - w.edgeA), 1)}` : ''}</div>
     <div class="swatches">${WALL_PALETTE.map(([c, n]) => `<button type="button" data-c="${c}" title="${n} ${c}" class="${cur === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>
     <div class="row c2">
       <label>Color<input type="color" id="wp-color" value="${esc(cur || '#f3f1ec')}" /></label>
@@ -2802,7 +2811,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v36',
+  version: 'v37',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2909,6 +2918,6 @@ window.planta3d = {
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
   get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, minimap, rebuildItems, get tape() { return tape; }, ui,
-  showWall(roomId, key = 'N') { let w = null; planGroup.traverse((o) => { const u = o.userData.wall; if (!w && u && !u.whole && (!roomId || u.room.id === roomId) && u.key === key) w = u; }); showWallMeasure(w); return !!w; },
+  showWall(roomId, key = 'N', at) { let w = null; planGroup.traverse((o) => { const u = o.userData.wall; if (!w && u && !u.whole && (!roomId || u.room.id === roomId) && u.key === key && (at === undefined || (u.a <= at && at <= u.b && !u.over))) w = u; }); showWallMeasure(w); return !!w; },
   get wallSel() { return ui.wallSel ? { room: ui.wallSel.room.id, key: ui.wallSel.key } : null; },
   camAz() { const c = ui.view === 'top' ? controlsTop : controls3d; const o = c.object.position.clone().sub(c.target); return Math.atan2(o.x, o.z); } };
