@@ -1,8 +1,11 @@
 // Plànol en 2D sobre un canvas (per comparar escenes i per imprimir / desar en PDF), amb cotes.
-import { corners, allOpenings, allDoorSymbols, DEG } from './geom.js?v=46';
-import { CATALOG } from './furniture.js?v=46';
+import { corners, allOpenings, allDoorSymbols, DEG } from './geom.js?v=47';
+import { CATALOG } from './furniture.js?v=47';
 
 // Dibuixa el plànol complet. opts: { items, cotes, labels, furnitureDims, pad, bg, highlight }
+// Mides per dins (de paret a paret): el rectangle de l'habitació va fins al mig de les parets.
+const inside = (r, t) => (r.kind === 'room' || r.kind === 'terrace' ? [r.w - t, r.d - t] : [r.w, r.d]);
+
 export function drawPlan(cv, st, opts = {}) {
   const items = opts.items || st.items;
   const rooms = st.rooms;
@@ -80,7 +83,7 @@ export function drawPlan(cv, st, opts = {}) {
     if (opts.labels !== false) {
       ctx.fillStyle = r.kind === 'void' ? '#fff' : '#2b2926';
       ctx.fillText(r.name, X(r.x + r.w / 2), Z(r.z + r.d / 2) - (opts.cotes ? fs * 0.7 : 0));
-      if (opts.cotes) { ctx.font = `${fs - 2}px system-ui, sans-serif`; ctx.fillStyle = '#555'; ctx.fillText(`${r.w} × ${r.d} cm`, X(r.x + r.w / 2), Z(r.z + r.d / 2) + fs * 0.7); ctx.font = `600 ${fs}px system-ui, sans-serif`; }
+      if (opts.cotes) { ctx.font = `${fs - 2}px system-ui, sans-serif`; ctx.fillStyle = '#555'; ctx.fillText(`${inside(r, t).join(' × ')} cm`, X(r.x + r.w / 2), Z(r.z + r.d / 2) + fs * 0.7); ctx.font = `600 ${fs}px system-ui, sans-serif`; }
     }
   }
   if (opts.cotes) {
@@ -104,8 +107,8 @@ export function drawPlan(cv, st, opts = {}) {
       const topFree = !rooms.some((o) => o !== r && o.z + o.d <= r.z + 1 && o.z + o.d > r.z - 40 && o.x < r.x + r.w && o.x + o.w > r.x);
       const leftFree = !rooms.some((o) => o !== r && o.x + o.w <= r.x + 1 && o.x + o.w > r.x - 40 && o.z < r.z + r.d && o.z + o.d > r.z);
       const kw = 'w' + r.x + ',' + r.z + ',' + r.w, kd = 'd' + r.x + ',' + r.z + ',' + r.d;
-      if (topFree && !done.has(kw)) { done.add(kw); dim(r.x, r.z, r.x + r.w, r.z, r.w + '', 'h'); }
-      if (leftFree && !done.has(kd)) { done.add(kd); dim(r.x, r.z + r.d, r.x, r.z, r.d + '', 'v'); }
+      if (topFree && !done.has(kw)) { done.add(kw); dim(r.x, r.z, r.x + r.w, r.z, inside(r, t)[0] + '', 'h'); }
+      if (leftFree && !done.has(kd)) { done.add(kd); dim(r.x, r.z + r.d, r.x, r.z, inside(r, t)[1] + '', 'v'); }
     }
   }
   return { s, X, Z };
@@ -128,11 +131,11 @@ export function printSheet(st, opts = {}) {
   const date = new Date().toLocaleDateString('ca', { day: 'numeric', month: 'long', year: 'numeric' });
   sheet.innerHTML = `
     <h1>${esc(opts.title || 'Planta 3D · Mobles a mida')}</h1>
-    <p class="meta">${date} · mides en cm · sostre ${st.ceiling} cm${st.ceilingEstimated ? ' (estimat)' : ''} · parets de ${st.wallThickness} cm · superfície interior ${(rooms.filter((r) => r.kind === 'room').reduce((a, r) => a + r.w * r.d, 0) / 10000).toFixed(2)} m²</p>
+    <p class="meta">${date} · mides en cm · sostre ${st.ceiling} cm${st.ceilingEstimated ? ' (estimat)' : ''} · parets de ${st.wallThickness} cm · superfície interior ${(rooms.filter((r) => r.kind === 'room').reduce((a, r) => { const [w, d] = inside(r, st.wallThickness || 10); return a + w * d; }, 0) / 10000).toFixed(2)} m² · mides per dins, de paret a paret</p>
     <img src="${cv.toDataURL('image/png')}" alt="Plànol" />
     <h2>Habitacions</h2>
     <table><thead><tr><th>Habitació</th><th>Amplada</th><th>Fons</th><th>m²</th><th>Obertures</th></tr></thead><tbody>
-      ${rooms.map((r) => `<tr><td>${esc(r.name)}${r.estimated ? ' *' : ''}</td><td>${r.w}</td><td>${r.d}${r.d2 ? ' / ' + r.d2 : ''}</td><td>${(r.w * r.d / 10000).toFixed(2)}</td><td>${(r.openings || []).map((o) => `${{ puerta: 'porta', ventana: 'finestra', ventanal: 'finestral', paso: 'pas' }[o.type] || o.type} ${o.width} (${{ N: 'dalt', S: 'baix', E: 'dreta', W: 'esq.' }[o.wall]}, a ${o.offset})`).join(' · ') || '—'}</td></tr>`).join('')}
+      ${rooms.map((r) => `<tr><td>${esc(r.name)}${r.estimated ? ' *' : ''}</td><td>${inside(r, st.wallThickness || 10)[0]}</td><td>${inside(r, st.wallThickness || 10)[1]}${r.d2 ? ' / ' + r.d2 : ''}</td><td>${(inside(r, st.wallThickness || 10).reduce((a, b) => a * b, 1) / 10000).toFixed(2)}</td><td>${(r.openings || []).map((o) => `${{ puerta: 'porta', ventana: 'finestra', ventanal: 'finestral', paso: 'pas' }[o.type] || o.type} ${o.width} (${{ N: 'dalt', S: 'baix', E: 'dreta', W: 'esq.' }[o.wall]}, a ${o.offset})`).join(' · ') || '—'}</td></tr>`).join('')}
     </tbody></table>
     <p class="meta">* mides estimades (no surten al plànol de l’arquitecte).</p>
     ${byRoom.length ? `<h2>Mobles</h2>
@@ -209,7 +212,7 @@ export function scaleSvg(st, { scale = 50, paper = 'A4', landscape = true, roomI
   const f9 = fs(9), f7 = fs(7);
   for (const r of rooms.filter(inView)) {
     if (['void', 'pillar', 'beam'].includes(r.kind)) continue;
-    out.push(`<g text-anchor="middle"><text x="${r.x + r.w / 2}" y="${r.z + 14 + +f9}" font-size="${f9}" font-weight="700">${esc(r.name)}</text><text x="${r.x + r.w / 2}" y="${r.z + 16 + 2 * +f9}" font-size="${f7}" fill="#555">${r.w} × ${r.d} cm · ${(r.w * r.d / 10000).toFixed(2)} m²</text></g>`);
+    out.push(`<g text-anchor="middle"><text x="${r.x + r.w / 2}" y="${r.z + 14 + +f9}" font-size="${f9}" font-weight="700">${esc(r.name)}</text><text x="${r.x + r.w / 2}" y="${r.z + 16 + 2 * +f9}" font-size="${f7}" fill="#555">${inside(r, t).join(' × ')} cm · ${(inside(r, t).reduce((a, b) => a * b, 1) / 10000).toFixed(2)} m²</text></g>`);
   }
   const dim = (ax, az, bx, bz, label, nx, nz) => {
     const off = 22, tk = 6, x1 = ax + nx * off, y1 = az + nz * off, x2 = bx + nx * off, y2 = bz + nz * off;
@@ -220,8 +223,8 @@ export function scaleSvg(st, { scale = 50, paper = 'A4', landscape = true, roomI
   for (const r of rooms.filter(inView)) {
     if (['void', 'pillar', 'beam'].includes(r.kind)) continue;
     const kw = `w${r.x},${r.z},${r.w}`, kd = `d${r.x},${r.z},${r.d}`;
-    if (!done.has(kw)) { done.add(kw); out.push(dim(r.x, r.z, r.x + r.w, r.z, r.w, 0, -1)); }
-    if (!done.has(kd)) { done.add(kd); out.push(dim(r.x, r.z, r.x, r.z + r.d, r.d, -1, 0)); }
+    if (!done.has(kw)) { done.add(kw); out.push(dim(r.x, r.z, r.x + r.w, r.z, inside(r, t)[0], 0, -1)); }
+    if (!done.has(kd)) { done.add(kd); out.push(dim(r.x, r.z, r.x, r.z + r.d, inside(r, t)[1], -1, 0)); }
   }
   // regle: 0 - 1 m - 2 m
   const rx = x0 + 20, rz = z0 + D - 20, seg = 50;
