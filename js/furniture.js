@@ -32,6 +32,7 @@ export const CATALOG = {
   vater:      { label: 'Vàter',            w: 38,  d: 55,  h: 42,  color: '#f6f6f4', role: 'wall' },
   lavabo:     { label: 'Lavabo amb moble', w: 70,  d: 45,  h: 85,  color: '#f2efe9', role: 'wall' },
   mirall:     { label: 'Mirall de paret',  w: 40,  d: 2,   h: 120, color: '#d9e2e6', role: 'wall', elev: 60 },
+  llarFoc:    { label: 'Llar de foc',      w: 120, d: 45,  h: 110, color: '#e8e4dc', role: 'wall' },
   caja:       { label: 'Objecte genèric',  w: 60,  d: 60,  h: 60,  color: '#8899aa', role: 'wall' },
 };
 
@@ -42,12 +43,30 @@ export const SHAPES = {
   mesa:       [['rect', 'Rectangular'], ['rodona', 'Rodona / ovalada']],
   mesaCentro: [['rect', 'Rectangular'], ['rodona', 'Rodona / ovalada']],
   escritorio: [['recte', 'Recte'], ['Le', 'L esquerra'], ['Ld', 'L dreta']],
+  llarFoc:    [['paret', 'De paret'], ['cantonera', 'Cantonera'], ['estufa', 'Estufa'], ['electrica', 'Elèctrica']],
 };
 export const SHAPE_PARAMS = {
   sofa:       { sd: ['Fons seient', 90], lw: ['Ample chaise', 90] },
   escritorio: { sd: ['Fons taula', 60], lw: ['Ample ala', 60] },
+  llarFoc:    { bw: ['Ample de la boca', 60], bh: ['Alçada de la boca', 45] },
+};
+// Mides que es proposen en triar una forma (es poden canviar després).
+export const SHAPE_SIZES = {
+  llarFoc: {
+    paret: { w: 120, d: 45, h: 110, elev: 0, bw: 70, bh: 50 },
+    cantonera: { w: 90, d: 90, h: 110, elev: 0, bw: 55, bh: 50 },
+    estufa: { w: 55, d: 50, h: 200, elev: 0, bw: 35, bh: 35 },
+    electrica: { w: 100, d: 18, h: 55, elev: 40, bw: 86, bh: 22 },
+  },
 };
 export const hasWing = (shape) => shape === 'Le' || shape === 'Ld' || shape === 'U';
+// Paràmetres que es poden ajustar per a la forma actual: [clau, etiqueta, valor per defecte].
+export function shapeParams(type, shape) {
+  const P = SHAPE_PARAMS[type];
+  if (!P) return [];
+  if ((type === 'sofa' || type === 'escritorio') && !hasWing(shape)) return [];
+  return Object.entries(P).map(([k, [l, dv]]) => [k, l, dv]);
+}
 // Rectangles [x0, ample, z0, fons] que formen una peça en L o en U dins la petjada w × d (esquena a −z).
 export function shapeRects(item) {
   const { w, d } = item, shape = item.shape || 'recte';
@@ -97,6 +116,107 @@ function legs(g, w, d, h, t, material, inset = 3) {
   const xs = [-w / 2 + inset + t / 2, w / 2 - inset - t / 2];
   const zs = [-d / 2 + inset + t / 2, d / 2 - inset - t / 2];
   for (const x of xs) for (const z of zs) box(g, t, h, t, x, 0, z, material);
+}
+
+// Foc: brases, dos troncs i flames que brillen, dins d'una boca fosca de bw × bh amb vidre al davant (tot mirant a +Z local).
+const fireMats = { coal: null, flame: null, flame2: null, glass: null };
+function fireMat() {
+  fireMats.coal ||= new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 1, side: THREE.BackSide });
+  fireMats.flame ||= new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.92 });
+  fireMats.flame2 ||= new THREE.MeshBasicMaterial({ color: 0xffd04a, transparent: true, opacity: 0.95 });
+  fireMats.glass ||= new THREE.MeshStandardMaterial({ color: 0x223040, transparent: true, opacity: 0.25, roughness: 0.05, metalness: 0.2 });
+  return fireMats;
+}
+function fire(g, bw, bh, depth, y0, zFront) {
+  const M = fireMat();
+  // la llar és buida: només es veuen les cares de dins (fons, terra, costats i sostre), no la del davant
+  const pit = box(g, bw, bh, depth, 0, y0, zFront - depth / 2, M.coal); pit.castShadow = false;
+  const logW = bw * 0.7;
+  for (const [dz, rot] of [[-depth * 0.3, 0.12], [-depth * 0.55, -0.1]]) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, logW, 10), mat('#5a3a22'));
+    log.rotation.z = Math.PI / 2; log.rotation.y = rot; log.position.set(0, y0 + 4, zFront + dz); g.add(log);
+  }
+  const n = Math.max(2, Math.round(bw / 22));
+  for (let i = 0; i < n; i++) {
+    const x = -bw * 0.35 + (bw * 0.7) * (i / (n - 1));
+    const fh = Math.min(bh - 8, bh * (0.45 + 0.25 * ((i * 37) % 3) / 2));
+    const f = new THREE.Mesh(new THREE.ConeGeometry(Math.min(7, bw / (n * 1.6)), fh, 8), M.flame);
+    f.position.set(x, y0 + 6 + fh / 2, zFront - depth * 0.45); g.add(f);
+    const f2 = new THREE.Mesh(new THREE.ConeGeometry(Math.min(4, bw / (n * 2.8)), fh * 0.6, 8), M.flame2);
+    f2.position.set(x, y0 + 6 + fh * 0.3, zFront - depth * 0.4); g.add(f2);
+  }
+  const gl = box(g, bw, bh, 0.6, 0, y0, zFront - 0.4, M.glass); gl.castShadow = false;
+}
+// Caixa amb un forat al davant (la boca): fons sencer i, davant, dos muntants, el sòcol i la llinda.
+function hollowBox(g, w, h, d, y0, mw, mh, my, rec, m) {
+  const zf = d / 2 - rec / 2, sw = (w - mw) / 2, top = h - my - mh;
+  box(g, w, h, d - rec, 0, y0, -rec / 2, m);
+  if (sw > 0.3) for (const sx of [-1, 1]) box(g, sw, h, rec, sx * (mw / 2 + sw / 2), y0, zf, m);
+  if (my > 0.3) box(g, mw, my, rec, 0, y0, zf, m);
+  if (top > 0.3) box(g, mw, top, rec, 0, y0 + my + mh, zf, m);
+}
+// Prisma vertical a partir d'un polígon en planta [[x, z], …], de y0 a y0 + hgt.
+function prism(g, pts, y0, hgt, m, k = 1) {
+  const sh = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x * k, -z * k)));
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: hgt, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2); geo.translate(0, y0, 0); // (x, −z) de la forma → planta (x, z), i l'extrusió cap amunt
+  const mesh = new THREE.Mesh(geo, m); mesh.castShadow = true; mesh.receiveShadow = true; g.add(mesh);
+  return mesh;
+}
+function buildFireplace(g, item, main, dark, metal) {
+  const { w, d, h } = item;
+  const shape = item.shape || 'paret';
+  const bw = Math.max(15, Math.min(+item.bw || 60, w - 10)), bh = Math.max(12, Math.min(+item.bh || 45, h - 10));
+  const stone = mat(shade(item.color, 0.85), { roughness: 0.95 });
+  if (shape === 'estufa') {
+    // Estufa de llenya: cos negre sobre potes, porta de vidre i tub de fum fins a dalt (h inclou el tub).
+    const iron = mat('#26272a', { roughness: 0.6, metalness: 0.4 });
+    const bodyH = Math.min(h, Math.max(60, Math.min(100, h * 0.5)));
+    const fw = Math.min(bw, w - 12), fh = Math.min(bh, bodyH - 30), rec = d * 0.6;
+    legs(g, w - 4, d - 4, 10, 4, iron, 2);
+    hollowBox(g, w, bodyH - 10, d, 10, fw, fh, 12, rec, iron);
+    box(g, w + 4, 3, d + 4, 0, bodyH, 0, iron);
+    fire(g, fw, fh, rec, 22, d / 2);
+    if (h > bodyH + 5) cyl(g, 7, h - bodyH - 3, 0, bodyH + 3, -d * 0.15, iron);
+    return;
+  }
+  if (shape === 'electrica') {
+    // Llar de foc elèctrica: panell prim penjat a la paret amb una franja de flames.
+    const fw = Math.min(bw, w - 8), fh = Math.min(bh, h - 8), fy = (h - fh) / 2, rec = Math.max(4, d * 0.6);
+    hollowBox(g, w, h, d, 0, fw, fh, fy, rec, mat('#1b1c1f', { roughness: 0.3, metalness: 0.3 }));
+    fire(g, fw, fh, rec, fy, d / 2);
+    return;
+  }
+  if (shape === 'cantonera') {
+    // Cantonera: planta pentagonal tocant les dues parets del darrere (−Z i −X); la boca mira en diagonal.
+    const cut = Math.min(w, d) * 0.45;
+    const P1 = [w / 2, -d / 2 + cut], P2 = [-w / 2 + cut, d / 2];
+    const pent = [[-w / 2, -d / 2], [w / 2, -d / 2], P1, P2, [-w / 2, d / 2]];
+    const diag = Math.hypot(P2[0] - P1[0], P2[1] - P1[1]);
+    const ux = (P2[0] - P1[0]) / diag, uz = (P2[1] - P1[1]) / diag; // al llarg de la cara diagonal
+    const nx = uz, nz = -ux; // normal cap a dins
+    const fw = Math.min(bw, diag - 14), my = 18, fh = Math.min(bh, h - my - 20), rec = Math.min(cut, 30);
+    const mx = (P1[0] + P2[0]) / 2, mz = (P1[1] + P2[1]) / 2, hw = fw / 2;
+    const A = [mx - ux * hw, mz - uz * hw], B = [mx + ux * hw, mz + uz * hw];
+    const notched = [pent[0], pent[1], P1, A, [A[0] + nx * rec, A[1] + nz * rec], [B[0] + nx * rec, B[1] + nz * rec], B, P2, pent[4]];
+    prism(g, pent, 0, my, main);
+    prism(g, notched, my, fh, main);
+    prism(g, pent, my + fh, h - my - fh - 5, main);
+    prism(g, pent, h - 5, 5, stone, 1.06);
+    const sub = new THREE.Group(); sub.position.set(mx, 0, mz); sub.rotation.y = Math.atan2(-nx, -nz); g.add(sub);
+    fire(sub, fw, fh, rec, my, 0);
+    box(sub, fw + 12, 8, 4, 0, my - 8, 2, stone);
+    return;
+  }
+  // De paret: cos d'obra amb la boca buidada, repisa de pedra a dalt, sòcol i marc fosc al voltant de la boca.
+  const by = 14, fh = Math.min(bh, h - by - 16), rec = Math.min(d - 8, 34);
+  hollowBox(g, w, h - 6, d, 0, bw, fh, by, rec, main);
+  box(g, w + 8, 6, d + 6, 0, h - 6, 3, stone);
+  box(g, w + 4, 8, d + 4, 0, 0, 2, stone);
+  const fz = d / 2 + 1.5;
+  for (const sx of [-1, 1]) box(g, 6, fh + 6, 3, sx * (bw / 2 + 3), by, fz, dark);
+  box(g, bw + 12, 6, 3, 0, by + fh, fz, dark);
+  fire(g, bw, fh, rec, by, d / 2);
 }
 
 // Construye un grupo 3D con origen en el centro de la huella, a nivel del suelo.
@@ -336,6 +456,10 @@ export function buildFurniture(item) {
       m.castShadow = false;
       break;
     }
+    case 'llarFoc': {
+      buildFireplace(g, item, main, dark, metal);
+      break;
+    }
     case 'armario': {
       box(g, w, h, d, 0, 0, 0, main);
       const doors = Math.max(1, Math.round(w / 50));
@@ -411,6 +535,8 @@ export function newItem(type, overrides = {}) {
     x: 0, z: 0, rot: 0,
     roomId: null,
     locked: false,
+    // amb una forma triada, primer les mides típiques d'aquella forma (i els seus paràmetres) i després el que es demani
+    ...(overrides.shape && SHAPE_SIZES[type]?.[overrides.shape]) || {},
     ...Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined)),
   };
 }

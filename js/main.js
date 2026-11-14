@@ -1,16 +1,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js';
-import { CATALOG, SHAPES, SHAPE_PARAMS, hasWing, buildFurniture, newItem } from './furniture.js';
-import { generateLayouts, generateLayoutsAsync } from './layout.js';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=30';
-import { mergeStates } from './merge.js';
-import { prefs, applyPrefs, initSettings } from './settings.js';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js';
-import { initAssistant } from './assistant.js';
-import { drawPlan, printSheet } from './sheet.js';
-import { initMeasure } from './measure.js';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js';
+import { DEFAULT_PLAN } from './plan.js?v=31';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem } from './furniture.js?v=31';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=31';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=31';
+import { mergeStates } from './merge.js?v=31';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=31';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=31';
+import { initAssistant } from './assistant.js?v=31';
+import { drawPlan, printSheet } from './sheet.js?v=31';
+import { initMeasure } from './measure.js?v=31';
+import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=31';
 
 // ---------------------------------------------------------------- estado
 const STORE_KEY = 'planta3d-v1';
@@ -54,7 +54,7 @@ const logAdd = (kind, msg) => { logBuf.push(`${new Date().toLocaleTimeString('ca
 window.addEventListener('error', (e) => logAdd('✖', `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`));
 window.addEventListener('unhandledrejection', (e) => logAdd('✖', String(e.reason?.message || e.reason)));
 { const ce = console.error.bind(console), cw = console.warn.bind(console); console.error = (...a) => { logAdd('✖', a.map(String).join(' ')); ce(...a); }; console.warn = (...a) => { logAdd('⚠', a.map(String).join(' ')); cw(...a); }; }
-const ui = { selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false, propHist: {}, propN: {}, propK: {} };
+const ui = { wallSel: null, wallAll: false, selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false, propHist: {}, propN: {}, propK: {} };
 const isMobile = () => window.matchMedia('(max-width: 800px)').matches;
 let installPrompt = null; // event d'instal·lació de la PWA (Chrome/Edge/Android)
 const history = { past: [], future: [] };
@@ -518,20 +518,52 @@ function wallHeight() {
   return ui.wallMode === 'full' ? H : ui.wallMode === 'low' ? Math.min(H, cfgGet('lowWall')) : 12;
 }
 
-// Pieza de pared a lo largo de un eje entre a y b.
-function wallPiece(axis, line, a, b, y0, y1, t, material, cap = true) {
-  const len = b - a, h = y1 - y0;
-  if (len <= 0.5 || h <= 0.5) return;
-  const geo = axis === 'x' ? new THREE.BoxGeometry(len + t, h, t) : new THREE.BoxGeometry(t, h, len + t);
-  const m = new THREE.Mesh(geo, cap ? [material, material, wallTopMat, material, material, material] : material);
-  if (axis === 'x') m.position.set((a + b) / 2, y0 + h / 2, line);
-  else m.position.set(line, y0 + h / 2, (a + b) / 2);
+// Peça de paret al llarg d'un eix entre a i b.
+// Amb inSide (+1 / −1: cap a on queda l'habitació) es dibuixa només la meitat del gruix que dona a l'habitació, amb la cara de dins
+// pintada del color triat; l'altra meitat la posa l'habitació veïna (amb el seu color) o, si a fora no hi ha cap habitació, aquí mateix.
+// Així cada costat d'una paret compartida es pot pintar diferent sense que les cares es barregin.
+function wallBox(axis, line, a, b, y0, y1, th, mats, extA, extB) {
+  const len = b - a + extA + extB, h = y1 - y0;
+  if (b - a <= 0.5 || h <= 0.5) return;
+  const geo = axis === 'x' ? new THREE.BoxGeometry(len, h, th) : new THREE.BoxGeometry(th, h, len);
+  const m = new THREE.Mesh(geo, mats);
+  const mid = (a - extA + b + extB) / 2;
+  if (axis === 'x') m.position.set(mid, y0 + h / 2, line);
+  else m.position.set(line, y0 + h / 2, mid);
   m.castShadow = true;
   m.receiveShadow = true;
   if (tagEdge) m.userData.wall = tagEdge;
   planGroup.add(m);
 }
+function wallPiece(axis, line, a, b, y0, y1, t, material, cap = true, inSide = 0, paint = null) {
+  const top = cap ? wallTopMat : material;
+  if (!inSide) { wallBox(axis, line, a, b, y0, y1, t, cap ? [material, material, top, material, material, material] : material, t / 2, t / 2); return; }
+  // cara de dins: índex 4/5 (+z/−z) per a parets al llarg de x, 0/1 (+x/−x) per a les de z
+  const inner = [material, material, top, material, material, material];
+  inner[axis === 'x' ? (inSide > 0 ? 4 : 5) : (inSide > 0 ? 0 : 1)] = paint || material;
+  wallBox(axis, axis === 'x' ? line + inSide * t / 4 : line + inSide * t / 4, a, b, y0, y1, t / 2, inner, t / 2, t / 2);
+  // meitat de fora, només on a l'altre costat no hi ha cap habitació que la dibuixi
+  const covered = [];
+  for (const r2 of state.rooms) {
+    if (r2.kind !== 'room') continue;
+    const edge = axis === 'x' ? (inSide > 0 ? r2.z + r2.d : r2.z) : (inSide > 0 ? r2.x + r2.w : r2.x);
+    if (Math.abs(edge - line) > 1) continue;
+    const lo = axis === 'x' ? r2.x : r2.z, hi = axis === 'x' ? r2.x + r2.w : r2.z + r2.d;
+    if (hi > a && lo < b) covered.push([lo, hi]);
+  }
+  const outer = [material, material, top, material, material, material];
+  for (const [s0, s1] of subtractIntervals(a, b, covered)) wallBox(axis, line - inSide * t / 4, s0, s1, y0, y1, t / 2, outer, s0 === a ? t / 2 : 0, s1 === b ? t / 2 : 0);
+}
 let tagEdge = null; // paret que s'està construint (habitació, eix, extrems)
+// Materials de les parets pintades (un per color), amb la mateixa textura d'estuc.
+const paintCache = new Map();
+function paintMat(hex) {
+  if (!hex) return null;
+  if (!paintCache.has(hex)) { const m = wallMat.clone(); m.color.set(hex); paintCache.set(hex, m); }
+  return paintCache.get(hex);
+}
+const WALL_KEY = { nord: 'N', sud: 'S', oest: 'W', est: 'E' };
+const WALL_TXT = { N: 'de dalt', S: 'de baix', W: 'de l’esquerra', E: 'de la dreta' };
 
 function subtractIntervals(a, b, cuts) {
   let segs = [[a, b]];
@@ -592,13 +624,14 @@ function rebuildPlan() {
         // amb parets baixes o en planta la biga no es penja (quedaria un bloc flotant): es marca al terra com al plànol
         const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, 0.8, r.d), beamMarkMat);
         m.position.set(r.x + r.w / 2, 0.4, r.z + r.d / 2);
-        m.userData.wall = { room: r, axis: 'x', line: r.z, a: r.x, b: r.x + r.w, side: 'biga' };
+        m.userData.wall = { room: r, axis: 'x', line: r.z, a: r.x, b: r.x + r.w, side: 'biga', key: 'N', inSide: -1, whole: true };
         planGroup.add(m);
       } else if (y1 > y0) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, y1 - y0, r.d), [wallMat, wallMat, r.kind === 'beam' ? wallMat : wallTopMat, wallMat, wallMat, wallMat]);
+        const pm = paintMat(r.walls?.N) || wallMat;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(r.w, y1 - y0, r.d), [pm, pm, r.kind === 'beam' ? pm : wallTopMat, pm, pm, pm]);
         m.position.set(r.x + r.w / 2, (y0 + y1) / 2, r.z + r.d / 2);
         m.castShadow = true; m.receiveShadow = true;
-        m.userData.wall = { room: r, axis: 'x', line: r.z, a: r.x, b: r.x + r.w, side: r.kind === 'beam' ? 'biga' : 'pilar' };
+        m.userData.wall = { room: r, axis: 'x', line: r.z, a: r.x, b: r.x + r.w, side: r.kind === 'beam' ? 'biga' : 'pilar', key: 'N', inSide: -1, whole: true };
         planGroup.add(m);
       }
       continue;
@@ -661,7 +694,9 @@ function rebuildPlan() {
       { axis: 'z', line: r.x + r.w, a: r.z, b: r.z + r.d },
     ];
     for (const e of edges) {
-      tagEdge = { room: r, axis: e.axis, line: e.line, a: e.a, b: e.b, side: e.axis === 'x' ? (e.line === r.z ? 'nord' : 'sud') : (e.line === r.x ? 'oest' : 'est') };
+      const side = e.axis === 'x' ? (e.line === r.z ? 'nord' : 'sud') : (e.line === r.x ? 'oest' : 'est');
+      const key = WALL_KEY[side], inSide = side === 'nord' || side === 'oest' ? 1 : -1, paint = paintMat(r.walls?.[key]);
+      tagEdge = { room: r, axis: e.axis, line: e.line, a: e.a, b: e.b, side, key, inSide };
       const ops = openings.filter((o) => o.axis === e.axis && Math.abs(o.line - e.line) <= 1 && o.b > e.a && o.a < e.b);
       const cuts = ops.map((o) => [Math.max(o.a, e.a), Math.min(o.b, e.b)]);
       const solid = subtractIntervals(e.a, e.b, cuts);
@@ -672,11 +707,11 @@ function rebuildPlan() {
         }
         continue;
       }
-      for (const [a, b] of solid) wallPiece(e.axis, e.line, a, b, 0, H, t, wallMat);
+      for (const [a, b] of solid) wallPiece(e.axis, e.line, a, b, 0, H, t, wallMat, true, inSide, paint);
       for (const o of ops) {
         const a = Math.max(o.a, e.a), b = Math.min(o.b, e.b);
         const top = o.type === 'paso' ? 220 : o.type === 'ventanal' ? Math.min(H, 240) : 210;
-        if (H > top) wallPiece(e.axis, e.line, a, b, top, H, t, wallMat);
+        if (H > top) wallPiece(e.axis, e.line, a, b, top, H, t, wallMat, true, inSide, paint);
         if (o.type === 'ventanal') {
           // finestral de terra a sostre: dues fulles de vidre que s'obren cap a dins en tocar-les, amb un muntant al mig
           const mid = (a + b) / 2;
@@ -687,7 +722,7 @@ function rebuildPlan() {
         if (o.type === 'ventana') {
           // ampit de 90; amb parets baixes es dibuixa més avall perquè el vidre es vegi des de dalt
           const sill = H > 150 ? 90 : Math.round(H * 0.4);
-          wallPiece(e.axis, e.line, a, b, 0, Math.min(sill, H), t, wallMat);
+          wallPiece(e.axis, e.line, a, b, 0, Math.min(sill, H), t, wallMat, true, inSide, paint);
           if (H > sill + 10) windowLeaves(r, o, e, a, b, sill, Math.min(210, H), b - a > 130 ? 2 : 1);
         }
         if (o.type === 'ventana' || o.type === 'ventanal') {
@@ -740,6 +775,8 @@ function rebuildPlan() {
       planGroup.add(l);
     }
   }
+  tagEdge = null;
+  if (ui.wallSel) drawWallMeasure();
 }
 
 // ---------------------------------------------------------------- muebles 3D
@@ -966,8 +1003,41 @@ function floorPoint() {
   return raycaster.ray.intersectPlane(floorPlane, p) ? p : null;
 }
 
+// Gir amb dos dits (mòbil): a la vista 3D i a la planta, girar els dos dits fa girar el plànol al voltant del centre,
+// a la vegada que el pessic fa zoom i arrossegar desplaça (això ho fa OrbitControls).
+const twist = { touches: new Map(), a0: null, acc: 0, on: false };
+const twistAngle = () => { const [a, b] = [...twist.touches.values()]; return Math.atan2(b.y - a.y, b.x - a.x); };
+const twistTarget = () => (ui.view === 'top' ? controlsTop : ui.view === '3d' ? controls3d : null);
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch') return;
+  twist.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (twist.touches.size === 2 && twistTarget() && !drag?.id) {
+    twist.a0 = twistAngle(); twist.acc = 0; twist.on = false;
+    if (drag?.empty) drag = null; // dos dits ja no és un toc
+  }
+}, true);
+renderer.domElement.addEventListener('pointermove', (e) => {
+  const t = twist.touches.get(e.pointerId); if (!t) return;
+  t.x = e.clientX; t.y = e.clientY;
+  const c = twistTarget();
+  if (twist.touches.size !== 2 || twist.a0 === null || !c) return;
+  const a = twistAngle();
+  let d = a - twist.a0; d = Math.atan2(Math.sin(d), Math.cos(d)); twist.a0 = a;
+  twist.acc += d;
+  if (!twist.on && Math.abs(twist.acc) < 0.09) return; // uns 5°: per sota, és un pessic normal
+  if (!twist.on) { twist.on = true; d = twist.acc; }
+  const cam = c.object, off = cam.position.clone().sub(c.target);
+  off.applyAxisAngle(new THREE.Vector3(0, 1, 0), d);
+  cam.position.copy(c.target).add(off);
+  cam.lookAt(c.target); c.update(); requestRender();
+}, true);
+const twistEnd = (e) => { twist.touches.delete(e.pointerId); if (twist.touches.size < 2) { twist.a0 = null; twist.on = false; } };
+renderer.domElement.addEventListener('pointerup', twistEnd, true);
+renderer.domElement.addEventListener('pointercancel', twistEnd, true);
+
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
+  if (ui.view !== 'walk' && twist.touches.size >= 2) return; // el segon dit gira o fa zoom, no agafa mobles
   if (ui.view === 'walk') {
     // Al passeig tot és interactiu: un toc obre o tanca portes i finestres, selecciona mobles i mostra mides de parets; arrossegar = mirar.
     setPointer(e);
@@ -1006,26 +1076,146 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   }
 });
 
-// Toca una paret i en veus les mides (llargada, alçada, gruix) durant uns segons, al 3D i a la línia d'ajuda.
-let wallLabel = null, wallLabelT = 0;
-function showWallMeasure(w) {
-  if (wallLabel) { planGroup.remove(wallLabel); wallLabel.material.map.dispose(); wallLabel.material.dispose(); wallLabel.geometry.dispose(); wallLabel = null; }
-  clearTimeout(wallLabelT);
-  if (!w) { requestRender(); return; }
+// Toca una paret: se'n veu la llargada amb una línia de cota i un rètol que sempre mira cap a tu (des del costat on ets),
+// i s'obre el panell per pintar-la.
+const wallMeasureGroup = new THREE.Group();
+overlayGroup.add(wallMeasureGroup);
+const wmLineMat = new THREE.LineBasicMaterial({ color: 0xd9864d, depthTest: false, transparent: true });
+let wallSprite = null;
+function wallLabelTexture(lines) {
+  const c = document.createElement('canvas'), ctx = c.getContext('2d');
+  const f1 = 64, f2 = 30, padX = 30;
+  ctx.font = `700 ${f1}px system-ui, sans-serif`; let w = ctx.measureText(lines[0]).width;
+  ctx.font = `500 ${f2}px system-ui, sans-serif`; for (const l of lines.slice(1)) w = Math.max(w, ctx.measureText(l).width);
+  c.width = Math.ceil(w + padX * 2); c.height = 24 + f1 + (lines.length - 1) * (f2 + 10) + 22;
+  ctx.fillStyle = 'rgba(28,26,24,0.88)'; ctx.beginPath(); ctx.roundRect(0, 0, c.width, c.height, 26); ctx.fill();
+  ctx.fillStyle = '#d9864d'; ctx.fillRect(0, 0, 10, c.height);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#ffffff'; ctx.font = `700 ${f1}px system-ui, sans-serif`; ctx.fillText(lines[0], c.width / 2 + 5, 18);
+  ctx.fillStyle = '#d8d2ca'; ctx.font = `500 ${f2}px system-ui, sans-serif`;
+  lines.slice(1).forEach((l, i) => ctx.fillText(l, c.width / 2 + 5, 24 + f1 + 6 + i * (f2 + 10)));
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  return { tex, aspect: c.width / c.height };
+}
+// Mida fixa a la pantalla (uns 70 px d'alt), sigui quina sigui la distància o el zoom.
+function fitWallSprite() {
+  if (!wallSprite) return;
+  const hpx = isMobile() ? 58 : 70, frac = hpx / (renderer.domElement.clientHeight || 600);
+  const sy = camera.isPerspectiveCamera ? 2 * frac * Math.tan(camera.fov * DEG / 2) : frac * (camera.top - camera.bottom) / camera.zoom;
+  wallSprite.scale.set(sy * wallSprite.userData.aspect, sy, 1);
+  // el rètol va al mig del tros de paret que es veu a la pantalla (no fora, si la paret és llarga o està tallada)
+  const { place, a, b, aspect } = wallSprite.userData;
+  if (!place) return;
+  const W = renderer.domElement.clientWidth || 800;
+  const mx = Math.max(0.2, 1 - (aspect * hpx) / W - 0.03), my = Math.max(0.2, 1 - (hpx * 1.2) / (renderer.domElement.clientHeight || 600));
+  const v = new THREE.Vector3();
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i <= 32; i++) {
+    const u = a + (b - a) * i / 32;
+    v.fromArray(place(u)).project(camera);
+    if (v.z < 1 && Math.abs(v.x) <= mx && Math.abs(v.y) <= my) { lo = Math.min(lo, u); hi = Math.max(hi, u); }
+  }
+  wallSprite.position.fromArray(place(lo <= hi ? (lo + hi) / 2 : (a + b) / 2));
+}
+function clearWallMeasure() {
+  for (const o of wallMeasureGroup.children) { o.geometry?.dispose(); if (o.material && o.material !== wmLineMat) { o.material.map?.dispose(); o.material.dispose(); } }
+  wallMeasureGroup.clear(); wallSprite = null;
+}
+function drawWallMeasure() {
+  clearWallMeasure();
+  const w = ui.wallSel;
+  if (!w || !state.rooms.includes(w.room)) { ui.wallSel = null; return; }
   const len = Math.round(w.b - w.a), H = state.ceiling || 250, t = state.wallThickness || 10;
   const ops = allOpenings(state.rooms).filter((o) => o.axis === w.axis && Math.abs(o.line - w.line) <= 1 && o.b > w.a && o.a < w.b);
-  const lines = [fmtLen(len, 1), `${w.room.name} · paret ${w.side} · alçada ${fmtLen(H, 1)} · gruix ${fmtLen(t, 1)}`];
-  if (ops.length) lines.push(ops.map((o) => `${o.type === 'puerta' ? 'porta' : o.type === 'paso' ? 'pas' : o.type === 'ventanal' ? 'finestral' : 'finestra'} ${Math.round(Math.min(o.b, w.b) - Math.max(o.a, w.a))} cm a ${Math.round(Math.max(o.a, w.a) - w.a)} de l’extrem`).join(' · '));
-  wallLabel = makeLabel(lines, '#ffffff', 'rgba(181,101,47,0.92)', len * 1.4 + 120, 1e9);
-  const mid = (w.a + w.b) / 2, off = 26;
-  const inward = w.axis === 'x' ? (w.side === 'nord' ? 1 : -1) : (w.side === 'oest' ? 1 : -1);
-  if (w.axis === 'x') wallLabel.position.set(mid, wallHeight() + 1.5, w.line + inward * off);
-  else { wallLabel.position.set(w.line + inward * off, wallHeight() + 1.5, mid); wallLabel.rotation.z = Math.PI / 2; }
-  planGroup.add(wallLabel);
+  const OPN = { puerta: 'porta', paso: 'pas', ventanal: 'finestral', ventana: 'finestra' };
+  const lines = [fmtLen(len, 1), `${w.room.name} · ${fmtLen(H, 1)} d’alt`];
+  if (ops.length) lines.push(ops.map((o) => `${OPN[o.type] || o.type} de ${fmtLen(Math.round(Math.min(o.b, w.b) - Math.max(o.a, w.a)), 1)}`).join(' · '));
+  // costat des d'on es mira: el de la càmera (en planta, el de dins de l'habitació)
+  const camPos = camera.position;
+  let side = w.inSide || 1;
+  if (ui.view !== 'top') { const d = (w.axis === 'x' ? camPos.z : camPos.x) - w.line; if (Math.abs(d) > 1) side = Math.sign(d); }
+  const off = t / 2 + 2, Hn = wallHeight();
+  const y = ui.view === 'top' ? Hn + 2 : Math.max(25, Math.min(Hn - 15, ui.view === 'walk' ? 140 : Hn * 0.55));
+  const P = (u, yy) => (w.axis === 'x' ? [u, yy, w.line + side * off] : [w.line + side * off, yy, u]);
+  const tick = ui.view === 'top' ? 0 : 18;
+  const pts = [...P(w.a, y), ...P(w.b, y)];
+  for (const u of [w.a, w.b]) { if (tick) pts.push(...P(u, y - tick), ...P(u, y + tick)); else { const q = w.axis === 'x' ? [[u, y, w.line + side * (off - 8)], [u, y, w.line + side * (off + 8)]] : [[w.line + side * (off - 8), y, u], [w.line + side * (off + 8), y, u]]; pts.push(...q[0], ...q[1]); } }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const ln = new THREE.LineSegments(geo, wmLineMat); ln.renderOrder = 9; wallMeasureGroup.add(ln);
+  const { tex, aspect } = wallLabelTexture(lines);
+  wallSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, sizeAttenuation: false, transparent: true }));
+  wallSprite.userData.aspect = aspect; wallSprite.renderOrder = 10;
+  const place = (u) => { const v = P(u, y); if (ui.view === 'top') { if (w.axis === 'x') v[2] += side * 22; else v[0] += side * 22; } return v; };
+  Object.assign(wallSprite.userData, { place, a: w.a, b: w.b });
+  wallSprite.position.set(...place((w.a + w.b) / 2));
+  wallMeasureGroup.add(wallSprite);
+  fitWallSprite();
   const hint = document.getElementById('hint');
-  if (hint) { hint.dataset.prev ??= hint.textContent; hint.textContent = `📏 ${lines[0]} · ${lines[1]}${lines[2] ? ' · ' + lines[2] : ''}`; }
+  if (hint) { hint.dataset.prev ??= hint.textContent; hint.textContent = `📏 ${lines.join(' · ')}`; }
   requestRender();
-  wallLabelT = setTimeout(() => { showWallMeasure(null); if (hint && hint.dataset.prev !== undefined) { hint.textContent = hint.dataset.prev; delete hint.dataset.prev; } }, 3000);
+}
+// Si la càmera passa a l'altre costat de la paret, el rètol i la cota també hi passen.
+let wallSideSeen = 0;
+function wallSideCheck() {
+  const w = ui.wallSel; if (!w || ui.view === 'top') return;
+  const d = (w.axis === 'x' ? camera.position.z : camera.position.x) - w.line;
+  const s = Math.abs(d) > 1 ? Math.sign(d) : wallSideSeen;
+  if (wallSideSeen && s !== wallSideSeen) { wallSideSeen = s; drawWallMeasure(); } else wallSideSeen = s;
+}
+function showWallMeasure(w) {
+  if (w && ui.wallSel && (ui.wallSel.room !== w.room || ui.wallSel.key !== w.key)) ui.wallAll = false; // «totes» només per a la paret on s'ha marcat
+  ui.wallSel = w || null;
+  if (!w) {
+    clearWallMeasure();
+    const hint = document.getElementById('hint');
+    if (hint && hint.dataset.prev !== undefined) { hint.textContent = hint.dataset.prev; delete hint.dataset.prev; }
+    renderWallPanel(); requestRender(); return;
+  }
+  if (ui.selected) { ui.selected = null; updateOverlays(); renderProps(); renderItemList(); }
+  drawWallMeasure();
+  renderWallPanel();
+}
+
+// Panell per pintar la paret tocada: paleta, selector de color o codi (#rrggbb). Es pot aplicar a totes les parets de l'habitació.
+const WALL_PALETTE = [['#f3f1ec', 'Blanc trencat'], ['#e9e2d0', 'Beix'], ['#d8cbb3', 'Sorra'], ['#e8c9b5', 'Rosa terra'], ['#c46e4b', 'Terracota'], ['#e3b55b', 'Mostassa'], ['#c9d6c3', 'Verd sàlvia'], ['#7f9a82', 'Verd oliva'], ['#cfdbe3', 'Blau cel'], ['#8fa9bf', 'Blau grisós'], ['#5c6b73', 'Gris pissarra'], ['#2f3b45', 'Blau nit']];
+const normHex = (v) => { let h = String(v || '').trim().replace(/^#/, '').toLowerCase(); if (/^[0-9a-f]{3}$/.test(h)) h = h.split('').map((c) => c + c).join(''); return /^[0-9a-f]{6}$/.test(h) ? '#' + h : null; };
+function paintWall(w, hex, all) {
+  const r = w.room;
+  commit();
+  const keys = all ? ['N', 'S', 'E', 'W'] : [w.key];
+  r.walls ||= {};
+  for (const k of keys) { if (hex) r.walls[k] = hex; else delete r.walls[k]; }
+  if (!Object.keys(r.walls).length) delete r.walls;
+  save(); rebuildPlan(); renderWallPanel();
+  if (ui.view === 'top' || ui.wallMode !== 'full') toast(hex ? 'Pintada ✓ (es veu millor amb les parets completes o al passeig)' : 'Color tret');
+}
+function renderWallPanel() {
+  const el = $('#wallpanel');
+  if (!el) return;
+  const w = ui.wallSel;
+  if (!w) { el.hidden = true; return; }
+  const cur = w.room.walls?.[w.key] || '';
+  el.hidden = false;
+  el.innerHTML = `
+    <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(cur || '#f3f1ec')}"></span>${w.whole ? esc(w.room.name) : `Paret ${WALL_TXT[w.key] || ''} · ${esc(w.room.name)}`}<button class="close" id="wp-close" title="Tanca">×</button></h3>
+    <div class="dist">${fmtLen(Math.round(w.b - w.a), 1)} de llarg · ${fmtLen(state.ceiling || 250, 1)} d’alt</div>
+    <div class="swatches">${WALL_PALETTE.map(([c, n]) => `<button type="button" data-c="${c}" title="${n} ${c}" class="${cur === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>
+    <div class="row c2">
+      <label>Color<input type="color" id="wp-color" value="${esc(cur || '#f3f1ec')}" /></label>
+      <label>Codi<span class="hexrow"><input type="text" id="wp-hex" value="${esc(cur)}" placeholder="#a1b2c3" maxlength="7" autocomplete="off" spellcheck="false" /><button type="button" class="btn small" id="wp-hex-ok">OK</button></span></label>
+    </div>
+    <label class="chk" ${w.whole ? 'hidden' : ''}><input type="checkbox" id="wp-all" ${ui.wallAll && !w.whole ? 'checked' : ''}/> Totes les parets de l’habitació</label>
+    <div class="btns"><button class="btn secondary small" id="wp-clear">Treu el color</button></div>`;
+  const all = () => $('#wp-all').checked;
+  $('#wp-close').addEventListener('click', () => showWallMeasure(null));
+  $('#wp-all').addEventListener('change', (e) => { ui.wallAll = e.target.checked; });
+  el.querySelectorAll('.swatches button').forEach((b) => b.addEventListener('click', () => paintWall(w, b.dataset.c, all())));
+  $('#wp-color').addEventListener('change', (e) => paintWall(w, normHex(e.target.value), all()));
+  const hexApply = () => { const h = normHex($('#wp-hex').value); if (!h) { $('#wp-hex').classList.add('bad'); toast('Escriu un codi de color com #a1b2c3'); return; } paintWall(w, h, all()); };
+  $('#wp-hex-ok').addEventListener('click', hexApply);
+  $('#wp-hex').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); hexApply(); } });
+  $('#wp-hex').addEventListener('input', (e) => e.target.classList.remove('bad'));
+  $('#wp-clear').addEventListener('click', () => paintWall(w, null, all()));
 }
 
 renderer.domElement.addEventListener('pointermove', (e) => {
@@ -1065,7 +1255,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     drag = null; return;
   }
   if (drag && drag.empty) {
-    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (drag.door) toggleDoor(drag.door); else if (drag.wall) showWallMeasure(drag.wall); }
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (drag.door) toggleDoor(drag.door); else if (drag.wall) showWallMeasure(drag.wall); else if (ui.wallSel) showWallMeasure(null); }
   } else if (drag) {
     const it = itemById(drag.id);
     if (drag.moved) {
@@ -1121,6 +1311,7 @@ function rotate(it, deg) {
 }
 
 function select(id) {
+  if (id && ui.wallSel) showWallMeasure(null);
   ui.selected = id;
   updateOverlays();
   renderProps();
@@ -1399,7 +1590,8 @@ function renderItemList() {
 const stepper = (id, v, min = 1) => `<span class="num"><button type="button" data-step="-5" tabindex="-1">−</button><input type="number" id="${id}" min="${min}" value="${v}" /><button type="button" data-step="5" tabindex="-1">+</button></span>`;
 // Icona SVG petita de cada forma (vista en planta, esquena a dalt).
 function shapeIcon(k) {
-  const p = { recte: 'M2 4h20v8H2z', rect: 'M2 4h20v12H2z', rodona: 'M12 3a9 7 0 1 0 0.01 0z', Le: 'M2 4h20v8H10v8H2z', Ld: 'M2 4h20v16h-8v-8H2z', U: 'M2 4h20v16h-6v-8H8v8H2z' };
+  const p = { recte: 'M2 4h20v8H2z', rect: 'M2 4h20v12H2z', rodona: 'M12 3a9 7 0 1 0 0.01 0z', Le: 'M2 4h20v8H10v8H2z', Ld: 'M2 4h20v16h-8v-8H2z', U: 'M2 4h20v16h-6v-8H8v8H2z',
+    paret: 'M3 4h18v16h-5v-7H8v7H3z', cantonera: 'M3 3h18v7L10 21H3z', estufa: 'M10 2h4v7h3v11h-2v2h-2v-2h-2v2H9v-2H7V9h3z', electrica: 'M2 8h20v8H2zM5 11h14v2H5z' };
   return `<svg viewBox="0 0 24 24" width="26" height="26"><path d="${p[k] || p.rect}" fill="currentColor" opacity=".85"/></svg>`;
 }
 function renderProps(onlyPos = false) {
@@ -1429,7 +1621,7 @@ function renderProps(onlyPos = false) {
       <label>Fons${stepper('p-d', it.d)}</label>
       <label>Alçada${stepper('p-h', it.h)}</label>
     </div>
-    ${SHAPE_PARAMS[it.type] && hasWing(it.shape) ? `<div class="row c2">${Object.entries(SHAPE_PARAMS[it.type]).map(([k, [l, dv]]) => `<label>${l}${stepper('p-' + k, it[k] || dv)}</label>`).join('')}</div>` : ''}
+    ${shapeParams(it.type, it.shape).length ? `<div class="row c2">${shapeParams(it.type, it.shape).map(([k, l, dv]) => `<label>${l}${stepper('p-' + k, it[k] || dv)}</label>`).join('')}</div>` : ''}
     <div class="row c4">
       <label>X<input type="number" id="p-x" value="${it.x}" /></label>
       <label>Z<input type="number" id="p-z" value="${it.z}" /></label>
@@ -1452,9 +1644,9 @@ function renderProps(onlyPos = false) {
   const apply = (fn, rebuild) => { commit(); fn(); save(); updateItem(it, rebuild); renderProps(); renderItemList(); };
   $('#p-close').addEventListener('click', () => { if (isMobile()) { ui.propsOpen = false; renderProps(); } else select(null); });
   $('#p-name').addEventListener('change', (e) => apply(() => { it.name = e.target.value; }));
-  $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; if (it.shape && !SHAPES[it.type]?.some(([k]) => k === it.shape)) { delete it.shape; delete it.sd; delete it.lw; } }, true));
+  $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; if (it.shape && !SHAPES[it.type]?.some(([k]) => k === it.shape)) { delete it.shape; for (const k of ['sd', 'lw', 'bw', 'bh']) delete it[k]; } }, true));
   for (const k of ['w', 'd', 'h']) $('#p-' + k).addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
-  for (const k of ['sd', 'lw']) $('#p-' + k)?.addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
+  for (const [k] of shapeParams(it.type, it.shape)) $('#p-' + k)?.addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
   // Botons − / + de les mides: passos de 5 cm (10 amb el botó dret o mantenint Maj).
   for (const b of el.querySelectorAll('[data-step]')) b.addEventListener('click', (e) => {
     const inp = b.parentElement.querySelector('input'); const st = +b.dataset.step * (e.shiftKey ? 2 : 1);
@@ -1462,7 +1654,10 @@ function renderProps(onlyPos = false) {
   });
   for (const b of el.querySelectorAll('#p-shape button')) b.addEventListener('click', () => apply(() => {
     it.shape = b.dataset.shape;
-    if (hasWing(it.shape)) { const def = SHAPE_PARAMS[it.type] || {}; for (const k of ['sd', 'lw']) if (def[k] && !it[k]) it[k] = def[k][1]; if (it.d < (it.sd || 0) + 40) it.d = (it.sd || 60) + 70; }
+    const preset = SHAPE_SIZES[it.type]?.[it.shape];
+    if (preset) Object.assign(it, preset); // p. ex. una estufa és alta i estreta, una elèctrica es penja a la paret
+    for (const [k, , dv] of shapeParams(it.type, it.shape)) if (!it[k]) it[k] = dv;
+    if (hasWing(it.shape) && it.d < (it.sd || 0) + 40) it.d = (it.sd || 60) + 70;
   }, true));
   $('#p-x').addEventListener('change', () => apply(() => { it.x = num('#p-x'); }));
   $('#p-z').addEventListener('change', () => apply(() => { it.z = num('#p-z'); }));
@@ -1989,6 +2184,7 @@ function loop(now = 0) {
   if (stepDoors(now)) moved = true;
   if (moved || needsRender) {
     needsRender = false; lastFrame = now;
+    if (wallSprite) { wallSideCheck(); fitWallSprite(); }
     renderer.render(scene, camera);
   }
 }
@@ -2110,7 +2306,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v30',
+  version: 'v31',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2214,4 +2410,7 @@ window.planta3d = {
     const r = renderer.domElement.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
-  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, rebuildItems };
+  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, rebuildItems,
+  showWall(roomId, key) { let w = null; planGroup.traverse((o) => { const u = o.userData.wall; if (!w && u && u.room.id === roomId && u.key === key) w = u; }); showWallMeasure(w); return !!w; },
+  get wallSel() { return ui.wallSel ? { room: ui.wallSel.room.id, key: ui.wallSel.key } : null; },
+  camAz() { const c = ui.view === 'top' ? controlsTop : controls3d; const o = c.object.position.clone().sub(c.target); return Math.atan2(o.x, o.z); } };
