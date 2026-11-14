@@ -31,7 +31,12 @@ export const CATALOG = {
   banyera:    { label: 'Banyera',          w: 170, d: 70,  h: 55,  color: '#f6f6f4', role: 'wall' },
   vater:      { label: 'Vàter',            w: 38,  d: 55,  h: 42,  color: '#f6f6f4', role: 'wall' },
   lavabo:     { label: 'Lavabo amb moble', w: 70,  d: 45,  h: 85,  color: '#f2efe9', role: 'wall' },
-  mirall:     { label: 'Mirall de paret',  w: 40,  d: 2,   h: 120, color: '#d9e2e6', role: 'wall', elev: 60 },
+  mirall:     { label: 'Mirall de paret',  w: 40,  d: 2,   h: 120, color: '#d9e2e6', role: 'wall', elev: 60, mount: true },
+  quadre:     { label: 'Quadre',           w: 60,  d: 3,   h: 45,  color: '#b89a6a', role: 'wall', elev: 140, mount: true },
+  prestatge:  { label: 'Prestatge de paret', w: 80, d: 22, h: 4,   color: '#a07850', role: 'wall', elev: 150, mount: true },
+  aplic:      { label: 'Aplic de paret',   w: 18,  d: 16,  h: 26,  color: '#e9dcb8', role: 'wall', elev: 165, mount: true },
+  cortina:    { label: 'Cortina',          w: 180, d: 12,  h: 235, color: '#d8d0c2', role: 'wall', elev: 5, mount: true },
+  tvParet:    { label: 'Televisor penjat', w: 123, d: 5,   h: 72,  color: '#151515', role: 'wall', elev: 110, mount: true },
   llarFoc:    { label: 'Llar de foc',      w: 120, d: 45,  h: 110, color: '#e8e4dc', role: 'wall' },
   caja:       { label: 'Objecte genèric',  w: 60,  d: 60,  h: 60,  color: '#8899aa', role: 'wall' },
 };
@@ -89,6 +94,30 @@ function mat(color, opts = {}) {
     matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.05, ...opts }));
   }
   return matCache.get(key);
+}
+
+// Foto del moble com a textura: es retalla (com «cover») a la proporció de la cara on va. Es desa en memòria per foto i proporció.
+const photoMats = new Map();
+let photoLoaded = () => {};
+export function onPhotoLoaded(fn) { photoLoaded = fn; }
+export function photoMaterial(src, faceW, faceH, extra = {}) {
+  const ratio = Math.round((faceW / Math.max(1, faceH)) * 20) / 20;
+  const key = src.length + ':' + src.slice(-40) + '|' + ratio + JSON.stringify(extra);
+  let m = photoMats.get(key);
+  if (m) return m;
+  const tex = new THREE.Texture();
+  tex.colorSpace = THREE.SRGBColorSpace;
+  m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0, map: tex, ...extra });
+  const img = new Image();
+  img.onload = () => {
+    const ia = img.width / img.height;
+    if (ia > ratio) { tex.repeat.set(ratio / ia, 1); tex.offset.set((1 - ratio / ia) / 2, 0); } else { tex.repeat.set(1, ia / ratio); tex.offset.set(0, (1 - ia / ratio) / 2); }
+    tex.image = img; tex.needsUpdate = true; photoLoaded();
+  };
+  img.src = src;
+  if (photoMats.size > 80) photoMats.clear();
+  photoMats.set(key, m);
+  return m;
 }
 
 function box(group, w, h, d, x, y, z, material) {
@@ -239,8 +268,15 @@ function buildFireplace(g, item, main, dark, metal) {
 }
 
 // Construye un grupo 3D con origen en el centro de la huella, a nivel del suelo.
-export function buildFurniture(item) {
+// opts.photo: foto del moble (dataURL). Un quadre la mostra sempre; la resta, si item.photoLook, com una caixa amb la foto al davant.
+export function buildFurniture(item, opts = {}) {
   const g = new THREE.Group();
+  if (opts.photo && item.photoLook && item.type !== 'quadre') {
+    const { w, d, h } = item, side = mat(item.color);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(w, 0.5), Math.max(h, 0.5), Math.max(d, 0.5)), [side, side, side, side, photoMaterial(opts.photo, w, h), side]);
+    m.position.y = h / 2; m.castShadow = true; m.receiveShadow = true; g.add(m);
+    return g;
+  }
   const { w, d, h } = item;
   const c = item.color;
   const main = mat(c);
@@ -477,6 +513,52 @@ export function buildFurniture(item) {
     }
     case 'llarFoc': {
       buildFireplace(g, item, main, dark, metal);
+      break;
+    }
+    case 'quadre': {
+      // Quadre: marc i, a dins, la foto (si n'hi ha) o una pintura abstracta suau.
+      const fr = Math.max(1.5, Math.min(5, Math.min(w, h) * 0.06));
+      box(g, w, h, d, 0, 0, 0, main);
+      const cw = w - 2 * fr, ch = h - 2 * fr;
+      const canvasMat = opts.photo ? photoMaterial(opts.photo, cw, ch) : mat(shade(c, 1.45), { roughness: 0.9 });
+      const pic = box(g, cw, ch, 0.6, 0, fr, d / 2 + 0.05, canvasMat); pic.castShadow = false;
+      if (!opts.photo) { const blob = box(g, cw * 0.45, ch * 0.4, 0.3, -cw * 0.12, fr + ch * 0.18, d / 2 + 0.5, mat(shade(c, 0.8), { roughness: 0.9 })); blob.castShadow = false; }
+      break;
+    }
+    case 'prestatge': {
+      // Prestatge penjat: un tauló i dues escaires a sota.
+      const t = Math.min(h, 4);
+      box(g, w, t, d, 0, h - t, 0, main);
+      for (const sx of [-1, 1]) {
+        box(g, 2, 14, 2, sx * (w / 2 - 10), h - t - 14, -d / 2 + 1, metal);
+        box(g, 2, 2, d * 0.7, sx * (w / 2 - 10), h - t - 2, -d / 2 + d * 0.35, metal);
+      }
+      break;
+    }
+    case 'aplic': {
+      // Aplic: base a la paret, braç curt i pantalla que fa llum.
+      box(g, Math.min(w, 10), Math.min(h, 12), 2, 0, h * 0.3, -d / 2 + 1, metal);
+      box(g, 2, 2, d * 0.5, 0, h * 0.45, -d / 2 + d * 0.25, metal);
+      cyl(g, Math.min(w, d) / 2 * 0.65, h * 0.6, 0, h * 0.4, d * 0.1, mat(c, { emissive: c, emissiveIntensity: 0.55 }), Math.min(w, d) / 2 * 0.95);
+      break;
+    }
+    case 'cortina': {
+      // Cortina: barra a dalt i dues caigudes amb plecs.
+      const bar = box(g, w + 10, 2.4, 2.4, 0, h - 4, -d / 2 + 2, metal); bar.castShadow = false;
+      const cloth = mat(c, { roughness: 0.95, side: THREE.DoubleSide });
+      const panel = w * 0.3, n = Math.max(3, Math.round(panel / 9));
+      for (const sx of [-1, 1]) for (let i = 0; i < n; i++) {
+        const x = sx * (w / 2 - panel + (i + 0.5) * (panel / n)), z = (i % 2 ? 1 : -1) * Math.min(3, d / 4);
+        box(g, panel / n + 0.4, h - 8, 1.2, x, 0, z, cloth);
+      }
+      break;
+    }
+    case 'tvParet': {
+      // TV penjada: pantalla prima amb el suport a la paret.
+      const t = Math.min(d, 4), screen = mat('#0b0d12', { roughness: 0.2, metalness: 0.3 });
+      box(g, w * 0.3, h * 0.35, Math.max(0.5, d - t), 0, h * 0.32, -d / 2 + (d - t) / 2, metal);
+      box(g, w, h, t, 0, 0, d / 2 - t / 2, main);
+      const s = box(g, w - 3, h - 3, 0.6, 0, 1.5, d / 2 + 0.3, screen); s.castShadow = false;
       break;
     }
     case 'armario': {

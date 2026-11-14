@@ -5,10 +5,10 @@
 //  - «treu la taula», «mou el sofà al dormitori», «què hi ha al dormitori?», «desfés»…
 // No fa servir cap servei extern: tot passa al navegador.
 
-import { CATALOG } from './furniture.js?v=33';
-import { innerRect, overlaps, aabb } from './geom.js?v=33';
-import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=33';
-import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=33';
+import { CATALOG } from './furniture.js?v=34';
+import { innerRect, overlaps, aabb } from './geom.js?v=34';
+import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=34';
+import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=34';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/·/g, '').replace(/[’'`´]/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -32,6 +32,11 @@ export const TYPES = [
   ['vater', ['vater', 'vaters', 'inodor', 'wc', 'inodoro', 'retrete']],
   ['lavabo', ['lavabo', 'lavabos', 'pica del bany', 'lavamanos', 'moble del bany']],
   ['mirall', ['mirall', 'miralls', 'espejo', 'espejos']],
+  ['tvParet', ['televisor penjat', 'tele penjada', 'tv penjada', 'televisor a la paret', 'tele a la paret', 'tv de paret', 'television colgada', 'tele colgada']],
+  ['quadre', ['quadre', 'quadres', 'cuadro', 'cuadros', 'pintura', 'lamina', 'poster']],
+  ['prestatge', ['prestatge de paret', 'prestatge', 'prestatges', 'balda', 'baldes', 'repisa de pared', 'balda de pared']],
+  ['aplic', ['aplic', 'aplics', 'aplique', 'apliques', 'llum de paret', 'lampara de pared']],
+  ['cortina', ['cortina', 'cortines', 'cortinas', 'estor', 'estors']],
   ['llarFoc', ['llar de foc', 'llars de foc', 'xemeneia', 'xemeneies', 'chimenea', 'chimeneas', 'estufa de llenya', 'estufa', 'estufes', 'hogar']],
   ['mesa', ['taula', 'taules', 'mesa', 'mesas']],
   ['silla', ['cadira', 'cadires', 'silla', 'sillas']],

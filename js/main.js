@@ -1,18 +1,22 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=33';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem } from './furniture.js?v=33';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=33';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=33';
-import { mergeStates } from './merge.js?v=33';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=33';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=33';
-import { initAssistant } from './assistant.js?v=33';
-import { drawPlan, printSheet } from './sheet.js?v=33';
-import { initMeasure } from './measure.js?v=33';
-import { initColorPicker } from './colorpicker.js?v=33';
-import { initPhotoAdd } from './photo.js?v=33';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=33';
+import { DEFAULT_PLAN } from './plan.js?v=34';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=34';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=34';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=34';
+import { mergeStates } from './merge.js?v=34';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=34';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=34';
+import { initAssistant } from './assistant.js?v=34';
+import { drawPlan, printSheet } from './sheet.js?v=34';
+import { initMeasure } from './measure.js?v=34';
+import { initColorPicker } from './colorpicker.js?v=34';
+import { initPhotoAdd } from './photo.js?v=34';
+import { initTape } from './tape.js?v=34';
+import { checkZones } from './zones.js?v=34';
+import { fitCheck } from './fit.js?v=34';
+import { initShop, STATUS, statusOf } from './shop.js?v=34';
+import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=34';
 
 // ---------------------------------------------------------------- estado
 const STORE_KEY = 'planta3d-v1';
@@ -58,6 +62,7 @@ window.addEventListener('unhandledrejection', (e) => logAdd('✖', String(e.reas
 { const ce = console.error.bind(console), cw = console.warn.bind(console); console.error = (...a) => { logAdd('✖', a.map(String).join(' ')); ce(...a); }; console.warn = (...a) => { logAdd('⚠', a.map(String).join(' ')); cw(...a); }; }
 const ui = { wallSel: null, wallAll: false, selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false, propHist: {}, propN: {}, propK: {} };
 const isMobile = () => window.matchMedia('(max-width: 800px)').matches;
+let tape = null; // cinta mètrica (es crea amb l'escena)
 let installPrompt = null; // event d'instal·lació de la PWA (Chrome/Edge/Android)
 const history = { past: [], future: [] };
 
@@ -271,6 +276,12 @@ function entranceDoor() {
   return found.find((f) => f.room.id === 'salon' || /menjador/i.test(f.room.name)) || found[0] || null;
 }
 const noControls = { update: () => false, enabled: false };
+const HINTS = {
+  walk: 'Toca el terra per anar-hi · arrossega per mirar · fletxes / WASD o el joystick per caminar · toca portes, finestres i mobles · el mapa et porta on toquis',
+  tape: 'Cinta mètrica: toca dos punts per mesurar (s’enganxa a les cantonades) · Supr desfà l’última · Esc per sortir',
+  edit: 'Arrossega un moble per moure’l · Maj o Ctrl + clic per triar-ne uns quants · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar',
+};
+function setHint() { const h = document.getElementById('hint'); if (h) h.textContent = HINTS[ui.view === 'walk' ? 'walk' : tape?.active ? 'tape' : 'edit']; }
 function setView(v) {
   const was = ui.view;
   ui.view = v;
@@ -281,7 +292,8 @@ function setView(v) {
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
   const fv = document.querySelector('#tb-fab .v'); if (fv) fv.textContent = { '3d': '3D', top: '2D', walk: '🚶' }[v];
   document.getElementById('walkbar').hidden = v !== 'walk';
-  document.getElementById('hint').textContent = v === 'walk' ? 'Toca el terra per anar-hi · arrossega per mirar · fletxes / WASD o el joystick per caminar · toca portes, finestres i mobles · el mapa et porta on toquis' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
+  if (v === 'walk' && tape?.active) setTape(false);
+  setHint();
   if (v === 'walk' && was !== 'walk') {
     select(null);
     const ent = entranceDoor();
@@ -889,12 +901,15 @@ function placeMesh(it, g) {
   g.rotation.y = (it.rot || 0) * DEG;
 }
 
+// Foto d'un moble: la seva pròpia o la del catàleg «Els meus mobles» d'on ve.
+const photoOf = (it) => it.photo || (it.catalogId && (state.catalog || []).find((c) => c.id === it.catalogId)?.photo) || '';
+onPhotoLoaded(() => requestRender());
 function rebuildItems() {
   requestRender();
   disposeGroup(itemsGroup);
   meshes.clear();
   for (const it of state.items) {
-    const g = buildFurniture(it);
+    const g = buildFurniture(it, { photo: photoOf(it) });
     g.userData.itemId = it.id;
     g.traverse((o) => { o.userData.itemId = it.id; });
     placeMesh(it, g);
@@ -979,8 +994,8 @@ function updateOverlays() {
   requestRender();
   const sel = itemById(ui.selected);
   if (sel) {
-    const y = (sel.elev || 0) + sel.h + 2;
-    const pts = [...footprintLines(sel, 1.5, 3), ...footprintLines(sel, y, 3)];
+    const pts = [];
+    for (const o of selIds().map(itemById)) pts.push(...footprintLines(o, 1.5, 3), ...footprintLines(o, (o.elev || 0) + o.h + 2, 3));
     selBox.geometry.dispose();
     selBox.geometry = new THREE.BufferGeometry();
     selBox.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
@@ -999,6 +1014,7 @@ function updateOverlays() {
   overlayGroup.add(conflictLines);
   ui.conflicts = bad;
   updateMeasures(sel);
+  updateZones(sel);
 }
 
 // Cotes: distància del moble seleccionat a les quatre parets de la seva habitació.
@@ -1101,6 +1117,37 @@ function updateMeasures(sel) {
     const ln = new THREE.LineSegments(geo, mat); ln.renderOrder = 4; measureGroup.add(ln);
   }
 }
+// Zones de pas i d'ús: verdes si estan lliures, vermelles si hi ha alguna cosa al mig.
+const zoneGroup = new THREE.Group();
+overlayGroup.add(zoneGroup);
+const zoneOkMat = new THREE.MeshBasicMaterial({ color: 0x43a047, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+const zoneBadMat = new THREE.MeshBasicMaterial({ color: 0xe53935, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide });
+const zoneEdgeOk = new THREE.LineBasicMaterial({ color: 0x2e7d32 }), zoneEdgeBad = new THREE.LineBasicMaterial({ color: 0xc62828 });
+function updateZones(sel) {
+  zoneGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+  zoneGroup.clear();
+  ui.zoneBad = new Map();
+  for (const it of state.items) {
+    const z = checkZones(it, state);
+    const bad = z.filter((r) => !r.ok);
+    if (bad.length) ui.zoneBad.set(it.id, bad);
+    if (!(ui.zones || (sel === it && ui.measures)) || !z.length) continue;
+    const g = new THREE.Group(); g.position.set(it.x, 1.2, it.z); g.rotation.y = (it.rot || 0) * DEG;
+    for (const r of z) {
+      const L = r.local, w = L.x1 - L.x0, d = L.z1 - L.z0;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), r.ok ? zoneOkMat : zoneBadMat);
+      m.rotation.x = -Math.PI / 2; m.position.set((L.x0 + L.x1) / 2, 0, (L.z0 + L.z1) / 2); m.renderOrder = 2; g.add(m);
+      const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)), r.ok ? zoneEdgeOk : zoneEdgeBad);
+      e.rotation.x = -Math.PI / 2; e.position.copy(m.position); g.add(e);
+    }
+    zoneGroup.add(g);
+  }
+}
+function zonesHtml(it) {
+  const z = checkZones(it, state);
+  if (!z.length) return '';
+  return '<div class="zones">' + z.map((r) => `<span class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '✓' : '✗'} ${esc(r.label)}${r.ok ? ` (${r.need} cm)` : `: cal ${r.need} cm, n’hi ha ${r.have}`}</span>`).join('') + '</div>';
+}
 function distHtml(it) {
   const d = wallDistances(it);
   if (!d) return '';
@@ -1114,6 +1161,32 @@ const pointer = new THREE.Vector2();
 const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 let drag = null;
 const pointers = new Map(); // dits a la pantalla (per al pessic del passeig)
+
+// Cinta mètrica (📐): punts on s'enganxa = cantonades dels mobles (a terra i a dalt), de les habitacions i vores dels forats.
+tape = initTape({
+  group: overlayGroup, camera: () => camera, dom: renderer.domElement, render: requestRender, fmt: (cm) => fmtLen(cm),
+  targets: () => [planGroup, itemsGroup, ground],
+  snapPoints: () => {
+    const pts = [], t = state.wallThickness || 10;
+    for (const it of state.items) { const y0 = it.elev || 0; for (const [x, z] of corners(it)) pts.push([x, y0, z], [x, y0 + it.h, z]); }
+    for (const r of state.rooms) { if (r.kind === 'void') continue; const R = innerRect(r, t); pts.push([R.x0, 0, R.z0], [R.x1, 0, R.z0], [R.x1, 0, R.z1], [R.x0, 0, R.z1]); }
+    for (const o of allOpenings(state.rooms)) { if (o.axis === 'x') pts.push([o.a, 0, o.line], [o.b, 0, o.line]); else pts.push([o.line, 0, o.a], [o.line, 0, o.b]); }
+    return pts;
+  },
+});
+function setTape(on) {
+  tape.set(on);
+  for (const b of document.querySelectorAll('#tapeBtn')) { b.classList.toggle('active', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  document.body.classList.toggle('taping', !!on);
+  if (on) { select(null); if (ui.view === 'walk') setView('3d'); toast('📐 Toca dos punts per mesurar. Toca 📐 una altra vegada per acabar.'); }
+  setHint(); requestRender();
+}
+function setZones(on) {
+  ui.zones = !!on;
+  for (const b of document.querySelectorAll('#zonesBtn')) { b.classList.toggle('active', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  updateOverlays(); renderItemList();
+  if (on) { const n = ui.zoneBad?.size || 0; toast(n ? `🟥 ${n} moble${n > 1 ? 's' : ''} sense prou espai per fer-lo servir (en vermell).` : '🟩 Tots els mobles tenen prou espai per fer-los servir.'); }
+}
 renderer.domElement.addEventListener('wheel', (e) => {
   if (ui.view !== 'walk') return;
   e.preventDefault();
@@ -1188,16 +1261,19 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
       floor: fp && fd < 1500 && (!wh || fd < wh.distance) && (!ih || fd < ih.distance) ? { x: fp.x, z: fp.z } : null };
     capture(e); return;
   }
+  if (tape.active) { drag = { tape: true, x: e.clientX, y: e.clientY }; return; } // la càmera es pot moure; un toc posa un punt
   setPointer(e);
   const hits = raycaster.intersectObjects(itemsGroup.children, true);
   const hit = hits.find((h) => h.object.userData.itemId);
   if (hit) {
     const it = itemById(hit.object.userData.itemId);
-    select(it.id);
+    if (e.shiftKey || e.ctrlKey || e.metaKey || ui.multiMode) { select(it.id, true); return; } // afegeix o treu de la selecció
+    if (selIds().includes(it.id) && selIds().length > 1) { ui.selected = it.id; } else select(it.id);
     if (it.locked) return;
     const p = floorPoint();
     if (!p) return;
-    drag = { id: it.id, dx: it.x - p.x, dz: it.z - p.z, moved: false, before: JSON.stringify(state) };
+    const ids = selIds().filter((id) => !itemById(id).locked); // es mouen tots els triats (els fixos no)
+    drag = { id: it.id, ids, dx: it.x - p.x, dz: it.z - p.z, moved: false, before: JSON.stringify(state) };
     controls.enabled = false;
     capture(e);
   } else {
@@ -1361,16 +1437,18 @@ renderer.domElement.addEventListener('pointermove', (e) => {
     drag.x = e.clientX; drag.y = e.clientY; walk.q = null; if (walk.gyro) stopGyro();
     requestRender(); return;
   }
-  if (!drag || drag.empty) return;
+  if (tape.active && (!drag || drag.tape) && e.pointerType !== 'touch') { setPointer(e); tape.hover(raycaster); return; }
+  if (!drag || drag.empty || drag.tape) return;
   setPointer(e);
   const p = floorPoint();
   if (!p) return;
   const it = itemById(drag.id);
   const step = ui.snap ? cfgGet('snap') : 1;
-  it.x = Math.round((p.x + drag.dx) / step) * step;
-  it.z = Math.round((p.z + drag.dz) / step) * step;
+  const ddx = Math.round((p.x + drag.dx) / step) * step - it.x, ddz = Math.round((p.z + drag.dz) / step) * step - it.z;
+  if (!ddx && !ddz) return;
+  for (const id of drag.ids) { const o = itemById(id); o.x += ddx; o.z += ddz; const g = meshes.get(id); if (g) placeMesh(o, g); }
   drag.moved = true;
-  updateItem(it);
+  updateOverlays();
   renderProps(true);
 });
 
@@ -1387,14 +1465,18 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     }
     drag = null; return;
   }
+  if (drag && drag.tape) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) { setPointer(e); tape.click(raycaster); }
+    drag = null; return;
+  }
   if (drag && drag.empty) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (drag.door) toggleDoor(drag.door); else if (drag.wall) showWallMeasure(drag.wall); else if (ui.wallSel) showWallMeasure(null); }
   } else if (drag) {
     const it = itemById(drag.id);
     if (drag.moved) {
       pushHistory(drag.before);
-      const r = roomAt(state.rooms, it.x, it.z);
-      if (r) it.roomId = r.id;
+      for (const id of drag.ids) { const o = itemById(id), r = roomAt(state.rooms, o.x, o.z); if (r) o.roomId = r.id; }
+      if (drag.ids.length === 1 && CATALOG[it.type]?.mount && nearWall(it) < 45) { snapItem(it); updateItem(it); } // un objecte de paret s'hi torna a enganxar
       save(); renderAll();
       if (+prefs.vib) navigator.vibrate?.(12);
     }
@@ -1416,25 +1498,33 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') setView('3d');
     return;
   }
+  if (tape.active) {
+    if (e.key === 'Escape') { setTape(false); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); tape.undo(); return; }
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   const it = itemById(ui.selected);
   if (!it) return;
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicate(it); return; }
-  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeItem(it.id); return; }
+  const many = selIds().length > 1;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSel(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); if (many) groupSel(!selIds().map(itemById).every((o) => o.group && o.group === it.group)); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeSel(); return; }
   if (e.key === 'Escape') { select(null); return; }
-  if (it.locked) return;
+  if (it.locked && !many) return;
   const step = e.shiftKey ? 10 : 1;
+  const mv = (dx, dz) => { commit(); for (const o of selIds().map(itemById)) { if (o.locked) continue; o.x += dx; o.z += dz; const r = roomAt(state.rooms, o.x, o.z); if (r) o.roomId = r.id; } };
   let changed = true;
-  if (e.key.toLowerCase() === 'r') rotate(it, e.shiftKey ? -90 : 90);
-  else if (e.key.toLowerCase() === 'q') rotate(it, -15);
-  else if (e.key.toLowerCase() === 'e') rotate(it, 15);
-  else if (e.key === 'ArrowLeft') { commit(); it.x -= step; }
-  else if (e.key === 'ArrowRight') { commit(); it.x += step; }
-  else if (e.key === 'ArrowUp') { commit(); it.z -= step; }
-  else if (e.key === 'ArrowDown') { commit(); it.z += step; }
+  if (e.key.toLowerCase() === 'r') { rotateSel(e.shiftKey ? -90 : 90); changed = false; }
+  else if (e.key.toLowerCase() === 'q' && !many) { rotate(it, -15); changed = false; }
+  else if (e.key.toLowerCase() === 'e' && !many) { rotate(it, 15); changed = false; }
+  else if (e.key === 'ArrowLeft') mv(-step, 0);
+  else if (e.key === 'ArrowRight') mv(step, 0);
+  else if (e.key === 'ArrowUp') mv(0, -step);
+  else if (e.key === 'ArrowDown') mv(0, step);
   else changed = false;
-  if (changed) { e.preventDefault(); const r = roomAt(state.rooms, it.x, it.z); if (r) it.roomId = r.id; updateItem(it); save(); renderProps(); renderItemList(); }
+  if (changed || ['r'].includes(e.key.toLowerCase())) e.preventDefault();
+  if (changed) { rebuildItems(); save(); renderProps(); renderItemList(); }
 });
 
 function rotate(it, deg) {
@@ -1443,12 +1533,88 @@ function rotate(it, deg) {
   updateItem(it); save(); renderProps();
 }
 
-function select(id) {
+// Selecció: un moble (ui.selected, el «principal») i, si n'hi ha, uns quants més (ui.multi).
+// Si el moble és d'un grup, es tria tot el grup. add = afegeix-lo o treu-lo de la selecció (Maj/Ctrl + clic).
+const groupIds = (id) => { const it = itemById(id); return it?.group ? state.items.filter((i) => i.group === it.group).map((i) => i.id) : [id]; };
+function selIds() { if (!ui.selected || !itemById(ui.selected)) return []; return [...new Set([ui.selected, ...(ui.multi || [])])].filter((id) => itemById(id)); }
+function select(id, add = false) {
   if (id && ui.wallSel) showWallMeasure(null);
-  ui.selected = id;
+  if (add && id) {
+    const cur = new Set(selIds()), grp = groupIds(id);
+    if (cur.has(id)) { grp.forEach((x) => cur.delete(x)); ui.selected = [...cur].pop() || null; } else { grp.forEach((x) => cur.add(x)); ui.selected = id; }
+    ui.multi = cur;
+  } else { ui.selected = id; ui.multi = new Set(id ? groupIds(id) : []); }
   updateOverlays();
   renderProps();
   renderItemList();
+}
+// Accions sobre tota la selecció.
+function selBox2() { const bs = selIds().map((id) => aabb(itemById(id))); return { x0: Math.min(...bs.map((b) => b.x0)), x1: Math.max(...bs.map((b) => b.x1)), z0: Math.min(...bs.map((b) => b.z0)), z1: Math.max(...bs.map((b) => b.z1)) }; }
+function rotateSel(deg) {
+  const ids = selIds(); if (!ids.length) return;
+  if (ids.length === 1) { const it = itemById(ids[0]); if (!it.locked) rotate(it, deg); return; }
+  commit();
+  const b = selBox2(), cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, a = deg * DEG, c = Math.round(Math.cos(a)), sn = Math.round(Math.sin(a));
+  for (const o of ids.map(itemById)) {
+    if (o.locked) continue;
+    const dx = o.x - cx, dz = o.z - cz;
+    o.x = Math.round(cx + dx * c + dz * sn); o.z = Math.round(cz - dx * sn + dz * c);
+    o.rot = (((o.rot || 0) + deg) % 360 + 360) % 360;
+  }
+  rebuildItems(); save(); renderProps(); renderItemList();
+}
+function duplicateSel() {
+  const ids = selIds(); if (!ids.length) return;
+  if (ids.length === 1) { duplicate(itemById(ids[0])); return; }
+  commit();
+  const groups = new Map(), added = [];
+  for (const it of ids.map(itemById)) {
+    const c = { ...clone(it), id: newItem(it.type).id, x: it.x + 30, z: it.z + 30, locked: false };
+    if (it.group) { if (!groups.has(it.group)) groups.set(it.group, 'g' + Math.random().toString(36).slice(2, 8)); c.group = groups.get(it.group); }
+    state.items.push(c); added.push(c.id);
+  }
+  save(); rebuildItems(); ui.selected = added[0]; ui.multi = new Set(added); updateOverlays(); renderProps(); renderItemList();
+}
+function removeSel() {
+  const ids = selIds(); if (!ids.length) return;
+  if (ids.length === 1) { removeItem(ids[0]); return; }
+  if (+prefs.confirmDel && !confirm(`Eliminar ${ids.length} mobles?`)) return;
+  commit();
+  state.items = state.items.filter((i) => !ids.includes(i.id));
+  const fx = ids.filter((id) => id.startsWith('fix-')); if (fx.length) state.removedFixed = [...new Set([...(state.removedFixed || []), ...fx])];
+  ui.selected = null; ui.multi = new Set();
+  save(); rebuildItems(); renderAll();
+}
+function groupSel(on) {
+  const ids = selIds(); if (ids.length < 2) return;
+  commit();
+  const g = 'g' + Math.random().toString(36).slice(2, 8);
+  for (const o of ids.map(itemById)) { if (on) o.group = g; else delete o.group; }
+  save(); renderProps(); renderItemList();
+  toast(on ? `🔗 ${ids.length} mobles agrupats: ara es mouen junts.` : '⛓ Grup desfet.');
+}
+function alignSel(how) {
+  const its = selIds().map(itemById).filter((o) => !o.locked); if (its.length < 2) return;
+  commit();
+  const B = selBox2();
+  if (how === 'dx' || how === 'dz') {
+    const k = how === 'dx' ? 'x' : 'z', s2 = [...its].sort((a, b) => a[k] - b[k]), a0 = s2[0][k], a1 = s2[s2.length - 1][k];
+    s2.forEach((o, i) => { o[k] = Math.round(a0 + (a1 - a0) * i / (s2.length - 1)); });
+  } else for (const o of its) {
+    const b = aabb(o);
+    if (how === 'x0') o.x += B.x0 - b.x0; else if (how === 'x1') o.x += B.x1 - b.x1; else if (how === 'xc') o.x += (B.x0 + B.x1) / 2 - (b.x0 + b.x1) / 2;
+    else if (how === 'z0') o.z += B.z0 - b.z0; else if (how === 'z1') o.z += B.z1 - b.z1; else if (how === 'zc') o.z += (B.z0 + B.z1) / 2 - (b.z0 + b.z1) / 2;
+    o.x = Math.round(o.x); o.z = Math.round(o.z);
+  }
+  rebuildItems(); save(); renderProps(); renderItemList();
+}
+function moveSelToRoom(roomId) {
+  const room = roomById(roomId), its = selIds().map(itemById).filter((o) => !o.locked); if (!room || !its.length) return;
+  commit();
+  const B = selBox2(), R = innerRect(room, state.wallThickness || 10);
+  const dx = Math.round((R.x0 + R.x1) / 2 - (B.x0 + B.x1) / 2), dz = Math.round((R.z0 + R.z1) / 2 - (B.z0 + B.z1) / 2);
+  for (const o of its) { o.x += dx; o.z += dz; o.roomId = room.id; }
+  rebuildItems(); save(); renderAll();
 }
 
 // Enganxa un moble d'esquena a la paret més propera (o, si és de cantonada, a la cantonada més propera amb l'esquena a les dues parets).
@@ -1482,6 +1648,12 @@ function snapItem(it, corner = false) {
   if (w.out[0]) { it.x = Math.round(w.out[0] < 0 ? R.x0 - b.x0 : R.x1 - b.x1); it.z = Math.round(Math.min(R.z1 - b.z1, Math.max(R.z0 - b.z0, it.z))); }
   else { it.z = Math.round(w.out[1] < 0 ? R.z0 - b.z0 : R.z1 - b.z1); it.x = Math.round(Math.min(R.x1 - b.x1, Math.max(R.x0 - b.x0, it.x))); }
 }
+// Distància del moble a la paret més propera de la seva habitació.
+function nearWall(it) {
+  const r = roomById(it.roomId); if (!r) return Infinity;
+  const R = innerRect(r, state.wallThickness || 10), b = aabb(it);
+  return Math.min(b.x0 - R.x0, R.x1 - b.x1, b.z0 - R.z0, R.z1 - b.z1);
+}
 function duplicate(it) {
   commit();
   const c = { ...clone(it), id: newItem(it.type).id, x: it.x + 20, z: it.z + 20, locked: false };
@@ -1504,7 +1676,8 @@ function removeItem(id, ask = true) {
 function findFreeSpot(it, room) {
   const t = state.wallThickness || 10;
   const R = innerRect(room, t);
-  const others = state.items.filter((o) => o.roomId === room.id && o.id !== it.id && o.type !== 'alfombra').concat(structItems(state.rooms).filter((s) => s.roomId === room.id && (s.kind === 'pillar' || (it.elev || 0) + it.h > s.h0)));
+  const y0 = it.elev || 0, y1 = y0 + it.h, vert = (o) => (o.elev || 0) < y1 && y0 < (o.elev || 0) + o.h; // només els que són a la mateixa alçada
+  const others = state.items.filter((o) => o.roomId === room.id && o.id !== it.id && o.type !== 'alfombra' && vert(o)).concat(structItems(state.rooms).filter((s) => s.roomId === room.id && (s.kind === 'pillar' || (it.elev || 0) + it.h > s.h0)));
   const cx = (R.x0 + R.x1) / 2, cz = (R.z0 + R.z1) / 2;
   let best = { x: cx, z: cz }, bestScore = Infinity;
   for (let gx = R.x0 + it.w / 2; gx <= R.x1 - it.w / 2 + 0.1; gx += 10) {
@@ -1529,6 +1702,7 @@ function addItems(type, props, qty, roomId) {
     if (qty > 1) it.name = `${props.name || CATALOG[type].label} ${i + 1}`;
     const p = findFreeSpot(it, room);
     it.x = Math.round(p.x); it.z = Math.round(p.z);
+    if (CATALOG[type]?.mount) snapItem(it); // quadres, prestatges, cortines…: directes a la paret
     state.items.push(it);
     last = it;
   }
@@ -1589,6 +1763,8 @@ function syncMobileBar() {
 $('#wallBtn')?.addEventListener('click', () => { ui.wallMode = WALL_CYCLE[ui.wallMode] || 'low'; $('#wallMode').value = ui.wallMode; rebuildPlan(); syncMobileBar(); toast(WALL_TEXT[ui.wallMode]); });
 $('#labelsBtn')?.addEventListener('click', () => { const c = $('#labels'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); });
 $('#measBtn')?.addEventListener('click', () => { const c = $('#measures'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); });
+$('#tapeBtn')?.addEventListener('click', () => setTape(!tape.active));
+$('#zonesBtn')?.addEventListener('click', () => setZones(!ui.zones));
 // Estil «menú flotant»: el botó rodó obre i tanca la barra; mostra la vista actual i es tanca en tocar el plànol o canviar de vista.
 const tbFab = $('#tb-fab');
 const fabOpen = (on) => { $('#toolbar').classList.toggle('open', on); tbFab?.setAttribute('aria-expanded', on ? 'true' : 'false'); if (tbFab) tbFab.querySelector('.i').textContent = on ? '✕' : '☰'; };
@@ -1633,7 +1809,7 @@ document.getElementById('wk-map')?.addEventListener('pointerdown', (e) => {
 });
 document.getElementById('wk-exit').addEventListener('click', () => setView('3d'));
 const openMeasure = initMeasure();
-const openPhotoAdd = initPhotoAdd({ roomOptions: () => roomOptions(addForm.roomId), toast, addItems, saveToCatalog, openMeasure, log: (t) => console.warn(t) });
+const openPhotoAdd = initPhotoAdd({ roomOptions: () => roomOptions(addForm.roomId), toast, addItems, saveToCatalog, openMeasure, shrinkImage, log: (t) => console.warn(t) });
 
 // Barra flotant (mòbil) per al moble seleccionat.
 const selbar = document.getElementById('selbar');
@@ -1642,19 +1818,48 @@ selbar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () 
   if (!it) return;
   const act = b.dataset.act;
   if (act === 'props') { ui.propsOpen = !ui.propsOpen; renderProps(); return; }
-  if (it.locked && act !== 'dup') return;
-  if (act === 'rl') rotate(it, -90);
-  else if (act === 'rr') rotate(it, 90);
-  else if (act === 'dup') duplicate(it);
-  else if (act === 'del') removeItem(it.id);
+  if (act === 'multi') { ui.multiMode = !ui.multiMode; updateSelbar(); toast(ui.multiMode ? '☐+ Toca més mobles per afegir-los (o treure’ls) de la selecció.' : 'Selecció normal.'); return; }
+  if (it.locked && act !== 'dup' && selIds().length === 1) return;
+  if (act === 'rl') rotateSel(-90);
+  else if (act === 'rr') rotateSel(90);
+  else if (act === 'dup') duplicateSel();
+  else if (act === 'del') removeSel();
 }));
 function updateSelbar() {
   const it = itemById(ui.selected);
   selbar.hidden = !it;
+  if (!it) ui.multiMode = false;
   selbar.querySelector('[data-act=props]').classList.toggle('on', ui.propsOpen);
+  selbar.querySelector('[data-act=multi]')?.classList.toggle('on', !!ui.multiMode);
+  const n = selIds().length, c = selbar.querySelector('[data-act=multi] b'); if (c) c.textContent = n > 1 ? n : '';
 }
 $('#undo').addEventListener('click', undo);
 $('#redo').addEventListener('click', redo);
+
+// Finestra d'informació senzilla (resultats de «Hi passa?», etc.).
+function showInfo(title, html) {
+  let m = document.getElementById('infodlg');
+  if (!m) {
+    m = document.createElement('div'); m.id = 'infodlg'; m.className = 'modal'; m.hidden = true;
+    m.innerHTML = '<div class="gate-card wide"><div class="modal-head"><h1></h1><button type="button" class="close" aria-label="Tanca">×</button></div><div class="modal-body"></div></div>';
+    document.body.appendChild(m);
+    m.querySelector('.close').addEventListener('click', () => { m.hidden = true; });
+    m.addEventListener('click', (e) => { if (e.target === m) m.hidden = true; });
+  }
+  m.querySelector('h1').textContent = title; m.querySelector('.modal-body').innerHTML = html; m.hidden = false;
+  return m;
+}
+// «🚪 Hi passa?»: el camí des de la porta del pis fins a l'habitació, porta a porta.
+function showFit(src, roomId) {
+  const r = fitCheck({ w: src.w, d: src.d, h: src.h }, roomId, state);
+  const head = { si: ['ok', '✓ Hi passa'], just: ['warn', '⚠ Molt just: segurament caldrà inclinar-lo o desmuntar-lo'], no: ['bad', '✗ No hi passa'] }[r.verdict];
+  showInfo(`🚪 Hi passa? · ${src.name}`, `
+    <p class="fit-verdict ${head[0]}">${head[1]}</p>
+    <p class="note">${esc(src.name)} (${src.w} × ${src.d} × ${src.h} cm) fins a ${esc(roomById(roomId)?.name || '')}${r.path.length ? `: ${r.path.map(esc).join(' → ')}` : ''}.</p>
+    <ul class="fit-steps">${r.steps.map((x) => `<li class="${x.ok === true ? 'ok' : x.ok === 'just' ? 'warn' : 'bad'}">${x.ok === true ? '✓' : x.ok === 'just' ? '⚠' : '✗'} ${esc(x.text)}</li>`).join('')}</ul>
+    <p class="note">Càlcul aproximat: prova el moble pla, de cantó i dret, i en els girs dels passadissos fa servir la cantonada entre dos passadissos. No té en compte l’escala de l’edifici ni els poms de les portes. Si queda just, mesura’l de debò.</p>`);
+  return r;
+}
 
 // --- Pestaña Muebles
 const addForm = { type: 'silla', qty: 1, roomId: 'salon', ...CATALOG.silla, name: CATALOG.silla.label, elev: 0 };
@@ -1737,16 +1942,19 @@ function renderCatalog() {
       <div class="cat-body">
         <input type="text" class="cat-name" value="${esc(c.name)}" title="Nom" />
         <div class="dm">${esc(CATALOG[c.type]?.label || c.type)} · ${c.w}×${c.d}×${c.h}</div>
+        <label class="dm cat-price">Preu <input type="number" min="0" step="1" value="${+c.price || ''}" placeholder="—" /> €</label>
         ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="dm">🔗 enllaç</a>` : ''}
-        <div class="btns"><button class="btn small" data-cat-add>Afegeix</button><button class="btn secondary small" data-cat-link title="Enllaç a la botiga">🔗</button><button class="btn danger small" data-cat-del title="Treu del catàleg">×</button></div>
+        <div class="btns"><button class="btn small" data-cat-add>Afegeix</button><button class="btn secondary small" data-cat-fit title="Hi passa per les portes fins a l’habitació triada a dalt?">🚪</button><button class="btn secondary small" data-cat-link title="Enllaç a la botiga">🔗</button><button class="btn danger small" data-cat-del title="Treu del catàleg">×</button></div>
       </div>
     </div>`).join('')}</div>`;
   el.querySelectorAll('.cat-card').forEach((card) => {
     const c = cat.find((x) => x.id === card.dataset.id);
-    card.querySelector('[data-cat-add]').addEventListener('click', () => addItems(c.type, { name: c.name, w: c.w, d: c.d, h: c.h, elev: c.elev, color: c.color, catalogId: c.id }, 1, addForm.roomId));
+    card.querySelector('[data-cat-add]').addEventListener('click', () => addItems(c.type, { name: c.name, w: c.w, d: c.d, h: c.h, elev: c.elev, color: c.color, catalogId: c.id, photoLook: c.photo ? true : undefined, price: c.price, url: c.url || undefined }, 1, addForm.roomId));
+    card.querySelector('[data-cat-fit]').addEventListener('click', () => showFit(c, addForm.roomId));
     card.querySelector('[data-cat-del]').addEventListener('click', () => { commit(); state.catalog = cat.filter((x) => x !== c); save(); renderCatalog(); });
     card.querySelector('[data-cat-link]').addEventListener('click', () => { const u = prompt('Enllaç del moble (botiga, foto, PDF…):', c.url || ''); if (u === null) return; commit(); c.url = u.trim(); save(); renderCatalog(); });
     card.querySelector('.cat-name').addEventListener('change', (e) => { commit(); c.name = e.target.value; save(); });
+    card.querySelector('.cat-price input').addEventListener('change', (e) => { commit(); const v = Math.max(0, +e.target.value || 0); if (v) c.price = v; else delete c.price; save(); });
     card.querySelector('input[type=file]').addEventListener('change', async (e) => {
       const file = e.target.files[0]; if (!file) return;
       try { commit(); c.photo = await shrinkImage(file, cfgGet('catalogPhoto'), 0.72); save(); renderCatalog(); } catch (err) { /* res */ }
@@ -1779,14 +1987,15 @@ function renderItemList() {
     const its = state.items.filter((i) => i.roomId === r.id);
     if (!its.length) return '';
     return `<h2>${esc(r.name)}</h2><ul class="list">${its.map((i) => `
-      <li data-id="${i.id}" class="${i.id === ui.selected ? 'sel' : ''}">
+      <li data-id="${i.id}" class="${selIds().includes(i.id) ? 'sel' : ''}">
         <span class="sw" style="background:${esc(i.color)}"></span>
         <span class="nm">${esc(i.name)}${i.locked ? ' 🔒' : ''}</span>
         ${bad.has(i.id) ? `<span class="badge bad" title="${esc(bad.get(i.id))}">xoc</span>` : ''}
+        ${ui.zoneBad?.has(i.id) ? `<span class="badge warn" title="${esc(ui.zoneBad.get(i.id).map((r) => `${r.label}: cal ${r.need} cm, n’hi ha ${r.have}`).join(' · '))}">pas</span>` : ''}
         <span class="dm">${i.w}×${i.d}×${i.h}</span>
       </li>`).join('')}</ul>`;
   }).join('') + (state.items.some((i) => !roomById(i.roomId)) ? '<p class="note">Hi ha mobles fora de qualsevol habitació.</p>' : '');
-  el.querySelectorAll('li[data-id]').forEach((li) => li.addEventListener('click', () => select(li.dataset.id)));
+  el.querySelectorAll('li[data-id]').forEach((li) => li.addEventListener('click', (e) => select(li.dataset.id, e.shiftKey || e.ctrlKey || e.metaKey || !!ui.multiMode)));
 }
 
 // --- Panel de propiedades del mueble seleccionado
@@ -1798,14 +2007,54 @@ function shapeIcon(k) {
     paret: 'M3 4h18v16h-5v-7H8v7H3z', cantonera: 'M3 3h18v7L10 21H3z', estufa: 'M10 2h4v7h3v11h-2v2h-2v-2h-2v2H9v-2H7V9h3z', electrica: 'M2 8h20v8H2zM5 11h14v2H5z' };
   return `<svg viewBox="0 0 24 24" width="26" height="26"><path d="${p[k] || p.rect}" fill="currentColor" opacity=".85"/></svg>`;
 }
+function renderGroupProps(ids) {
+  const el = $('#props'), its = ids.map(itemById);
+  el.hidden = false;
+  el.classList.toggle('collapsed', isMobile() && !ui.propsOpen);
+  el.dataset.id = 'multi';
+  const grouped = its.every((o) => o.group && o.group === its[0].group);
+  el.innerHTML = `
+    <h3>${its.length} mobles triats ${grouped ? '<span class="badge">🔗 grup</span>' : ''}<button class="close" id="p-close" title="Tanca">×</button></h3>
+    <div class="chips">${its.map((o) => `<button type="button" class="chip" data-id="${o.id}" title="Treu-lo de la selecció">${esc(o.name)}${o.locked ? ' 🔒' : ''} ×</button>`).join('')}</div>
+    <div class="btns">
+      <button class="btn small" id="g-group">${grouped ? '⛓ Desagrupa' : '🔗 Agrupa'}</button>
+      <button class="btn secondary small" id="g-rl">⟲ 90°</button>
+      <button class="btn secondary small" id="g-rr">⟳ 90°</button>
+      <button class="btn secondary small" id="g-dup">Duplica</button>
+      <button class="btn danger small" id="g-del">Elimina</button>
+    </div>
+    <div class="lbl">Alinea</div>
+    <div class="btns al">
+      <button class="btn secondary small" data-al="x0" title="Alinea les vores de l’esquerra">⇤ Esq.</button>
+      <button class="btn secondary small" data-al="xc" title="Centra en horitzontal">↔ Centre</button>
+      <button class="btn secondary small" data-al="x1" title="Alinea les vores de la dreta">⇥ Dreta</button>
+      <button class="btn secondary small" data-al="z0" title="Alinea les vores de dalt">⤒ Dalt</button>
+      <button class="btn secondary small" data-al="zc" title="Centra en vertical">↕ Mig</button>
+      <button class="btn secondary small" data-al="z1" title="Alinea les vores de baix">⤓ Baix</button>
+      ${its.length >= 3 ? '<button class="btn secondary small" data-al="dx" title="Mateixa distància entre ells, d’esquerra a dreta">Reparteix ↔</button><button class="btn secondary small" data-al="dz" title="Mateixa distància entre ells, de dalt a baix">Reparteix ↕</button>' : ''}
+    </div>
+    <div class="row"><label>Porta’ls a<select id="g-room"><option value="">Tria una habitació…</option>${roomOptions('')}</select></label></div>
+    <p class="note">Maj o Ctrl + clic (al mòbil, ☐+ a la barra) per afegir o treure mobles. Agrupats, es trien i es mouen junts. Ctrl+G agrupa.</p>`;
+  $('#p-close').addEventListener('click', () => select(null));
+  el.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => select(b.dataset.id, true)));
+  $('#g-group').addEventListener('click', () => groupSel(!grouped));
+  $('#g-rl').addEventListener('click', () => rotateSel(-90));
+  $('#g-rr').addEventListener('click', () => rotateSel(90));
+  $('#g-dup').addEventListener('click', duplicateSel);
+  $('#g-del').addEventListener('click', removeSel);
+  el.querySelectorAll('[data-al]').forEach((b) => b.addEventListener('click', () => alignSel(b.dataset.al)));
+  $('#g-room').addEventListener('change', (e) => { if (e.target.value) moveSelToRoom(e.target.value); });
+}
 function renderProps(onlyPos = false) {
   const el = $('#props');
   const it = itemById(ui.selected);
   updateSelbar();
   if (!it) { el.hidden = true; return; }
+  if (selIds().length > 1) { if (!onlyPos || el.dataset.id !== 'multi') renderGroupProps(selIds()); return; }
   if (onlyPos && !el.hidden && el.dataset.id === it.id) {
     $('#p-x').value = it.x; $('#p-z').value = it.z;
     const dl = $('#p-dist'); if (dl) dl.innerHTML = distHtml(it);
+    const zl = $('#p-zones'); if (zl) zl.innerHTML = zonesHtml(it);
     return;
   }
   el.hidden = false;
@@ -1814,8 +2063,14 @@ function renderProps(onlyPos = false) {
   const bad = ui.conflicts?.get(it.id);
   el.innerHTML = `
     <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(it.color)}"></span>${esc(it.name)} ${bad ? `<span class="badge bad">${esc(bad)}</span>` : ''}<button class="close" id="p-close" title="Tanca">×</button></h3>
-    ${(() => { const ph = it.catalogId && (state.catalog || []).find((c) => c.id === it.catalogId)?.photo; return ph ? `<img class="p-photo" src="${ph}" alt="Foto del moble" />` : ''; })()}
+    ${(() => { const ph = photoOf(it); return ph ? `<img class="p-photo" src="${ph}" alt="Foto del moble" />` : ''; })()}
+    <div class="p-photo-row">
+      <label class="btn secondary small" title="Posa una foto a aquest moble (per exemple, la del quadre o la del sofà real)">📷 ${photoOf(it) ? 'Canvia la foto' : 'Posa-hi una foto'}<input type="file" id="p-photo" accept="image/*" hidden /></label>
+      ${photoOf(it) && it.type !== 'quadre' ? `<label class="chk"><input type="checkbox" id="p-look" ${it.photoLook ? 'checked' : ''}/> Mostra la foto al moble</label>` : ''}
+      ${it.photo ? '<button type="button" class="btn secondary small" id="p-photo-del" title="Treu la foto d’aquest moble">Treu la foto</button>' : ''}
+    </div>
     <div class="dist" id="p-dist">${distHtml(it)}</div>
+    <div id="p-zones">${zonesHtml(it)}</div>
     <div class="row c2">
       <label>Nom<input type="text" id="p-name" value="${esc(it.name)}" /></label>
       <label>Tipus<select id="p-type">${Object.entries(CATALOG).map(([k, v]) => `<option value="${k}" ${k === it.type ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
@@ -1837,6 +2092,11 @@ function renderProps(onlyPos = false) {
       <label>Color<input type="color" id="p-color" value="${it.color}" /></label>
       <label>Habitació<select id="p-room">${roomOptions(it.roomId)}</select></label>
     </div>
+    <div class="row c2 p-shop">
+      <label>Compra<select id="p-status">${STATUS.map(([k, l]) => `<option value="${k}" ${statusOf(it) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label>Preu (€)<input type="number" id="p-price" min="0" step="1" value="${+it.price || ''}" placeholder="—" /></label>
+    </div>
+    <div class="row"><label>Enllaç de la botiga<input type="url" id="p-url" value="${esc(it.url || '')}" placeholder="https://…" /></label></div>
     <label style="flex-direction:row;align-items:center;gap:6px;margin:4px 0 8px"><input type="checkbox" id="p-lock" ${it.locked ? 'checked' : ''}/> Fix (no es mou a les propostes)</label>
     <div class="btns">
       <button class="btn secondary small" id="p-rl">⟲ 90°</button>
@@ -1844,6 +2104,7 @@ function renderProps(onlyPos = false) {
       <button class="btn secondary small" id="p-snap" title="${it.shape === 'cantonera' ? 'Porta’l a la cantonada més propera, amb l’esquena a les dues parets' : 'Enganxa’l d’esquena a la paret més propera'}">${it.shape === 'cantonera' ? '◢ A la cantonada' : '⇲ A la paret'}</button>
       <button class="btn secondary small" id="p-dup">Duplica</button>
       <button class="btn secondary small" id="p-cat" title="Desa al catàleg dels meus mobles">★</button>
+      <button class="btn secondary small" id="p-fit" title="Comprova si el moble passa per les portes i els passadissos fins aquí">🚪 Hi passa?</button>
       <button class="btn danger small" id="p-del">Elimina</button>
     </div>`;
   const num = (id) => +$(id).value;
@@ -1872,6 +2133,15 @@ function renderProps(onlyPos = false) {
   $('#p-elev').addEventListener('change', () => apply(() => { it.elev = Math.max(0, num('#p-elev')); }));
   $('#p-color').addEventListener('change', (e) => apply(() => { it.color = e.target.value; }, true));
   $('#p-lock').addEventListener('change', (e) => apply(() => { it.locked = e.target.checked; }));
+  $('#p-status').addEventListener('change', (e) => { apply(() => { if (e.target.value === 'tinc') delete it.status; else it.status = e.target.value; }); shop.render(); });
+  $('#p-price').addEventListener('change', (e) => { apply(() => { const v = Math.max(0, +e.target.value || 0); if (v) it.price = v; else delete it.price; }); shop.render(); });
+  $('#p-url').addEventListener('change', (e) => { apply(() => { const v = e.target.value.trim(); if (v) it.url = v; else delete it.url; }); shop.render(); });
+  $('#p-photo').addEventListener('change', async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try { const ph = await shrinkImage(file, Math.max(256, cfgGet('catalogPhoto')), 0.75); apply(() => { it.photo = ph; if (it.type !== 'quadre') it.photoLook = true; }, true); } catch (err) { toast('No he pogut llegir la foto.'); }
+  });
+  $('#p-look')?.addEventListener('change', (e) => apply(() => { it.photoLook = e.target.checked; }, true));
+  $('#p-photo-del')?.addEventListener('click', () => apply(() => { delete it.photo; if (!photoOf(it)) delete it.photoLook; }, true));
   $('#p-room').addEventListener('change', (e) => apply(() => {
     it.roomId = e.target.value;
     const p = findFreeSpot(it, roomById(it.roomId));
@@ -1883,6 +2153,7 @@ function renderProps(onlyPos = false) {
   $('#p-snap').addEventListener('click', () => apply(() => snapItem(it, it.shape === 'cantonera'), true));
   $('#p-cat').addEventListener('click', () => { saveToCatalog(it); document.querySelector('.tabs button[data-tab=muebles]')?.click(); });
   $('#p-del').addEventListener('click', () => removeItem(it.id));
+  $('#p-fit').addEventListener('click', () => showFit(it, it.roomId));
 }
 
 // --- Pestaña Distribuir
@@ -2372,8 +2643,10 @@ function renderDatos(target) {
   $('#x-reset').addEventListener('click', () => { commit(); state = clone(DEFAULT_PLAN); ui.selected = null; afterStateReplace(); frameCamera(); });
 }
 
+const shop = initShop({ el: document.getElementById('tab-compra'), state: () => state, rooms: usableRooms, esc, commit, save, select: (id) => { select(id); const it = itemById(id); if (it) frameCamera(roomById(it.roomId)); }, roomName: (id) => roomById(id)?.name || '', toast, changed: () => { renderProps(); renderItemList(); } });
 function renderAll() {
   updateOverlays();
+  shop.render();
   renderMuebles();
   renderDistribuir();
   renderPlano();
@@ -2404,6 +2677,7 @@ function loop(now = 0) {
   if (moved || needsRender) {
     needsRender = false; lastFrame = now;
     if (wallSprite) { wallSideCheck(); fitWallSprite(); }
+    tape.fit();
     renderer.render(scene, camera);
   }
 }
@@ -2525,7 +2799,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v33',
+  version: 'v34',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2630,7 +2904,7 @@ window.planta3d = {
     const r = renderer.domElement.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
-  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, minimap, rebuildItems,
+  get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, minimap, rebuildItems, get tape() { return tape; }, ui,
   showWall(roomId, key) { let w = null; planGroup.traverse((o) => { const u = o.userData.wall; if (!w && u && u.room.id === roomId && u.key === key) w = u; }); showWallMeasure(w); return !!w; },
   get wallSel() { return ui.wallSel ? { room: ui.wallSel.room.id, key: ui.wallSel.key } : null; },
   camAz() { const c = ui.view === 'top' ? controlsTop : controls3d; const o = c.object.position.clone().sub(c.target); return Math.atan2(o.x, o.z); } };
