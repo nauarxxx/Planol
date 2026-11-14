@@ -502,3 +502,49 @@ body.tb-fab.tb-walle #toolbar .group { padding: 6px 6px 13px; }
   body.tb-fab.tb-walle #toolbar #tb-fab { height: 52px; min-width: 52px; border-radius: 26px; border-width: 4px; }
   body.tb-fab.tb-walle #toolbar .group { padding: 4px 4px 10px; gap: 4px; }
 }
+
+/* ---------------------------------------------------------------- moble des d'una foto */
+#measure { z-index: 70; }
+#photoadd .pa { max-width: 860px; }
+#photoadd .pa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+#photoadd .pa-drop { display: flex; align-items: center; justify-content: center; min-height: 240px; max-height: 52vh; border: 2px dashed var(--line); border-radius: 12px; cursor: pointer; overflow: hidden; background: var(--bg); text-align: center; color: var(--muted); }
+#photoadd .pa-drop:hover, #photoadd .pa-drop:focus { border-color: var(--accent); outline: none; }
+#photoadd .pa-drop img { display: block; max-width: 100%; max-height: 52vh; object-fit: contain; }
+#photoadd .pa-empty { padding: 20px; font-size: 15px; }
+#photoadd .pa-text pre { white-space: pre-wrap; font-size: 12px; max-height: 140px; overflow: auto; background: var(--bg); padding: 8px; border-radius: 6px; margin: 6px 0 0; }
+#photoadd .pa-right > label { margin-bottom: 8px; }
+#props .p-photo { display: block; max-width: 100%; max-height: 120px; border-radius: 8px; margin: 0 0 8px; object-fit: contain; background: var(--bg); }
+#props .dist b.bad { color: var(--bad); }
+@media (max-width: 700px) {
+  #photoadd { align-items: flex-end; padding: 6px; }
+  #photoadd .pa { max-height: calc(100% - 4px); overflow-y: auto; }
+  #photoadd .pa-grid { grid-template-columns: 1fr; gap: 10px; }
+  #photoadd .pa-drop { min-height: 150px; max-height: 32vh; }
+  #photoadd .pa-drop img { max-height: 32vh; }
+}
+
+#tab-distribuir .mode-card { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--radius); padding: 10px 12px; margin: 6px 0 10px; background: var(--bg); }
+#tab-distribuir .mode-card.move { border-left-color: #1e88e5; }
+#tab-distribuir .mode-card p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+
+/* ---------------------------------------------------------------- passeig: joystick, habitacions i minimapa */
+#walkbar .joy { display: none; position: relative; width: 116px; height: 116px; border-radius: 50%; touch-action: none; user-select: none; -webkit-user-select: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--panel) 70%, transparent) 0 55%, color-mix(in srgb, var(--panel) 92%, transparent) 56%); border: 2px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+#walkbar .joy span { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: var(--accent); box-shadow: 0 3px 10px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.35); pointer-events: none; transition: transform .08s; }
+#walkbar .wk-col { display: flex; flex-direction: column; gap: 8px; }
+#walkbar .wk-row { display: flex; gap: 8px; }
+#walkbar #wk-room { height: 40px; border-radius: 10px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 0 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+#walkbar #wk-maptog.on { background: var(--accent); color: var(--accent-ink); }
+#wk-map { position: absolute; right: 12px; top: 74px; width: 180px; height: 180px; z-index: 5; border-radius: 12px; cursor: crosshair; touch-action: none; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+#walkbar[hidden] + #wk-map { display: none; }
+@media (max-width: 800px), (pointer: coarse) {
+  #walkbar .pad { display: none; }
+  #walkbar .joy { display: block; }
+}
+@media (max-width: 800px) {
+  #walkbar { left: 10px; right: 72px; justify-content: space-between; }
+  #walkbar button { width: 44px; height: 44px; }
+  #wk-map { width: 130px; height: 130px; top: auto; bottom: 150px; right: 10px; }
+}
+/* Al passeig, l'ajuda va a dalt perquè no quedi sota els botons */
+body:has(#walkbar:not([hidden])) #hint { bottom: auto; top: 74px; max-width: calc(100% - 240px); }

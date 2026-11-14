@@ -5,16 +5,16 @@
 //  - «treu la taula», «mou el sofà al dormitori», «què hi ha al dormitori?», «desfés»…
 // No fa servir cap servei extern: tot passa al navegador.
 
-import { CATALOG } from './furniture.js?v=32';
-import { innerRect, overlaps, aabb } from './geom.js?v=32';
-import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=32';
-import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=32';
+import { CATALOG } from './furniture.js?v=33';
+import { innerRect, overlaps, aabb } from './geom.js?v=33';
+import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=33';
+import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=33';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/·/g, '').replace(/[’'`´]/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Sinònims de mobles (català i castellà, per si de cas), els de més paraules primer.
-const TYPES = [
+export const TYPES = [
   ['mesaCentro', ['taula de centre', 'taula de cafe', 'taula baixa', 'mesa de centro', 'mesa baja']],
   ['muebleTv', ['moble tv', 'moble de tv', 'moble de la tele', 'moble del televisor', 'mueble tv', 'mueble de tv', 'mueble de la tele']],
   ['mesita', ['tauleta de nit', 'tauletes de nit', 'mesita de noche', 'mesitas de noche', 'mesilla', 'mesillas', 'tauleta', 'tauletes']],

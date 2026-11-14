@@ -48,13 +48,13 @@ export const SHAPES = {
 export const SHAPE_PARAMS = {
   sofa:       { sd: ['Fons seient', 90], lw: ['Ample chaise', 90] },
   escritorio: { sd: ['Fons taula', 60], lw: ['Ample ala', 60] },
-  llarFoc:    { bw: ['Ample de la boca', 60], bh: ['Alçada de la boca', 45] },
+  llarFoc:    { bw: ['Ample de la boca', 60], bh: ['Alçada de la boca', 45], mh: ['Alçada de la repisa', 110], cut: ['Ample del frontal', 60] },
 };
 // Mides que es proposen en triar una forma (es poden canviar després).
 export const SHAPE_SIZES = {
   llarFoc: {
-    paret: { w: 120, d: 45, h: 110, elev: 0, bw: 70, bh: 50 },
-    cantonera: { w: 90, d: 90, h: 110, elev: 0, bw: 55, bh: 50 },
+    paret: { w: 120, d: 45, h: 110, elev: 0, bw: 70, bh: 50, mh: 110 },
+    cantonera: { w: 110, d: 110, h: 240, elev: 0, bw: 60, bh: 55, mh: 115, cut: 90 },
     estufa: { w: 55, d: 50, h: 200, elev: 0, bw: 35, bh: 35 },
     electrica: { w: 100, d: 18, h: 55, elev: 40, bw: 86, bh: 22 },
   },
@@ -65,7 +65,9 @@ export function shapeParams(type, shape) {
   const P = SHAPE_PARAMS[type];
   if (!P) return [];
   if ((type === 'sofa' || type === 'escritorio') && !hasWing(shape)) return [];
-  return Object.entries(P).map(([k, [l, dv]]) => [k, l, dv]);
+  // llar de foc: la repisa (i la campana per sobre si l'alçada total és més gran) a la de paret i la cantonera; l'ample del frontal només a la cantonera
+  const only = type === 'llarFoc' ? { paret: ['bw', 'bh', 'mh'], cantonera: ['bw', 'bh', 'mh', 'cut'] }[shape || 'paret'] || ['bw', 'bh'] : null;
+  return Object.entries(P).filter(([k]) => !only || only.includes(k)).map(([k, [l, dv]]) => [k, l, dv]);
 }
 // Rectangles [x0, ample, z0, fons] que formen una peça en L o en U dins la petjada w × d (esquena a −z).
 export function shapeRects(item) {
@@ -188,31 +190,48 @@ function buildFireplace(g, item, main, dark, metal) {
     return;
   }
   if (shape === 'cantonera') {
-    // Cantonera: planta pentagonal tocant les dues parets del darrere (−Z i −X); la boca mira en diagonal.
-    const cut = Math.min(w, d) * 0.45;
-    const P1 = [w / 2, -d / 2 + cut], P2 = [-w / 2 + cut, d / 2];
+    // Cantonera: planta pentagonal amb l'esquena a les dues parets (−Z i −X) i el frontal en diagonal, on hi ha la boca.
+    // Per sota de la repisa (mh) hi ha el cos amb la boca; per sobre, si l'alçada total ho permet, la campana fins a dalt.
+    const mh = Math.max(40, Math.min(+item.mh || 115, h));
+    const front = Math.max(30, Math.min(+item.cut || 60, Math.hypot(w, d) - 10)); // ample de la cara diagonal
+    // retall de les dues cares laterals perquè la diagonal faci «front» cm
+    const k = Math.min(0.95, front / Math.hypot(w, d));
+    const cx = w * k, cz = d * k; // quant es retalla en x i en z
+    const P1 = [w / 2, d / 2 - cz], P2 = [w / 2 - cx, d / 2];
     const pent = [[-w / 2, -d / 2], [w / 2, -d / 2], P1, P2, [-w / 2, d / 2]];
     const diag = Math.hypot(P2[0] - P1[0], P2[1] - P1[1]);
     const ux = (P2[0] - P1[0]) / diag, uz = (P2[1] - P1[1]) / diag; // al llarg de la cara diagonal
-    const nx = uz, nz = -ux; // normal cap a dins
-    const fw = Math.min(bw, diag - 14), my = 18, fh = Math.min(bh, h - my - 20), rec = Math.min(cut, 30);
+    const nx = -uz, nz = ux; // normal cap a dins (cap a la cantonada)
+    const fw = Math.max(15, Math.min(bw, diag - 16)), my = 20, fh = Math.max(12, Math.min(bh, mh - my - 18)), rec = Math.max(12, Math.min(34, Math.min(w, d) * 0.4));
     const mx = (P1[0] + P2[0]) / 2, mz = (P1[1] + P2[1]) / 2, hw = fw / 2;
     const A = [mx - ux * hw, mz - uz * hw], B = [mx + ux * hw, mz + uz * hw];
     const notched = [pent[0], pent[1], P1, A, [A[0] + nx * rec, A[1] + nz * rec], [B[0] + nx * rec, B[1] + nz * rec], B, P2, pent[4]];
-    prism(g, pent, 0, my, main);
+    // sòcol de pedra que sobresurt una mica pel davant (es veu com la llosa del foc)
+    const hearth = [pent[0], pent[1], [P1[0] - nx * 12, P1[1] - nz * 12], [P2[0] - nx * 12, P2[1] - nz * 12], pent[4]];
+    prism(g, hearth, 0, 6, stone);
+    prism(g, pent, 6, my - 6, main);
     prism(g, notched, my, fh, main);
-    prism(g, pent, my + fh, h - my - fh - 5, main);
-    prism(g, pent, h - 5, 5, stone, 1.06);
+    prism(g, pent, my + fh, mh - my - fh - 6, main);
+    prism(g, pent, mh - 6, 6, stone, 1.05); // repisa
+    if (h > mh + 15) {
+      // campana: més estreta (retirada cap a la cantonada) des de la repisa fins a dalt
+      const sc = 0.72, hood = pent.map(([x, z]) => [-w / 2 + (x + w / 2) * sc, -d / 2 + (z + d / 2) * sc]);
+      prism(g, hood, mh, h - mh, main);
+      prism(g, hood, mh, 4, stone, 1.02);
+    }
     const sub = new THREE.Group(); sub.position.set(mx, 0, mz); sub.rotation.y = Math.atan2(-nx, -nz); g.add(sub);
     fire(sub, fw, fh, rec, my, 0);
-    box(sub, fw + 12, 8, 4, 0, my - 8, 2, stone);
+    for (const sx of [-1, 1]) box(sub, 5, fh + 5, 2.5, sx * (fw / 2 + 2.5), my, 1.2, dark);
+    box(sub, fw + 10, 5, 2.5, 0, my + fh, 1.2, dark);
     return;
   }
-  // De paret: cos d'obra amb la boca buidada, repisa de pedra a dalt, sòcol i marc fosc al voltant de la boca.
-  const by = 14, fh = Math.min(bh, h - by - 16), rec = Math.min(d - 8, 34);
-  hollowBox(g, w, h - 6, d, 0, bw, fh, by, rec, main);
-  box(g, w + 8, 6, d + 6, 0, h - 6, 3, stone);
+  // De paret: cos d'obra amb la boca buidada, repisa de pedra i, si l'alçada total passa de la repisa, la campana fins a dalt.
+  const mh = Math.max(40, Math.min(+item.mh || h, h));
+  const by = 14, fh = Math.min(bh, mh - by - 16), rec = Math.min(d - 8, 34);
+  hollowBox(g, w, mh - 6, d, 0, bw, fh, by, rec, main);
+  box(g, w + 8, 6, d + 6, 0, mh - 6, 3, stone);
   box(g, w + 4, 8, d + 4, 0, 0, 2, stone);
+  if (h > mh + 15) box(g, w * 0.7, h - mh, d * 0.7, 0, mh, -d * 0.15, main);
   const fz = d / 2 + 1.5;
   for (const sx of [-1, 1]) box(g, 6, fh + 6, 3, sx * (bw / 2 + 3), by, fz, dark);
   box(g, bw + 12, 6, 3, 0, by + fh, fz, dark);
