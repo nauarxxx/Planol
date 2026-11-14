@@ -9,7 +9,7 @@
 // mou (p. ex. el racó al costat del menjador) s'allarguen amb ella.
 // side: +1 = cap a baix / la dreta (Z o X creixent), -1 = cap a dalt / l'esquerra. Mides en cm.
 
-import { openingSegment, aabb, roomAt } from './geom.js?v=41';
+import { openingSegment, aabb, roomAt } from './geom.js?v=42';
 
 const AXIS = { N: 'x', S: 'x', W: 'z', E: 'z' };
 const OPP = { N: 'S', S: 'N', W: 'E', E: 'W' };

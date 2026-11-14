@@ -2,7 +2,7 @@
 // base = l'últim estat que els dos tenien en comú; local = el d'aquest dispositiu; remote = el que arriba del núvol.
 // Es decideix moble a moble: qui l'ha canviat, guanya; si l'han canviat tots dos, guanya el local (és el que estàs veient).
 
-import { mergeById } from './social.js?v=41';
+import { mergeById } from './social.js?v=42';
 
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const byId = (list) => Object.fromEntries((list || []).map((i) => [i.id, i]));
