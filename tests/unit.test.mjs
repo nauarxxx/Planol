@@ -10,7 +10,9 @@ import { fitScale, scaleSvg } from '../js/sheet.js';
 import { generateLayouts } from '../js/layout.js';
 import { evalGoals } from '../js/goals.js';
 import { aabb, overlaps, roomAt, innerRect, outsideAmount, allSwings, parts, doorSwing, doorSwings, doorKind, doorFace, doorSymbols, slideFits, boxHitsSwing } from '../js/geom.js';
-import { migratePlan, addOfficeProposals } from '../js/state.js';
+import { migratePlan, addWallEProposals } from '../js/state.js';
+import { wallEProposals } from '../js/roomplans.js';
+import { checkLayout } from '../js/layout.js';
 import { officeProposals } from '../js/officeplans.js';
 import { editWall, wallSegments } from '../js/walledit.js';
 
@@ -401,7 +403,7 @@ test('office: propostes amb el simulador, la pantalla i dos escriptoris amb dos 
       if (!it.elev || it.type === 'monitor') { const b = aabb(it); assert.ok(b.x1 <= front.x0 || b.z1 <= front.z0 || b.z0 >= front.z1, `${p.name}: ${it.name} tapa l’armari`); }
     }
     for (const a of its) for (const b of its) {
-      if (a === b || ok(a, b) || ok(b, a)) continue;
+      if (a === b || ok(a, b) || ok(b, a) || a.type === 'alfombra' || b.type === 'alfombra') continue; // la catifa va a sota
       const a0 = a.elev || 0, b0 = b.elev || 0;
       if (a0 + a.h <= b0 || b0 + b.h <= a0) continue;
       assert.ok(!overlaps(a, b, -1), `${p.name}: ${a.name} xoca amb ${b.name}`);
@@ -420,11 +422,11 @@ test('migració a la v29: les propostes de l’office es desen per votar, un sol
   const old = plan(); old.version = 28; old.saved = [];
   const s = migratePlan(old);
   const mine = s.saved.filter((p) => p.roomId === 'office');
-  assert.equal(mine.length, 2);
+  assert.equal(mine.length, 4);
   assert.ok(mine.every((p) => p.who === 'WALL-E' && p.comments.length === 1));
-  assert.equal(addOfficeProposals(s), 0);
+  assert.equal(addWallEProposals(s), 0);
   s.saved = s.saved.filter((p) => p.id !== 'office-sim-2'); s.version = 28;
-  assert.equal(migratePlan(s).saved.filter((p) => p.roomId === 'office').length, 2); // si es torna a migrar des d'una versió vella, hi tornen
+  assert.equal(migratePlan(s).saved.filter((p) => p.roomId === 'office').length, 3); // la que la persona ha esborrat no torna
 });
 
 test('migració a la v30: porta de l’office a la cantonada de l’armari i propostes refetes amb la pantalla de 50″', () => {
@@ -438,11 +440,36 @@ test('migració a la v30: porta de l’office a la cantonada de l’armari i pro
   const d = s.rooms.find((r) => r.id === 'office').openings[0];
   assert.deepEqual([d.offset, d.hinge], [125, 'b']);
   const mine = s.saved.filter((p) => p.roomId === 'office');
-  assert.deepEqual(mine.map((p) => p.id), ['office-sim-1', 'office-sim-2']);
-  for (const p of mine) {
+  assert.deepEqual(mine.map((p) => p.id), ['office-sim-1', 'office-sim-2', 'office-sim-3', 'office-sim-4']);
+  for (const p of mine.slice(0, 3)) {
     assert.equal(p.items.find((i) => i.type === 'tvParet').w, 112);
     assert.deepEqual(p.votes, { a: 1 });
     assert.equal(p.comments.length, 2);
     assert.notEqual(p.comments[0].text, 'vella');
   }
+});
+
+test('propostes de WALL-E: coherents a totes les estances (sense xocs, portes lliures, pas i tele davant del sofà)', () => {
+  const st = plan(), t = st.wallThickness;
+  const all = wallEProposals(st, t);
+  assert.deepEqual(Object.keys(all).sort(), ['dormitorio', 'office', 'salon', 'terraza']);
+  for (const [rid, list] of Object.entries(all)) {
+    const room = st.rooms.find((r) => r.id === rid);
+    assert.ok(list.length >= 2, rid);
+    for (const p of list) {
+      const c = checkLayout(room, p.items, st.rooms, { wallThickness: t });
+      const bad = Object.entries(c.dbg).filter(([k, v]) => v > 0.5 && /^(choque|fuera|puerta|pilar|biga|accés|finestra):/.test(k) && !/^finestra:Monitor/.test(k));
+      assert.deepEqual(bad, [], `${p.key}: ${JSON.stringify(bad)}`);
+      assert.ok(!c.dbg.tancat || c.dbg.tancat < 30, `${p.key}: queda espai tancat`);
+      for (const it of p.items) assert.equal(roomAt(st.rooms, it.x, it.z)?.id, rid, `${p.key}: ${it.name} fora de l’estança`);
+      const ids = p.items.map((i) => i.id); assert.equal(new Set(ids).size, ids.length, `${p.key}: ids repetits`);
+      const tv = p.items.find((i) => i.type === 'tv'), sofa = p.items.find((i) => i.type === 'sofa');
+      if (tv && sofa) assert.ok(c.dbg['sofa-mira'] === undefined || c.dbg['sofa-mira'] < 30, `${p.key}: el sofà no mira la tele`);
+    }
+  }
+  // els mobles reals es fan servir (mateix id) i les propostes noves de la v31 es desen per votar
+  assert.ok(all.salon[0].items.some((i) => i.id === 'fix-sofa') && all.dormitorio[0].items.some((i) => i.id === 'fix-llit'));
+  const old = plan(); old.version = 30;
+  const s = migratePlan(old);
+  for (const k of ['menjador-1', 'dormitori-1', 'terrassa-1', 'office-sim-3']) assert.ok(s.saved.some((p) => p.id === k && p.who === 'WALL-E'), k);
 });

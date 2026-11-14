@@ -1,7 +1,7 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=50';
-import { roomAt } from './geom.js?v=50';
-import { officeProposals } from './officeplans.js?v=50';
+import { DEFAULT_PLAN } from './plan.js?v=51';
+import { roomAt } from './geom.js?v=51';
+import { wallEProposals } from './roomplans.js?v=51';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -15,7 +15,7 @@ export function loadState() {
     }
   } catch (e) { /* sin almacenamiento */ }
   const s = clone(DEFAULT_PLAN);
-  addOfficeProposals(s);
+  addWallEProposals(s);
   return s;
 }
 
@@ -134,9 +134,10 @@ export function migratePlan(s, opts = {}) {
     it.roomId = r ? r.id : (s.rooms.find((x) => x.kind === 'room') || {}).id;
   }
   // v29: propostes de l'office amb el simulador i dos escriptoris (objectiu de la persona), per votar-les i aplicar-les des de Propostes
-  if (from < 29) addOfficeProposals(s);
-  // v30: la pantalla del simulador és de 50″ i va penjada a la paret cap on mira: es refan les propostes de WALL-E (es guarden els vots i els comentaris)
-  else if (from < 30) addOfficeProposals(s, Date.now(), { replace: true });
+  // v30: la pantalla del simulador és de 50″ i va penjada a la paret cap on mira; v31: més propostes coherents per a l'office, el menjador,
+  // el dormitori i la terrassa. Es refan les de WALL-E (es guarden els vots i els comentaris) i s'hi afegeixen les noves.
+  if (from < 29) addWallEProposals(s);
+  else if (from < 31) addWallEProposals(s, Date.now(), { replace: true });
   // mobles fixos del plànol (p. ex. els de la cuina) que encara no hi siguin, tret dels que l'usuari hagi esborrat expressament
   const removed = new Set(s.removedFixed || []);
   for (const it of fresh.items || []) {
@@ -149,31 +150,34 @@ export function migratePlan(s, opts = {}) {
 }
 
 
-// Les desa a «Propostes per votar» de l'office (un sol cop: si s'esborren, no tornen).
-export function addOfficeProposals(s, now = Date.now(), { replace = false } = {}) {
-  const room = (s.rooms || []).find((r) => r.id === 'office');
-  if (!room) return 0;
+// Propostes de WALL-E (dibuixades a mà, coherents) desades a «Propostes per votar» de cada estança.
+// Un sol cop: si la persona n'esborra una, no torna. Amb replace (quan canvien les propostes en una versió nova),
+// les que ja hi són s'actualitzen (mobles, nom i nota de WALL-E) i se'n guarden els vots i els comentaris;
+// les antigues de WALL-E que ja no es fan se'n van.
+export function addWallEProposals(s, now = Date.now(), { replace = false } = {}) {
   const list = (s.saved ||= []);
-  let n = 0;
-  const props = officeProposals(room, s.wallThickness || 10);
-  // en refer-les, les propostes antigues de WALL-E que ja no hi caben (p. ex. la de la pantalla de 43″ amb escriptoris a banda i banda) se'n van
-  if (replace && props.length) {
-    const keep = list.filter((x) => !/^office-sim-\d+$/.test(x.id) || +x.id.slice(11) <= props.length);
-    list.splice(0, list.length, ...keep);
-  }
-  props.forEach((p, i) => {
-    const id = `office-sim-${i + 1}`;
+  const all = wallEProposals(s, s.wallThickness || 10);
+  const keys = new Set(Object.values(all).flat().map((p) => p.key));
+  const ours = (x) => x.who === 'WALL-E' && /^(office-sim|menjador|dormitori|terrassa)-\d+$/.test(x.id);
+  if (replace) list.splice(0, list.length, ...list.filter((x) => !ours(x) || keys.has(x.id)));
+  const seen = new Set(s.walleSeen || []); // propostes que ja s'han donat alguna vegada (per no tornar a posar les esborrades)
+  let n = 0, i = 0;
+  for (const [roomId, props] of Object.entries(all)) for (const p of props) {
+    const id = p.key, at = now + i++;
     const old = list.find((x) => x.id === id);
+    if (old) seen.add(id);
     if (old && replace) {
-      old.name = p.name; old.items = p.items;
+      old.name = p.name; old.items = p.items; old.roomId = roomId;
       const c = (old.comments || []).find((x) => x.id === `${id}-c`);
       if (c) c.text = p.note;
       n++;
-      return;
+      continue;
     }
-    if (old || replace) return; // esborrada per la persona: no torna
-    list.push({ id, roomId: room.id, name: p.name, who: 'WALL-E', at: now + i, items: p.items, votes: {}, comments: [{ id: `${id}-c`, who: 'WALL-E', at: now + i, text: p.note }], goals: [] });
+    if (old || seen.has(id)) continue; // ja hi és, o la persona l'ha esborrada: no torna
+    seen.add(id);
+    list.push({ id, roomId, name: p.name, who: 'WALL-E', at, items: p.items, votes: {}, comments: [{ id: `${id}-c`, who: 'WALL-E', at, text: p.note }], goals: [] });
     n++;
-  });
+  }
+  s.walleSeen = [...seen];
   return n;
 }

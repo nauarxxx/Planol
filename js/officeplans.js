@@ -6,7 +6,7 @@
 // entre la porta i l'armari: allà només hi ha ~115 cm, i dos monitors de 27″ l'un al costat de l'altre (124 cm) toparien amb la porta
 // o amb l'armari, per això hi van l'un damunt de l'altre amb un braç.
 // Les posicions es calculen a partir de l'interior de l'habitació, perquè segueixin la paret si se'n canvien les mides.
-import { innerRect } from './geom.js?v=50';
+import { innerRect } from './geom.js?v=51';
 
 const MON = { w: 62, d: 20, h: 52 };
 const DESK_H = 75;
@@ -22,7 +22,7 @@ export function freeLeftOfDoor(room, t = 10) {
   return d ? room.x + d.offset - R.x0 : R.x1 - R.x0;
 }
 
-function kit(room, t, desks, name, note) {
+function kit(room, t, desks, name, note, extra = null) {
   const R = innerRect(room, t);
   const out = [];
   let n = 0;
@@ -60,6 +60,7 @@ function kit(room, t, desks, name, note) {
     const off = d / 2 + 32.5 - 20;
     add('cadiraOficina', { name: `Cadira d’oficina${lab}`, w: 65, d: 65, h: 115, color: '#2b2b30', x: P.x + P.n[0] * off, z: P.z + P.n[1] * off, rot: (P.rot + 180) % 360 });
   });
+  if (extra) extra(R, add, out);
   return { name, note, items: out };
 }
 
@@ -77,5 +78,16 @@ export function officeProposals(room, t = 10) {
     kit(room, t, [{ wall: 'S', at: R.x0 + 63, w: 110, d: 55 }, { wall: 'E', at: E0 + 55, w: 110, d: 55, stack: true }],
       '🏁 Simulador + escriptoris compactes (més pas)',
       'Com l’altra, però amb escriptoris de 110 × 55: hi ha uns 10 cm més de pas entre les cadires i el simulador. Els monitors de l’escriptori de la finestra sobresurten una mica dels costats.'),
+    kit(room, t, [{ wall: 'S', at: R.x0 + 70, w: 140 }, { wall: 'E', at: E0 + 57.5, w: 115, stack: true }],
+      '🏁 Simulador + escriptori llarg a la finestra',
+      'Com la primera, però l’escriptori de la finestra fa 140: hi ha lloc per als dos monitors i encara queda taula per escriure o per al portàtil. L’armari queda lliure.'),
+    kit(room, t, [{ wall: 'S', at: R.x0 + 63 }, { wall: 'E', at: E0 + 57.5, w: 115, stack: true }],
+      '🏁 Simulador amb prestatge i catifa',
+      'Com la primera, amb una catifa sota el simulador (protegeix el terra i apaga el soroll dels pedals) i un prestatge a la paret, damunt del seient, per al casc, els auriculars i els trofeus.',
+      (R, add, out) => {
+        const sim = out.find((i) => i.type === 'cockpit');
+        add('alfombra', { name: 'Catifa del simulador', w: 160, d: 100, h: 1, color: '#3a3d42', x: R.x0 + 52, z: sim.z, rot: 90 });
+        add('prestatge', { name: 'Prestatge del simulador', w: 80, d: 22, h: 4, elev: 150, color: '#a07850', x: R.x0 + 11, z: sim.z + 25, rot: 90 });
+      }),
   ];
 }

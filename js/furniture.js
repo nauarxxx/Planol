@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from '../vendor/addons/geometries/RoundedBoxGeometry.js';
-import { shapeRects, hasWing } from './geom.js?v=50';
+import { shapeRects, hasWing } from './geom.js?v=51';
 export { shapeRects, hasWing };
 
 // Catálogo de tipos de mueble. w = ancho (X local), d = fondo (Z local), h = alto. cm.

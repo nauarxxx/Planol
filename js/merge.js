@@ -2,7 +2,7 @@
 // base = l'últim estat que els dos tenien en comú; local = el d'aquest dispositiu; remote = el que arriba del núvol.
 // Es decideix moble a moble: qui l'ha canviat, guanya; si l'han canviat tots dos, guanya el local (és el que estàs veient).
 
-import { mergeById } from './social.js?v=50';
+import { mergeById } from './social.js?v=51';
 
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const byId = (list) => Object.fromEntries((list || []).map((i) => [i.id, i]));
@@ -13,6 +13,7 @@ export function mergeStates(base, local, remote) {
   const out = {};
   for (const k of new Set([...Object.keys(remote), ...Object.keys(local)])) {
     if (k === 'items') continue;
+    if (k === 'walleSeen') { out[k] = [...new Set([...(local[k] || []), ...(remote[k] || [])])]; continue; } // propostes de WALL-E ja donades
     if (k === 'log' || k === 'saved') { out[k] = mergeById(base[k], local[k], remote[k]); if (!out[k].length) delete out[k]; continue; } // historial i propostes: s'ajunten
     const lc = !same(base[k], local[k]), rc = !same(base[k], remote[k]);
     out[k] = lc && !rc ? local[k] : remote[k];
