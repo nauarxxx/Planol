@@ -27,14 +27,22 @@ export async function initCloud({ onSignedIn, onSignedOut, onDenied, onRemoteSta
       return onDenied(email);
     }
     const ref = fb.doc(db, ...STATE_DOC);
-    let initial = null;
-    try {
-      const snap = await fb.getDoc(ref);
-      if (snap.exists() && snap.data().json) initial = JSON.parse(snap.data().json);
-    } catch (e) {
-      return onDenied(u.email, 'No s’ha pogut llegir la base de dades: ' + e.message);
+    // Es llegeix l'estat del núvol. Si el mòbil no té connexió (o l'estalvi de bateria la talla), es reintenta
+    // i, si no hi ha manera, l'app s'obre igualment amb la còpia d'aquest dispositiu: no es deixa l'usuari fora.
+    let initial = null, offline = null;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const snap = await fb.getDoc(ref);
+        if (snap.exists() && snap.data().json) initial = JSON.parse(snap.data().json);
+        offline = null;
+        break;
+      } catch (e) {
+        if (!OFFLINE_RE.test(String(e.code || '') + ' ' + String(e.message || ''))) return onDenied(u.email, 'No s’ha pogut llegir la base de dades: ' + e.message);
+        offline = e;
+        await new Promise((r) => setTimeout(r, 700 * (i + 1)));
+      }
     }
-    onSignedIn(u, initial);
+    onSignedIn(u, initial, offline ? (offline.message || 'sense connexió') : null);
     unsub = fb.onSnapshot(ref, (snap) => {
       if (snap.metadata.hasPendingWrites || !snap.exists()) return;
       const d = snap.data();
@@ -45,6 +53,8 @@ export async function initCloud({ onSignedIn, onSignedOut, onDenied, onRemoteSta
 }
 
 const SESSION = Math.random().toString(36).slice(2);
+// Errors que volen dir «ara mateix no hi ha connexió», no «no tens permís».
+const OFFLINE_RE = /offline|unavailable|network|deadline|timeout|failed to fetch|internet/i;
 
 export async function signIn() {
   const provider = new fb.GoogleAuthProvider();

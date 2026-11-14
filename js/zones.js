@@ -1,8 +1,8 @@
 // Zones de pas i d'ús: l'espai lliure que necessita cada moble per fer-lo servir (obrir un armari o una nevera,
 // treure una cadira, pujar al llit, seure al vàter…). Cada zona és un rectangle en coordenades locals del moble
 // (el davant és +Z) i es comprova que no hi hagi cap moble, pilar ni paret a dins.
-import { CATALOG } from './furniture.js?v=39';
-import { aabb, innerRect, roomAt, structItems, allOpenings, openingsOnRoom, DEG } from './geom.js?v=39';
+import { CATALOG } from './furniture.js?v=40';
+import { aabb, innerRect, roomAt, structItems, allOpenings, openingsOnRoom, DEG } from './geom.js?v=40';
 
 const front = (it, need, label, extra = {}) => ({ x0: -it.w / 2, x1: it.w / 2, z0: it.d / 2, z1: it.d / 2 + need, dir: [0, 1], need, label, ...extra });
 const back = (it, need, label, extra = {}) => ({ x0: -it.w / 2, x1: it.w / 2, z0: -it.d / 2 - need, z1: -it.d / 2, dir: [0, -1], need, label, ...extra });
