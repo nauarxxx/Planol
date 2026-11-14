@@ -1,6 +1,6 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=37';
-import { roomAt } from './geom.js?v=37';
+import { DEFAULT_PLAN } from './plan.js?v=38';
+import { roomAt } from './geom.js?v=38';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -21,7 +21,16 @@ export function loadState() {
 export function migratePlan(s) {
   if (!s || (s.version || 1) >= DEFAULT_PLAN.version) return s;
   const fresh = clone(DEFAULT_PLAN);
-  s.rooms = fresh.rooms;
+  if (s.roomsEdited && Array.isArray(s.rooms) && s.rooms.length) {
+    // l'usuari ha canviat mides de parets o d'habitacions: es conserven i només s'hi afegeixen les habitacions noves
+    const have = new Set(s.rooms.map((r) => r.id));
+    for (const r of fresh.rooms) if (!have.has(r.id)) s.rooms.push(r);
+  } else {
+    // es conserva el color de les parets pintades
+    const paint = Object.fromEntries((s.rooms || []).filter((r) => r.walls).map((r) => [r.id, r.walls]));
+    for (const r of fresh.rooms) if (paint[r.id]) r.walls = paint[r.id];
+    s.rooms = fresh.rooms;
+  }
   s.version = fresh.version;
   s.items = s.items || [];
   for (const it of s.items) {

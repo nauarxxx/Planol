@@ -11,6 +11,7 @@ import { generateLayouts } from '../js/layout.js';
 import { evalGoals } from '../js/goals.js';
 import { aabb, overlaps, roomAt, parts } from '../js/geom.js';
 import { migratePlan } from '../js/state.js';
+import { editWall, wallSegments } from '../js/walledit.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const plan = () => clone(DEFAULT_PLAN);
@@ -154,4 +155,65 @@ test('migració: el plànol nou conserva els mobles de l’usuari', () => {
   const s = migratePlan(old);
   assert.equal(s.version, DEFAULT_PLAN.version);
   assert.equal(s.items.find((i) => i.id === 'meu').roomId, room(s, 'Menjador').id);
+});
+
+// Paret de la dreta del menjador: 15 | porta 85 | 120 | pas 90 | 50 | racó 80 (440 en total)
+const segLens = (st, r, k) => wallSegments(st.rooms, r, k).map((s) => Math.round(s.b - s.a));
+const pieceOf = (st, r, k, i) => { const sg = wallSegments(st.rooms, r, k)[i]; return { room: r, key: k, a: sg.a, b: sg.b }; };
+
+test('mida d’un tros de paret: la paret sencera es manté i el tros del costat s’hi adapta', () => {
+  const st = plan(), m = room(st, 'Menjador');
+  assert.deepEqual(segLens(st, m, 'E'), [15, 85, 120, 90, 50, 80]);
+  const r = editWall(st, pieceOf(st, m, 'E', 2), 'piece', 125, 1);
+  assert.ok(r.ok, r.msg);
+  assert.equal(r.kind, 'keep');
+  assert.deepEqual(segLens(st, m, 'E'), [15, 85, 125, 90, 45, 80]);
+  assert.equal(m.d, 440);
+  const r2 = editWall(st, pieceOf(st, m, 'E', 2), 'piece', 200, 1); // no hi cap: el tros de sota només fa 45
+  assert.ok(!r2.ok);
+  assert.deepEqual(segLens(st, m, 'E'), [15, 85, 125, 90, 45, 80]);
+});
+
+test('mida d’un tros fins a la cantonada: l’habitació creix i el racó i la terrassa es desplacen', () => {
+  const st = plan(), m = room(st, 'Menjador'), raco = room(st, 'Racó'), ter = room(st, 'Terrassa');
+  const pil = st.rooms.find((r) => r.id === 'pilar-mirall'), z0 = { raco: raco.z, ter: ter.z, pil: pil.z };
+  const r = editWall(st, pieceOf(st, m, 'E', 4), 'piece', 55, 1);
+  assert.ok(r.ok, r.msg);
+  assert.equal(m.d, 445);
+  assert.deepEqual(segLens(st, m, 'E'), [15, 85, 120, 90, 55, 80]);
+  assert.deepEqual([raco.z, ter.z, pil.z], [z0.raco + 5, z0.ter + 5, z0.pil + 5]);
+  assert.ok(r.moved.includes('Racó') && r.moved.includes('Terrassa'));
+});
+
+test('paret sencera: el menjador s’allarga per baix, la terrassa baixa i el racó s’allarga amb ell', () => {
+  const st = plan(), m = room(st, 'Menjador'), raco = room(st, 'Racó'), ter = room(st, 'Terrassa');
+  const sofa = st.items.find((i) => i.roomId === m.id && i.z > m.z + m.d - 80);
+  const sz = sofa?.z;
+  const r = editWall(st, pieceOf(st, m, 'E', 2), 'whole', 450, 1);
+  assert.ok(r.ok, r.msg);
+  assert.equal(m.d, 450);
+  assert.equal(ter.z, 830);
+  assert.equal(raco.z + raco.d, 830);
+  assert.equal(raco.openings[0].width, raco.d); // el racó continua obert del tot al menjador
+  if (sofa) assert.equal(sofa.z, sz + 10); // el que és enganxat a la paret de baix la segueix
+  for (const it of st.items) { const h = roomAt(st.rooms, it.x, it.z); assert.ok(h, `moble fora del pis: ${it.id}`); }
+});
+
+test('paret sencera: si a l’extrem que s’escurça hi ha una porta, no es fa', () => {
+  const st = plan(), m = room(st, 'Menjador');
+  const before = JSON.stringify(st);
+  const r = editWall(st, pieceOf(st, m, 'E', 0), 'whole', 420, -1); // per dalt, a 15 cm de la cantonada, hi ha la porta d'entrada
+  assert.ok(!r.ok);
+  assert.equal(JSON.stringify(st), before);
+});
+
+test('migració: si l’usuari ha canviat les mides, es conserven', () => {
+  const old = plan();
+  old.version = 1; old.roomsEdited = true;
+  room(old, 'Menjador').d = 450;
+  room(old, 'Dormitori').walls = { N: '#c46e4b' };
+  const s = migratePlan(old);
+  assert.equal(room(s, 'Menjador').d, 450);
+  const old2 = plan(); old2.version = 1; room(old2, 'Dormitori').walls = { N: '#c46e4b' };
+  assert.deepEqual(room(migratePlan(old2), 'Dormitori').walls, { N: '#c46e4b' }); // la pintura no es perd
 });

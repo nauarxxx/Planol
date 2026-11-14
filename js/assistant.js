@@ -5,10 +5,10 @@
 //  - «treu la taula», «mou el sofà al dormitori», «què hi ha al dormitori?», «desfés»…
 // No fa servir cap servei extern: tot passa al navegador.
 
-import { CATALOG } from './furniture.js?v=37';
-import { innerRect, overlaps, aabb } from './geom.js?v=37';
-import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=37';
-import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=37';
+import { CATALOG } from './furniture.js?v=38';
+import { innerRect, overlaps, aabb } from './geom.js?v=38';
+import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=38';
+import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=38';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/·/g, '').replace(/[’'`´]/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

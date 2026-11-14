@@ -120,6 +120,15 @@ input[type="checkbox"] { accent-color: var(--accent); }
 #wallpanel .hexrow { display: flex; gap: 4px; }
 #wallpanel .hexrow input { font-family: ui-monospace, monospace; }
 #wallpanel input.bad { border-color: var(--bad); }
+#wallpanel .wp-sub { margin: 4px 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+#wallpanel .wsize { margin-bottom: 10px; }
+#wallpanel .wsize .row { margin-bottom: 6px; }
+#wallpanel .wside { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+#wallpanel .wside > span { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+#wallpanel .wside button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); cursor: pointer; text-align: left; min-height: 44px; }
+#wallpanel .wside button small { font-size: 11px; line-height: 1.25; color: var(--muted); }
+#wallpanel .wside button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+#wallpanel .wsize .btns { margin-top: 0; }
 #props .dist { font-size: 12px; color: var(--muted); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
 #props .dist b { color: var(--ink); font-weight: 600; }
 /* Barra d'eines: text als botons de vista (escriptori) i icones (mòbil). Els controls .mob només surten al mòbil; els .desk, a l'escriptori. */
