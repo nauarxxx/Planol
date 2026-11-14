@@ -1,8 +1,8 @@
 // Zones de pas i d'ús: l'espai lliure que necessita cada moble per fer-lo servir (obrir un armari o una nevera,
 // treure una cadira, pujar al llit, seure al vàter…). Cada zona és un rectangle en coordenades locals del moble
 // (el davant és +Z) i es comprova que no hi hagi cap moble, pilar ni paret a dins.
-import { CATALOG } from './furniture.js?v=47';
-import { aabb, innerRect, roomAt, structItems, allOpenings, openingsOnRoom, DEG } from './geom.js?v=47';
+import { CATALOG } from './furniture.js?v=48';
+import { aabb, innerRect, roomAt, structItems, allOpenings, openingsOnRoom, DEG } from './geom.js?v=48';
 
 const front = (it, need, label, extra = {}) => ({ x0: -it.w / 2, x1: it.w / 2, z0: it.d / 2, z1: it.d / 2 + need, dir: [0, 1], need, label, ...extra });
 const back = (it, need, label, extra = {}) => ({ x0: -it.w / 2, x1: it.w / 2, z0: -it.d / 2 - need, z1: -it.d / 2, dir: [0, -1], need, label, ...extra });
@@ -24,8 +24,9 @@ export function useZones(it) {
     case 'comoda': return [front(it, 55, 'Davant (obrir els calaixos)')];
     case 'mesita': return [front(it, 35, 'Davant (obrir el calaix)')];
     case 'estanteria': return [front(it, 50, 'Davant (agafar coses)')];
-    case 'escritorio': return [front(it, 75, 'Lloc per a la cadira', { ignore: ['silla', 'sillon'] })];
-    case 'silla': return [back(it, 35, 'Darrere (per treure la cadira)', { ignore: ['mesa', 'escritorio'] })];
+    case 'escritorio': return [front(it, 75, 'Lloc per a la cadira', { ignore: ['silla', 'sillon', 'cadiraOficina'] })];
+    case 'silla':
+    case 'cadiraOficina': return [back(it, 35, 'Darrere (per treure la cadira)', { ignore: ['mesa', 'escritorio'] })];
     case 'sofa': return [front(it, 35, 'Davant (per a les cames)')];
     case 'sillon': return [front(it, 35, 'Davant (per a les cames)')];
     case 'nevera': return [front(it, 80, 'Davant (obrir la porta)')];

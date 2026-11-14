@@ -9,8 +9,9 @@ import { checkZones } from '../js/zones.js';
 import { fitScale, scaleSvg } from '../js/sheet.js';
 import { generateLayouts } from '../js/layout.js';
 import { evalGoals } from '../js/goals.js';
-import { aabb, overlaps, roomAt, parts, doorSwing, doorSwings, doorKind, doorFace, doorSymbols, slideFits, boxHitsSwing } from '../js/geom.js';
-import { migratePlan } from '../js/state.js';
+import { aabb, overlaps, roomAt, innerRect, outsideAmount, allSwings, parts, doorSwing, doorSwings, doorKind, doorFace, doorSymbols, slideFits, boxHitsSwing } from '../js/geom.js';
+import { migratePlan, addOfficeProposals } from '../js/state.js';
+import { officeProposals } from '../js/officeplans.js';
 import { editWall, wallSegments } from '../js/walledit.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -380,4 +381,44 @@ test('migració a la v28: si l’usuari havia canviat mides, les seves habitacio
   assert.deepEqual([r('salon').x, r('salon').w, r('salon').d], [0, 280, 500]);
   assert.deepEqual([r('dormitorio').x, r('dormitorio').w], [615, 320]);
   assert.deepEqual([r('office').x, r('office').w], [330, 215]);
+});
+
+test('office: propostes amb el simulador, la pantalla i dos escriptoris amb dos monitors hi caben', () => {
+  const st = plan(), of = st.rooms.find((r) => r.id === 'office'), t = st.wallThickness;
+  const props = officeProposals(of, t);
+  assert.ok(props.length >= 3);
+  const swings = allSwings(st.rooms);
+  const arm = st.rooms.find((r) => r.id === 'armario-office'), op = arm.openings[0];
+  const front = { x0: arm.x - 60, x1: arm.x, z0: arm.z + op.offset, z1: arm.z + op.offset + op.width }; // davant de l'armari
+  const ok = (a, b) => ['cadiraOficina', 'monitor'].includes(a.type) && b.type === 'escritorio';
+  for (const p of props) {
+    const its = p.items, n = (ty) => its.filter((i) => i.type === ty).length;
+    assert.deepEqual([n('cockpit'), n('tvParet'), n('escritorio'), n('cadiraOficina'), n('monitor')], [1, 1, 2, 2, 4], p.name);
+    for (const it of its) {
+      assert.ok(outsideAmount(innerRect(of, t), aabb(it)) <= 0.5, `${p.name}: ${it.name} surt de l’office`);
+      assert.equal(roomAt(st.rooms, it.x, it.z).id, 'office');
+      if ((it.elev || 0) < 200) for (const sw of swings) assert.ok(!boxHitsSwing(aabb(it), sw), `${p.name}: ${it.name} xoca amb una porta`);
+      if (!it.elev || it.type === 'monitor') { const b = aabb(it); assert.ok(b.x1 <= front.x0 || b.z1 <= front.z0 || b.z0 >= front.z1, `${p.name}: ${it.name} tapa l’armari`); }
+    }
+    for (const a of its) for (const b of its) {
+      if (a === b || ok(a, b) || ok(b, a)) continue;
+      const a0 = a.elev || 0, b0 = b.elev || 0;
+      if (a0 + a.h <= b0 || b0 + b.h <= a0) continue;
+      assert.ok(!overlaps(a, b, -1), `${p.name}: ${a.name} xoca amb ${b.name}`);
+    }
+    // la pantalla, davant del volant
+    const sim = its.find((i) => i.type === 'cockpit'), tv = its.find((i) => i.type === 'tvParet');
+    assert.ok(Math.abs(tv.x - sim.x) < 10 && tv.z < sim.z);
+  }
+});
+
+test('migració a la v29: les propostes de l’office es desen per votar, un sol cop', () => {
+  const old = plan(); old.version = 28; old.saved = [];
+  const s = migratePlan(old);
+  const mine = s.saved.filter((p) => p.roomId === 'office');
+  assert.equal(mine.length, 3);
+  assert.ok(mine.every((p) => p.who === 'WALL-E' && p.comments.length === 1));
+  assert.equal(addOfficeProposals(s), 0);
+  s.saved = s.saved.filter((p) => p.id !== 'office-sim-2'); s.version = 28;
+  assert.equal(migratePlan(s).saved.filter((p) => p.roomId === 'office').length, 3); // si es torna a migrar des d'una versió vella, hi tornen
 });

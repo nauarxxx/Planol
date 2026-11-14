@@ -164,6 +164,20 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     await p.waitForFunction(() => document.querySelector('.prop-nav'), null, { timeout: 90000 });
     return await ev(() => [...document.querySelectorAll('ul.goal-rep li')].map((l) => l.className));
   });
+  await step('office: propostes del simulador per votar i aplicar', async () => {
+    await p.click('.tabs button[data-tab="distribuir"]'); await sleep(150);
+    await p.selectOption('#d-room', 'office'); await sleep(200);
+    const names = await ev(() => [...document.querySelectorAll('#d-saved .saved-card .nm')].map((i) => i.value).filter((n) => n.includes('Simulador')));
+    must(names.length === 3, 'falten les propostes del simulador');
+    for (let k = 0; k < names.length; k++) {
+      await ev((k) => [...document.querySelectorAll('#d-saved .saved-card')].filter((c) => c.querySelector('.nm').value.includes('Simulador'))[k].querySelector('[data-apply]').click(), k);
+      await sleep(250);
+      const bad = await ev(() => planta3d.conflicts.filter(([id]) => planta3d.state.items.find((i) => i.id === id)?.roomId === 'office'));
+      must(!bad.length, `${names[k]}: ${JSON.stringify(bad)}`);
+    }
+    await p.keyboard.press('Control+z'); await sleep(100);
+    return names.length;
+  });
   await step('llista de compra i CSV', async () => {
     await p.click('.tabs button[data-tab="compra"]'); await sleep(150);
     await p.check('#sh-all'); await sleep(100);

@@ -5,10 +5,10 @@
 //  - «treu la taula», «mou el sofà al dormitori», «què hi ha al dormitori?», «desfés»…
 // No fa servir cap servei extern: tot passa al navegador.
 
-import { CATALOG } from './furniture.js?v=47';
-import { innerRect, overlaps, aabb } from './geom.js?v=47';
-import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=47';
-import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=47';
+import { CATALOG } from './furniture.js?v=48';
+import { innerRect, overlaps, aabb } from './geom.js?v=48';
+import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=48';
+import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=48';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/·/g, '').replace(/[’'`´]/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,6 +19,8 @@ export const TYPES = [
   ['muebleTv', ['moble tv', 'moble de tv', 'moble de la tele', 'moble del televisor', 'mueble tv', 'mueble de tv', 'mueble de la tele']],
   ['mesita', ['tauleta de nit', 'tauletes de nit', 'mesita de noche', 'mesitas de noche', 'mesilla', 'mesillas', 'tauleta', 'tauletes']],
   ['escritorio', ['taula d estudi', 'escriptori', 'escriptoris', 'escritorio', 'escritorios']],
+  ['cadiraOficina', ['cadira d oficina', 'cadires d oficina', 'cadira oficina', 'cadira de despatx', 'silla de oficina', 'sillas de oficina', 'silla de escritorio', 'cadira gaming', 'silla gaming']],
+  ['monitor', ['monitor', 'monitors', 'monitores', 'pantalla d ordinador', 'pantalla de ordenador']],
   ['cockpit', ['simulador cockpit', 'cockpit', 'cockpits', 'simulador', 'simuladors', 'simuladores']],
   ['lampara', ['lampada de peu', 'lampada', 'lampades', 'lampara', 'lamparas', 'llum de peu']],
   ['encimeraPica', ['taulell amb pica', 'pica', 'aiguera', 'fregadero', 'encimera con fregadero']],

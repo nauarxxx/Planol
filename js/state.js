@@ -1,6 +1,7 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=47';
-import { roomAt } from './geom.js?v=47';
+import { DEFAULT_PLAN } from './plan.js?v=48';
+import { roomAt } from './geom.js?v=48';
+import { officeProposals } from './officeplans.js?v=48';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -13,7 +14,9 @@ export function loadState() {
       if (s && Array.isArray(s.rooms) && Array.isArray(s.items)) return s;
     }
   } catch (e) { /* sin almacenamiento */ }
-  return clone(DEFAULT_PLAN);
+  const s = clone(DEFAULT_PLAN);
+  addOfficeProposals(s);
+  return s;
 }
 
 // Si el plano por defecto es más nuevo que el guardado, se actualizan las habitaciones
@@ -117,6 +120,8 @@ export function migratePlan(s, opts = {}) {
     const r = roomAt(s.rooms, it.x, it.z);
     it.roomId = r ? r.id : (s.rooms.find((x) => x.kind === 'room') || {}).id;
   }
+  // v29: propostes de l'office amb el simulador i dos escriptoris (objectiu de la persona), per votar-les i aplicar-les des de Propostes
+  if (from < 29) addOfficeProposals(s);
   // mobles fixos del plànol (p. ex. els de la cuina) que encara no hi siguin, tret dels que l'usuari hagi esborrat expressament
   const removed = new Set(s.removedFixed || []);
   for (const it of fresh.items || []) {
@@ -128,3 +133,18 @@ export function migratePlan(s, opts = {}) {
   return s;
 }
 
+
+// Les desa a «Propostes per votar» de l'office (un sol cop: si s'esborren, no tornen).
+export function addOfficeProposals(s, now = Date.now()) {
+  const room = (s.rooms || []).find((r) => r.id === 'office');
+  if (!room) return 0;
+  const list = (s.saved ||= []);
+  let n = 0;
+  officeProposals(room, s.wallThickness || 10).forEach((p, i) => {
+    const id = `office-sim-${i + 1}`;
+    if (list.some((x) => x.id === id)) return;
+    list.push({ id, roomId: room.id, name: p.name, who: 'WALL-E', at: now + i, items: p.items, votes: {}, comments: [{ id: `${id}-c`, who: 'WALL-E', at: now + i, text: p.note }], goals: [] });
+    n++;
+  });
+  return n;
+}

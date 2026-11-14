@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { shapeRects, hasWing } from './geom.js?v=47';
+import { shapeRects, hasWing } from './geom.js?v=48';
 export { shapeRects, hasWing };
 
 // Catálogo de tipos de mueble. w = ancho (X local), d = fondo (Z local), h = alto. cm.
@@ -23,6 +23,8 @@ export const CATALOG = {
   lampara:    { label: 'Làmpada de peu',   w: 35,  d: 35,  h: 165, color: '#d8c9a0', role: 'corner' },
   planta:     { label: 'Planta',           w: 40,  d: 40,  h: 110, color: '#3f7a3a', role: 'corner' },
   cockpit:    { label: 'Simulador cockpit', w: 150, d: 90, h: 100, color: '#2a2a2e', role: 'desk' },
+  cadiraOficina: { label: 'Cadira d’oficina', w: 65, d: 65, h: 115, color: '#2b2b30', role: 'seat' },
+  monitor:    { label: 'Monitor 27″',      w: 62,  d: 20,  h: 52,  color: '#1d1f24', role: 'corner', elev: 75 },
   encimera:   { label: 'Taulell de cuina',  w: 120, d: 55,  h: 90,  color: '#e9e4da', role: 'wall' },
   encimeraPica: { label: 'Taulell amb pica', w: 120, d: 55, h: 90,  color: '#e9e4da', role: 'wall' },
   encimeraPlaca: { label: 'Taulell amb placa', w: 160, d: 55, h: 90, color: '#e9e4da', role: 'wall' },
@@ -302,6 +304,35 @@ export function buildFurniture(item, opts = {}) {
         const lg = new THREE.Group(); lg.position.set(x0 + pw / 2, 0, z0 + pd / 2); g.add(lg);
         legs(lg, pw, pd, h - top, 5, dark);
       }
+      break;
+    }
+    case 'cadiraOficina': {
+      // Cadira d'oficina: base d'estrella amb rodes, pistó, seient encoixinat, respatller de malla (a −z) i braços.
+      const seatH = Math.min(50, h * 0.43), sw = Math.min(w - 12, 52), sd = Math.min(d - 12, 50);
+      const frame = mat('#1a1a1d', { metalness: 0.4, roughness: 0.5 });
+      const R = Math.min(w, d) / 2 - 4;
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2, arm = new THREE.Mesh(new THREE.BoxGeometry(R, 3, 4), frame);
+        arm.position.set(Math.cos(a) * R / 2, 6, Math.sin(a) * R / 2); arm.rotation.y = -a; arm.castShadow = true; g.add(arm);
+        const wh = new THREE.Mesh(new THREE.SphereGeometry(2.6, 10, 8), frame); wh.position.set(Math.cos(a) * (R - 1), 2.6, Math.sin(a) * (R - 1)); g.add(wh);
+      }
+      cyl(g, 2.5, seatH - 14, 0, 6, 0, metal);
+      box(g, sw, 8, sd, 0, seatH - 8, 2, main);
+      const back = box(g, sw - 4, h - seatH - 6, 4, 0, seatH + 4, -sd / 2 + 1, mat(shade(c, 1.25), { roughness: 0.9 }));
+      back.rotation.x = -0.12;
+      box(g, 6, 3, sd * 0.6, -sw / 2 - 1, seatH + 18, 2, frame);
+      box(g, 6, 3, sd * 0.6, sw / 2 + 1, seatH + 18, 2, frame);
+      box(g, 3, 18, 3, -sw / 2 - 1, seatH, -2, frame);
+      box(g, 3, 18, 3, sw / 2 + 1, seatH, -2, frame);
+      break;
+    }
+    case 'monitor': {
+      // Monitor (27″ ≈ 61 × 36 de pantalla): peu, braç i pantalla mirant a +z.
+      const ph = Math.min(h - 10, w * 0.6), pt = 2.5, screen = mat('#0b0d12', { roughness: 0.2, metalness: 0.3 });
+      box(g, Math.min(24, w * 0.4), 1.5, Math.min(18, d - 2), 0, 0, -d / 2 + Math.min(18, d - 2) / 2 + 1, dark);
+      box(g, 5, h - ph / 2, 3, 0, 1.5, -d / 2 + 4, dark);
+      box(g, w, ph, pt, 0, h - ph, -d / 2 + 7, main);
+      const sc = box(g, w - 2, ph - 2, 0.6, 0, h - ph + 1, -d / 2 + 7 + pt / 2 + 0.3, screen); sc.castShadow = false;
       break;
     }
     case 'mesaCentro': {

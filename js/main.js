@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=47';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=47';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=47';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=47';
-import { mergeStates } from './merge.js?v=47';
-import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=47';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=47';
-import { initAssistant } from './assistant.js?v=47';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=47';
-import { initMeasure } from './measure.js?v=47';
-import { initColorPicker } from './colorpicker.js?v=47';
-import { initPhotoAdd } from './photo.js?v=47';
-import { initTape } from './tape.js?v=47';
-import { checkZones } from './zones.js?v=47';
-import { fitCheck } from './fit.js?v=47';
-import { initShop, STATUS, statusOf } from './shop.js?v=47';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=47';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=47';
-import { drawPreview as drawRoomPreview } from './preview.js?v=47';
-import { arSupported, startAR as startARView } from './ar.js?v=47';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=47';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=47';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=47';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=47';
+import { DEFAULT_PLAN } from './plan.js?v=48';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=48';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=48';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=48';
+import { mergeStates } from './merge.js?v=48';
+import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=48';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=48';
+import { initAssistant } from './assistant.js?v=48';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=48';
+import { initMeasure } from './measure.js?v=48';
+import { initColorPicker } from './colorpicker.js?v=48';
+import { initPhotoAdd } from './photo.js?v=48';
+import { initTape } from './tape.js?v=48';
+import { checkZones } from './zones.js?v=48';
+import { fitCheck } from './fit.js?v=48';
+import { initShop, STATUS, statusOf } from './shop.js?v=48';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=48';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=48';
+import { drawPreview as drawRoomPreview } from './preview.js?v=48';
+import { arSupported, startAR as startARView } from './ar.js?v=48';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=48';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=48';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=48';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=48';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -1062,7 +1062,7 @@ function conflicts() {
     const A = solid[a], B = solid[b];
     const a0 = A.elev || 0, a1 = a0 + A.h, b0 = B.elev || 0, b1 = b0 + B.h;
     if (a1 <= b0 || b1 <= a0) continue;
-    const isSeatTable = (x, y) => x.type === 'silla' && ['mesa', 'escritorio'].includes(y.type);
+    const isSeatTable = (x, y) => (x.type === 'silla' || x.type === 'cadiraOficina') && ['mesa', 'escritorio'].includes(y.type);
     if (isSeatTable(A, B) || isSeatTable(B, A)) continue; // las sillas pueden meterse bajo la mesa
     if (overlaps(A, B, -1)) {
       bad.set(A.id, 'Xoca amb ' + B.name);
@@ -1157,7 +1157,7 @@ function wallDistances(it) {
   if (it.type !== 'alfombra') for (const o of state.items) {
     if (o === it || o.type === 'alfombra') continue;
     const o0 = o.elev || 0; if (o0 + o.h <= y0 + 0.5 || y1 <= o0 + 0.5) continue;
-    if ((it.type === 'silla' && ['mesa', 'escritorio'].includes(o.type)) || (o.type === 'silla' && ['mesa', 'escritorio'].includes(it.type))) continue;
+    if ((['silla', 'cadiraOficina'].includes(it.type) && ['mesa', 'escritorio'].includes(o.type)) || (['silla', 'cadiraOficina'].includes(o.type) && ['mesa', 'escritorio'].includes(it.type))) continue;
     for (const p of parts(o)) obst.push({ box: aabb(p), what: o.name });
   }
   for (const st of structItems(state.rooms)) if (st.kind === 'pillar' || y1 > st.h0 + 0.5) obst.push({ box: aabb(st), what: st.name });
@@ -2158,7 +2158,7 @@ document.querySelectorAll('#walkbar [data-walk]').forEach((b) => {
 });
 document.getElementById('wk-gyro').addEventListener('click', toggleGyro);
 // ＋ al passeig: tria un moble i es posa a terra davant teu, girat cap a tu i ja triat per arrossegar-lo on vulguis.
-const WALK_ADD = ['silla', 'mesa', 'sofa', 'sillon', 'cama', 'mesita', 'armario', 'estanteria', 'comoda', 'escritorio', 'mesaCentro', 'muebleTv', 'tv', 'alfombra', 'lampara', 'planta', 'quadre', 'caja'];
+const WALK_ADD = ['silla', 'cadiraOficina', 'mesa', 'sofa', 'sillon', 'cama', 'mesita', 'armario', 'estanteria', 'comoda', 'escritorio', 'monitor', 'mesaCentro', 'muebleTv', 'tv', 'alfombra', 'lampara', 'planta', 'quadre', 'caja'];
 document.getElementById('wk-add')?.addEventListener('click', () => {
   const mine = (state.catalog || []).slice(0, 12);
   const m = showInfo('Afegeix un moble aquí', `<p class="note">Es posarà davant teu. Després arrossega’l per col·locar-lo.</p>
@@ -2683,6 +2683,10 @@ function roomItemsOf(id) { return state.items.filter((i) => i.roomId === id); }
 // Substitueix els mobles d'una habitació per uns altres (queda a Desfés).
 function setRoomItems(room, items) {
   commit();
+  // els mobles del plànol que la proposta treu (p. ex. la llitera de l'office) no han de tornar a aparèixer amb el plànol nou
+  const keep = new Set(items.map((i) => i.id));
+  const gone = state.items.filter((i) => i.roomId === room.id && i.id.startsWith('fix-') && !keep.has(i.id)).map((i) => i.id);
+  if (gone.length) state.removedFixed = [...new Set([...(state.removedFixed || []), ...gone])];
   state.items = state.items.filter((i) => i.roomId !== room.id).concat(clone(items));
   if (ui.selected && !itemById(ui.selected)) ui.selected = null;
   save(); rebuildItems(); renderAll();
@@ -3294,7 +3298,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v47',
+  version: 'v48',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
