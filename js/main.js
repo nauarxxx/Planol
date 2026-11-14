@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=44';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=44';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=44';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=44';
-import { mergeStates } from './merge.js?v=44';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=44';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=44';
-import { initAssistant } from './assistant.js?v=44';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=44';
-import { initMeasure } from './measure.js?v=44';
-import { initColorPicker } from './colorpicker.js?v=44';
-import { initPhotoAdd } from './photo.js?v=44';
-import { initTape } from './tape.js?v=44';
-import { checkZones } from './zones.js?v=44';
-import { fitCheck } from './fit.js?v=44';
-import { initShop, STATUS, statusOf } from './shop.js?v=44';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=44';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=44';
-import { drawPreview as drawRoomPreview } from './preview.js?v=44';
-import { arSupported, startAR as startARView } from './ar.js?v=44';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=44';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=44';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=44';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=44';
+import { DEFAULT_PLAN } from './plan.js?v=45';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=45';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=45';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=45';
+import { mergeStates } from './merge.js?v=45';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=45';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=45';
+import { initAssistant } from './assistant.js?v=45';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=45';
+import { initMeasure } from './measure.js?v=45';
+import { initColorPicker } from './colorpicker.js?v=45';
+import { initPhotoAdd } from './photo.js?v=45';
+import { initTape } from './tape.js?v=45';
+import { checkZones } from './zones.js?v=45';
+import { fitCheck } from './fit.js?v=45';
+import { initShop, STATUS, statusOf } from './shop.js?v=45';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=45';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=45';
+import { drawPreview as drawRoomPreview } from './preview.js?v=45';
+import { arSupported, startAR as startARView } from './ar.js?v=45';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=45';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=45';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=45';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=45';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -37,6 +37,8 @@ window.addEventListener('unhandledrejection', (e) => logAdd('✖', String(e.reas
 { const ce = console.error.bind(console), cw = console.warn.bind(console); console.error = (...a) => { logAdd('✖', a.map(String).join(' ')); ce(...a); }; console.warn = (...a) => { logAdd('⚠', a.map(String).join(' ')); cw(...a); }; }
 const ui = { ws: null, wallSel: null, wallAll: false, selected: null, view: '3d', wallMode: 'low', snap: true, labels: true, measures: true, layoutRoom: null, proposals: [], seed: 1, addRoom: null, propsOpen: false, propHist: {}, propN: {}, propK: {} };
 const isMobile = () => window.matchMedia('(max-width: 800px)').matches;
+// Al mòbil i al passeig, el moble triat només mostra la barra ràpida; el panell sencer surt amb «Detalls».
+const compactProps = () => isMobile() || ui.view === 'walk';
 let tape = null; // cinta mètrica (es crea amb l'escena)
 let installPrompt = null; // event d'instal·lació de la PWA (Chrome/Edge/Android)
 const history = { past: [], future: [] };
@@ -279,7 +281,7 @@ function entranceDoor() {
 }
 const noControls = { update: () => false, enabled: false };
 const HINTS = {
-  walk: 'Toca el terra per anar-hi · arrossega per mirar · fletxes / WASD o el joystick per caminar · toca portes, finestres i mobles · el mapa et porta on toquis',
+  walk: 'Toca el terra per anar-hi · arrossega per mirar · toca un moble i arrossega’l per moure’l (o mantén-lo premut) · toca una paret per canviar-la · mantén premuda una porta · ＋ afegeix un moble davant teu',
   tape: 'Cinta mètrica: toca dos punts per mesurar (s’enganxa a les cantonades) · Supr desfà l’última · Esc per sortir',
   edit: 'Arrossega un moble per moure’l · Maj o Ctrl + clic per triar-ne uns quants · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar',
 };
@@ -294,6 +296,7 @@ function setView(v) {
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
   const fv = document.querySelector('#tb-fab .v'); if (fv) fv.textContent = { '3d': '3D', top: '2D', walk: '🚶' }[v];
   document.getElementById('walkbar').hidden = v !== 'walk';
+  document.body.classList.toggle('walking', v === 'walk');
   if (v === 'walk' && tape?.active) setTape(false);
   setHint();
   if (v === 'walk' && was !== 'walk') {
@@ -1341,7 +1344,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     const ph = raycaster.intersectObjects(planGroup.children, true);
     const dh = ph.find((h) => typeof h.object.userData.door === 'string');
     const wh = ph.find((h) => h.object.userData.wall);
-    const near = (h) => h && h.distance < 420; // només el que tens a l'abast (uns 4 m)
+    const near = (h) => h && h.distance < cfgGet('walkReach'); // el que hi ha a la mateixa habitació (uns 7 m): es pot tocar per editar-ho
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size >= 2) {
       // segon dit: pessic per fer zoom; s'anul·la el toc
@@ -1350,9 +1353,18 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
       capture(e); return;
     }
     const fp = floorPoint(), fd = fp ? fp.distanceTo(walkCam.position) : Infinity;
+    const ihit = near(ih) && (!dh || ih.distance <= dh.distance) ? ih : null;
+    const hitIt = ihit && itemById(ihit.object.userData.itemId);
+    // un moble ja triat i no fix: arrossegar-lo el mou (en comptes de mirar)
+    if (hitIt && selIds().includes(hitIt.id) && !hitIt.locked) { startWalkMove(hitIt, ihit.point); capture(e); return; }
     drag = { look: true, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, item: near(ih) && (!dh || ih.distance <= dh.distance) ? ih.object.userData.itemId : null, door: near(dh) && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null, wall: near(wh) ? wh.object.userData.wall : null,
       floor: fp && fd < 1500 && (!wh || fd < wh.distance) && (!ih || fd < ih.distance) ? { x: fp.x, z: fp.z } : null };
     if (drag.door) startHold(e, drag.door);
+    else if (hitIt && !hitIt.locked) {
+      // mantenir premut un moble: s'agafa i ja es pot arrossegar
+      const d = drag, pt = ihit.point.clone();
+      holdThen(e, () => { if (drag !== d) return; select(hitIt.id); startWalkMove(hitIt, pt); vib([10, 30, 10]); toast('Arrossega’l per moure’l'); });
+    }
     capture(e); return;
   }
   if (tape.active) { drag = { tape: true, x: e.clientX, y: e.clientY }; return; } // la càmera es pot moure; un toc posa un punt
@@ -1383,15 +1395,24 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
 
 // Toc llarg (uns 0,55 s sense moure el dit): obre el panell de la porta en comptes d'obrir-la o tancar-la.
 let hold = null;
-function startHold(e, key) {
+function holdThen(e, fn, ms = cfgGet('hold')) {
   clearHold();
+  hold = { x: e.clientX, y: e.clientY, timer: setTimeout(() => { hold = null; if (twist.touches.size < 2 && pointers.size < 2) fn(); }, ms) };
+}
+function startHold(e, key) {
   if (!doorRef(key)) return;
   const d = drag;
-  hold = { x: e.clientX, y: e.clientY, key, timer: setTimeout(() => {
-    hold = null;
-    if (drag !== d || twist.touches.size >= 2) return;
-    if (openDoorPanel(key)) { if (drag) drag.held = true; vib([10, 40, 10]); }
-  }, 550) };
+  holdThen(e, () => { if (drag !== d) return; if (openDoorPanel(key)) { if (drag) drag.held = true; vib([10, 40, 10]); } });
+}
+// Passeig: moure un moble arrossegant-lo. Es fa servir un pla a l'alçada on s'ha agafat (no el terra), perquè des de l'alçada
+// dels ulls el terra queda molt de biaix i el moble saltaria.
+function startWalkMove(it, point) {
+  const y = Math.max(0, Math.min(point.y, cfgGet('eyeHeight') - 25));
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y);
+  const p = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(plane, p)) p.copy(point);
+  const ids = selIds().filter((id) => !itemById(id).locked);
+  drag = { id: it.id, ids: ids.length ? ids : [it.id], dx: it.x - p.x, dz: it.z - p.z, moved: false, before: JSON.stringify(state), plane };
 }
 function clearHold() { if (hold) { clearTimeout(hold.timer); hold = null; } }
 renderer.domElement.addEventListener('pointermove', (e) => { if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 8) clearHold(); }, true);
@@ -1572,7 +1593,8 @@ function doorRef(key) {
 // Porta més propera a un punt del terra (a menys de 35 cm del buit o dins del lloc on s'obre).
 function doorNear(p) {
   if (!p) return null;
-  let best = null, bd = 35;
+  const range = cfgGet('doorRange');
+  let best = null, bd = range;
   for (const r of state.rooms) (r.openings || []).forEach((op, idx) => {
     const f = doorFrame(r, op);
     if (!f) return;
@@ -1580,7 +1602,7 @@ function doorNear(p) {
     const u = seg.axis === 'x' ? p.x : p.z, v = seg.axis === 'x' ? p.z : p.x;
     const du = Math.max(seg.a - u, 0, u - seg.b), dv = Math.abs(v - seg.line);
     let d = Math.hypot(du, dv);
-    if (doorSwings(r, op).some((sw) => boxHitsSwing({ x0: p.x - 1, x1: p.x + 1, z0: p.z - 1, z1: p.z + 1 }, sw))) d = Math.min(d, 20);
+    if (doorSwings(r, op).some((sw) => boxHitsSwing({ x0: p.x - 1, x1: p.x + 1, z0: p.z - 1, z1: p.z + 1 }, sw))) d = Math.min(d, range * 0.6);
     if (d < bd) { bd = d; best = r.id + '|' + idx; }
   });
   return best;
@@ -1773,7 +1795,8 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   if (tape.active && (!drag || drag.tape) && e.pointerType !== 'touch') { setPointer(e); tape.hover(raycaster); return; }
   if (!drag || drag.empty || drag.tape) return;
   setPointer(e);
-  const p = floorPoint();
+  let p = floorPoint();
+  if (drag.plane) { p = new THREE.Vector3(); if (!raycaster.ray.intersectPlane(drag.plane, p) || p.distanceTo(camera.position) > cfgGet('walkDragMax')) return; } // massa lluny (gairebé a l'horitzó)
   if (!p) return;
   const it = itemById(drag.id);
   const step = ui.snap ? cfgGet('snap') : 1;
@@ -1794,7 +1817,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) {
       if (drag.item) { select(drag.item); vib(8); }
       else if (drag.door) toggleDoor(drag.door);
-      else if (drag.floor && roomAt(state.rooms, drag.floor.x, drag.floor.z)) { walk.target = drag.floor; requestRender(); } // toca el terra: hi vas caminant
+      else if (drag.floor && roomAt(state.rooms, drag.floor.x, drag.floor.z)) { if (ui.selected) select(null); walk.target = drag.floor; requestRender(); } // toca el terra: hi vas caminant (i es deixa el moble)
       else if (drag.wall) showWallMeasure(drag.wall);
     }
     drag = null; return;
@@ -1814,9 +1837,10 @@ renderer.domElement.addEventListener('pointerup', (e) => {
       save(); renderAll();
       vib(12);
     }
-    controls.enabled = true;
+    controls.enabled = ui.view !== 'walk';
   }
   drag = null;
+  pointers.delete(e.pointerId);
 });
 
 const WALK_KEYS = { arrowup: 'f', w: 'f', arrowdown: 'b', s: 'b', arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r' };
@@ -1826,11 +1850,11 @@ window.addEventListener('keydown', (e) => {
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
   if (ui.view === 'walk') {
     const k = WALK_KEYS[e.key.toLowerCase()];
-    if (k) { walk.keys.add(k); e.preventDefault(); requestRender(); }
-    if (e.key === '+' || e.key === '=') { e.preventDefault(); setWalkFov(walk.fov - 5); } // acostar
-    if (e.key === '-' || e.key === '_') { e.preventDefault(); setWalkFov(walk.fov + 5); } // allunyar (zoom negatiu)
-    if (e.key === 'Escape') setView('3d');
-    return;
+    if (k && !e.ctrlKey && !e.metaKey) { walk.keys.add(k); e.preventDefault(); requestRender(); return; }
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); setWalkFov(walk.fov - 5); return; } // acostar
+    if (e.key === '-' || e.key === '_') { e.preventDefault(); setWalkFov(walk.fov + 5); return; } // allunyar (zoom negatiu)
+    if (e.key === 'Escape') { if (ui.selected) select(null); else if (ui.doorSel) closeDoorPanel(); else if (ui.wallSel) showWallMeasure(null); else setView('3d'); return; }
+    // la resta (girar amb R / Q / E, esborrar, duplicar, desfer) funciona igual que a les altres vistes amb el moble triat
   }
   if (tape.active) {
     if (e.key === 'Escape') { setTape(false); return; }
@@ -1880,7 +1904,7 @@ function select(id, add = false) {
     ui.multi = cur;
   } else {
     // en triar un altre moble comença una edició nova; si s'acaba de crear (o duplicar o moure d'habitació), també es pot desfer això
-    if (id !== ui.selected || ui.editStart == null) ui.editStart = id ? history.past.length - (performance.now() - lastCommitAt < 300 ? 1 : 0) : null;
+    if (id !== ui.selected || ui.editStart == null) ui.editStart = id ? history.past.length - (performance.now() - lastCommitAt < cfgGet('undoJoin') ? 1 : 0) : null;
     ui.selected = id; ui.multi = new Set(id ? groupIds(id) : []);
   }
   if (!id) ui.editStart = null;
@@ -2121,6 +2145,35 @@ document.querySelectorAll('#walkbar [data-walk]').forEach((b) => {
   b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
 });
 document.getElementById('wk-gyro').addEventListener('click', toggleGyro);
+// ＋ al passeig: tria un moble i es posa a terra davant teu, girat cap a tu i ja triat per arrossegar-lo on vulguis.
+const WALK_ADD = ['silla', 'mesa', 'sofa', 'sillon', 'cama', 'mesita', 'armario', 'estanteria', 'comoda', 'escritorio', 'mesaCentro', 'muebleTv', 'tv', 'alfombra', 'lampara', 'planta', 'quadre', 'caja'];
+document.getElementById('wk-add')?.addEventListener('click', () => {
+  const mine = (state.catalog || []).slice(0, 12);
+  const m = showInfo('Afegeix un moble aquí', `<p class="note">Es posarà davant teu. Després arrossega’l per col·locar-lo.</p>
+    ${mine.length ? `<h4 class="wp-sub">⭐ Els meus mobles</h4><div class="wkadd">${mine.map((c) => `<button type="button" class="btn secondary small" data-cat="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>` : ''}
+    <h4 class="wp-sub">Catàleg</h4><div class="wkadd">${WALK_ADD.filter((t) => CATALOG[t]).map((t) => `<button type="button" class="btn secondary small" data-type="${t}">${esc(CATALOG[t].label)}</button>`).join('')}</div>`);
+  m.querySelectorAll('[data-type],[data-cat]').forEach((b) => b.addEventListener('click', () => {
+    m.hidden = true;
+    const c = b.dataset.cat ? (state.catalog || []).find((x) => x.id === b.dataset.cat) : null;
+    walkAdd(c ? c.type : b.dataset.type, c ? { name: c.name, w: c.w, d: c.d, h: c.h, elev: c.elev, color: c.color, catalogId: c.id, photoLook: c.photo ? true : undefined, price: c.price, url: c.url || undefined } : {});
+  }));
+});
+function walkAdd(type, props) {
+  if (!CATALOG[type]) return;
+  const fx = -Math.sin(walk.yaw), fz = -Math.cos(walk.yaw);
+  const probe = newItem(type, props), dist = cfgGet('walkAddDist') + Math.max(probe.w || 60, probe.d || 60) / 2;
+  const x = walk.x + fx * dist, z = walk.z + fz * dist;
+  const room = roomAt(state.rooms, x, z) || roomAt(state.rooms, walk.x, walk.z) || usableRooms()[0];
+  const [it] = addItems(type, props, 1, room.id);
+  if (!it) return;
+  if (roomAt(state.rooms, x, z)?.id === room.id && !CATALOG[type].mount) {
+    it.x = Math.round(x); it.z = Math.round(z);
+    it.rot = ((Math.round((walk.yaw * 180 / Math.PI) / 90) * 90) % 360 + 360) % 360; // de cara a tu
+  }
+  it.roomId = room.id;
+  save(); rebuildItems(); select(it.id); renderAll();
+  toast(`${it.name} afegit ✓ · arrossega’l per moure’l`);
+}
 // Joystick (mòbil): arrossega el polze en qualsevol direcció per caminar; com més lluny del centre, més ràpid.
 {
   const joy = document.getElementById('wk-joy'), knob = joy?.querySelector('span');
@@ -2355,7 +2408,7 @@ function shapeIcon(k) {
 function renderGroupProps(ids) {
   const el = $('#props'), its = ids.map(itemById);
   el.hidden = false;
-  el.classList.toggle('collapsed', isMobile() && !ui.propsOpen);
+  el.classList.toggle('collapsed', compactProps() && !ui.propsOpen);
   el.dataset.id = 'multi';
   const grouped = its.every((o) => o.group && o.group === its[0].group);
   el.innerHTML = `
@@ -2403,7 +2456,7 @@ function renderProps(onlyPos = false) {
     return;
   }
   el.hidden = false;
-  el.classList.toggle('collapsed', isMobile() && !ui.propsOpen);
+  el.classList.toggle('collapsed', compactProps() && !ui.propsOpen);
   el.dataset.id = it.id;
   const bad = ui.conflicts?.get(it.id);
   el.innerHTML = `
@@ -2458,7 +2511,7 @@ function renderProps(onlyPos = false) {
   const apply = (fn, rebuild) => { commit(); fn(); save(); updateItem(it, rebuild); renderProps(); renderItemList(); };
   bindItemSocial($('#p-social'), it, whoAmI(), (fn) => { commit(); fn(); save(); renderProps(); renderItemList(); });
   arSupported().then((ok) => { const b = $('#p-ar'); if (b) { b.hidden = !ok && !isMobile(); b.onclick = () => (ok ? startARView(it, { photo: photoOf(it), toast }) : showInfo('Realitat augmentada', '<p>Per veure el moble a mida real a casa cal un mòbil Android amb Chrome (i els Serveis de Google Play per a RA). A l’iPhone el navegador encara no ho permet.</p>')); } });
-  $('#p-close').addEventListener('click', () => { if (isMobile()) { ui.propsOpen = false; renderProps(); } else select(null); });
+  $('#p-close').addEventListener('click', () => { if (compactProps()) { ui.propsOpen = false; renderProps(); } else select(null); });
   $('#p-undo')?.addEventListener('click', undoEdit);
   $('#p-name').addEventListener('change', (e) => apply(() => { it.name = e.target.value; }));
   $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; if (it.shape && !SHAPES[it.type]?.some(([k]) => k === it.shape)) { delete it.shape; for (const k of ['sd', 'lw', 'bw', 'bh']) delete it[k]; } }, true));
@@ -3175,7 +3228,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v44',
+  version: 'v45',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,

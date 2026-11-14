@@ -657,3 +657,7 @@ ul.log li { padding: 5px 0; border-bottom: 1px dashed var(--line, #ddd); }
   #wallpanel .dkinds button small { display: none; }
   #wallpanel .dkinds button, #wallpanel .wside button { min-height: 38px; }
 }
+/* Passeig: el moble triat es mou i es gira des de la barra ràpida, també a l'ordinador */
+body.walking #selbar:not([hidden]) { display: flex; }
+body.walking #props.collapsed { display: none; }
+.wkadd { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
