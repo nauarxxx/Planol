@@ -1,6 +1,6 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=41';
-import { roomAt } from './geom.js?v=41';
+import { DEFAULT_PLAN } from './plan.js?v=42';
+import { roomAt } from './geom.js?v=42';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -21,6 +21,15 @@ export function loadState() {
 export function migratePlan(s) {
   if (!s || (s.version || 1) >= DEFAULT_PLAN.version) return s;
   const fresh = clone(DEFAULT_PLAN);
+  const from = s.version || 1;
+  // v26 corregeix la paret de la porta d'entrada i baixa 90 el passadís i les habitacions: és una correcció de la persona,
+  // per tant passa per davant de les mides que s'haguessin editat abans (els colors de les parets es conserven)
+  if (from < 26) {
+    delete s.roomsEdited;
+    // els mobles es queden a la mateixa habitació: el que hi ha a la meitat de la terrassa del menjador i tot el que és més avall baixa 90
+    // (la taula, les cadires i la tele, a prop de la cuina i de la porta, es queden on són)
+    for (const it of s.items || []) if (it.z > 380 && !(it.x < 270 && it.z < 640)) it.z += 90;
+  }
   if (s.roomsEdited && Array.isArray(s.rooms) && s.rooms.length) {
     // l'usuari ha canviat mides de parets o d'habitacions: es conserven i només s'hi afegeixen les habitacions noves
     const have = new Set(s.rooms.map((r) => r.id));

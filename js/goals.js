@@ -1,7 +1,7 @@
 // Objectius de les propostes: el que es vol prioritzar en col·locar els mobles. Cada objectiu dona una penalització
 // (com més gran, pitjor) que se suma a la puntuació de la proposta i una explicació curta de si es compleix.
-import { aabb, innerRect, allOpenings, openingsOnRoom, DEG } from './geom.js?v=41';
-import { checkZones } from './zones.js?v=41';
+import { aabb, innerRect, allOpenings, openingsOnRoom, DEG } from './geom.js?v=42';
+import { checkZones } from './zones.js?v=42';
 
 export const GOALS = [
   ['zones', 'Espai per fer servir cada moble', 'Que es puguin obrir armaris i calaixos, pujar al llit, treure les cadires…'],

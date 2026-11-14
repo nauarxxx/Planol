@@ -1,7 +1,7 @@
 // Realitat augmentada (WebXR, Chrome d'Android): posa el moble a mida real a terra, amb la càmera del mòbil.
 // Fa servir un renderitzador a part perquè l'escena del plànol no es toqui.
 import * as THREE from 'three';
-import { buildFurniture } from './furniture.js?v=41';
+import { buildFurniture } from './furniture.js?v=42';
 
 let supported = null;
 export function arSupported() {

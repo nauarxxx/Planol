@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=41';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=41';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=41';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=41';
-import { mergeStates } from './merge.js?v=41';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=41';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=41';
-import { initAssistant } from './assistant.js?v=41';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=41';
-import { initMeasure } from './measure.js?v=41';
-import { initColorPicker } from './colorpicker.js?v=41';
-import { initPhotoAdd } from './photo.js?v=41';
-import { initTape } from './tape.js?v=41';
-import { checkZones } from './zones.js?v=41';
-import { fitCheck } from './fit.js?v=41';
-import { initShop, STATUS, statusOf } from './shop.js?v=41';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=41';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=41';
-import { drawPreview as drawRoomPreview } from './preview.js?v=41';
-import { arSupported, startAR as startARView } from './ar.js?v=41';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=41';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=41';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=41';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=41';
+import { DEFAULT_PLAN } from './plan.js?v=42';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=42';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=42';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=42';
+import { mergeStates } from './merge.js?v=42';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=42';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=42';
+import { initAssistant } from './assistant.js?v=42';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=42';
+import { initMeasure } from './measure.js?v=42';
+import { initColorPicker } from './colorpicker.js?v=42';
+import { initPhotoAdd } from './photo.js?v=42';
+import { initTape } from './tape.js?v=42';
+import { checkZones } from './zones.js?v=42';
+import { fitCheck } from './fit.js?v=42';
+import { initShop, STATUS, statusOf } from './shop.js?v=42';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=42';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=42';
+import { drawPreview as drawRoomPreview } from './preview.js?v=42';
+import { arSupported, startAR as startARView } from './ar.js?v=42';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=42';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=42';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=42';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=42';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -2960,7 +2960,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v41',
+  version: 'v42',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
