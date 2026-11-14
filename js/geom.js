@@ -147,14 +147,25 @@ export function openingsOnRoom(room, openings) {
   return res;
 }
 
-// Batent d'una porta: quart de cercle que escombra la fulla en obrir-se.
-// op.swing: 'in' (cap a dins de l'habitació, per defecte) | 'out' | 'none'. op.hinge: 'a' (cantonada N/W) | 'b'.
-// Torna la frontissa (hx, hz), el radi, la direcció al llarg de la paret (wx, wz), la d'obertura (ix, iz) i la caixa.
-export function doorSwing(room, op) {
-  if (op.type !== 'puerta' || op.swing === 'none') return null;
+// Tipus de porta (op.door): 'batent' (normal, per defecte), 'doble' (dues fulles batents), 'llibre' (plegable, dues fulles que es
+// pleguen com un llibre) i 'corredissa'. Les portes antigues amb swing 'none' eren corredisses amagades a la paret.
+export const DOOR_KINDS = ['batent', 'corredissa', 'llibre', 'doble'];
+export function doorKind(op) {
+  if (DOOR_KINDS.includes(op.door)) return op.door;
+  return op.swing === 'none' ? 'corredissa' : 'batent';
+}
+// Cap a on s'obre: 'in' (cap a dins de l'habitació) | 'out' | (corredisses) 'wall' = amagada dins de la paret.
+export function doorFace(op) {
+  if (op.swing === 'out') return 'out';
+  if (doorKind(op) === 'corredissa' && (op.swing === 'wall' || op.swing === 'none')) return 'wall';
+  return 'in';
+}
+// Marc d'una porta: el buit, la frontissa (op.hinge: 'a' = cantonada N/W, 'b' = l'altra), la direcció al llarg de la paret (wx, wz)
+// cap al buit des de la frontissa i la d'obertura (ix, iz).
+export function doorFrame(room, op) {
+  if (op.type !== 'puerta') return null;
   const seg = openingSegment(room, op);
   if (!seg) return null;
-  const r = op.width;
   const hingeA = (op.hinge || 'a') === 'a';
   const inward = { N: [0, 1], S: [0, -1], W: [1, 0], E: [-1, 0] }[op.wall];
   const s = op.swing === 'out' ? -1 : 1;
@@ -162,10 +173,38 @@ export function doorSwing(room, op) {
   let hx, hz, wx, wz;
   if (seg.axis === 'x') { hz = seg.line; hx = hingeA ? seg.a : seg.b; wx = hingeA ? 1 : -1; wz = 0; }
   else { hx = seg.line; hz = hingeA ? seg.a : seg.b; wz = hingeA ? 1 : -1; wx = 0; }
-  const xs = [hx, hx + wx * r, hx + ix * r, hx + (wx + ix) * r], zs = [hz, hz + wz * r, hz + iz * r, hz + (wz + iz) * r];
-  return { hx, hz, r, wx, wz, ix, iz, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs), roomId: room.id };
+  return { seg, hx, hz, wx, wz, ix, iz, inx: inward[0], inz: inward[1], r: op.width, roomId: room.id };
 }
-
+const quarter = (f, hx, hz, wx, wz, r, role) => {
+  const xs = [hx, hx + wx * r, hx + f.ix * r, hx + (wx + f.ix) * r], zs = [hz, hz + wz * r, hz + f.iz * r, hz + (wz + f.iz) * r];
+  return { hx, hz, r, wx, wz, ix: f.ix, iz: f.iz, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs), roomId: f.roomId, role };
+};
+// Caixa des de la frontissa: u al llarg de la paret (u0..u1), v cap a on s'obre (v0..v1).
+const strip = (f, u0, u1, v0, v1, ix, iz, role) => {
+  const xs = [], zs = [];
+  for (const u of [u0, u1]) for (const v of [v0, v1]) { xs.push(f.hx + f.wx * u + ix * v); zs.push(f.hz + f.wz * u + iz * v); }
+  return { box: true, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs), roomId: f.roomId, role };
+};
+// Espai que escombra una porta en obrir-se (no s'hi pot posar res): quarts de cercle per a les fulles i caixes per a la resta.
+export function doorSwings(room, op) {
+  const f = doorFrame(room, op);
+  if (!f) return [];
+  const k = doorKind(op), w = f.r;
+  if (k === 'batent') return [quarter(f, f.hx, f.hz, f.wx, f.wz, w, 'leaf')];
+  if (k === 'doble') return [quarter(f, f.hx, f.hz, f.wx, f.wz, w / 2, 'leaf'), quarter(f, f.hx + f.wx * w, f.hz + f.wz * w, -f.wx, -f.wz, w / 2, 'leaf')];
+  if (k === 'llibre') {
+    // la primera fulla gira a la frontissa; la segona, plegada, no s'allunya més de 0,45 × fulla un cop passada la meitat
+    const a = w / 2;
+    return [quarter(f, f.hx, f.hz, f.wx, f.wz, a, 'fold'), strip(f, a, w, 0, a * 0.45, f.ix, f.iz, 'tail')];
+  }
+  // corredissa: llisca cap al costat de la frontissa, per la cara triada; amagada dins la paret no ocupa res
+  const face = doorFace(op);
+  if (face === 'wall') return [];
+  const sx = face === 'out' ? -f.inx : f.inx, sz = face === 'out' ? -f.inz : f.inz;
+  return [strip(f, -w, w, 0, 12, sx, sz, 'slide')];
+}
+// Compatibilitat: la primera zona d'una porta (la del batent, si n'hi ha).
+export function doorSwing(room, op) { return doorSwings(room, op).find((s) => !s.box) || null; }
 // Pilars i bigues com a pseudo-mobles (per comprovar xocs i buscar lloc lliure). Les bigues porten h0 (alçada de sota).
 export function structItems(rooms) {
   const out = [];
@@ -180,7 +219,7 @@ export function structItems(rooms) {
 
 export function allSwings(rooms) {
   const out = [];
-  for (const r of rooms) for (const op of r.openings || []) { const s = doorSwing(r, op); if (s) out.push(s); }
+  for (const r of rooms) for (const op of r.openings || []) out.push(...doorSwings(r, op));
   return out;
 }
 
@@ -194,9 +233,69 @@ export function swingArc(sw, n = 12) {
   return pts;
 }
 
-// Una caixa (AABB) toca el quart de cercle del batent?
+// Una caixa (AABB) toca el quart de cercle del batent (o la caixa d'una corredissa o d'una plegable)?
 export function boxHitsSwing(box, sw) {
   if (box.x1 <= sw.x0 || box.x0 >= sw.x1 || box.z1 <= sw.z0 || box.z0 >= sw.z1) return false;
+  if (sw.box) return true;
   const cx = Math.max(box.x0, Math.min(sw.hx, box.x1)), cz = Math.max(box.z0, Math.min(sw.hz, box.z1));
   return Math.hypot(cx - sw.hx, cz - sw.hz) < sw.r;
+}
+
+// Símbol de la porta en planta: línies [{ pts: [[x, z]…], closed }].
+export function doorSymbols(room, op, n = 12) {
+  const f = doorFrame(room, op);
+  if (!f) return [];
+  const k = doorKind(op), w = f.r, out = [];
+  const pie = (sw) => out.push({ pts: [[sw.hx, sw.hz], ...swingArc(sw, n)], closed: true });
+  const P = (u, v, ix = f.ix, iz = f.iz) => [f.hx + f.wx * u + ix * v, f.hz + f.wz * u + iz * v];
+  if (k === 'batent' || k === 'doble') for (const sw of doorSwings(room, op)) pie(sw);
+  else if (k === 'llibre') {
+    const a = w / 2, c = Math.cos(Math.PI / 3), sn = Math.sin(Math.PI / 3);
+    out.push({ pts: [P(0, 0), ...swingArc(quarter(f, f.hx, f.hz, f.wx, f.wz, a, 'fold'), n)], closed: false });
+    out.push({ pts: [P(0, 0), P(a * c, a * sn), P(2 * a * c, 0)], closed: false }); // les dues fulles mig plegades
+  } else {
+    const face = doorFace(op);
+    const sx = face === 'out' ? -f.inx : f.inx, sz = face === 'out' ? -f.inz : f.inz, v = face === 'wall' ? 0 : 7;
+    out.push({ pts: [P(0, v, sx, sz), P(w, v, sx, sz)], closed: false }); // la fulla, tancada
+    // fletxa cap a on llisca
+    const y = face === 'wall' ? 0 : v + 6;
+    out.push({ pts: [P(w * 0.75, y, sx, sz), P(-w * 0.15, y, sx, sz)], closed: false });
+    out.push({ pts: [P(-w * 0.15 + 8, y + 5, sx, sz), P(-w * 0.15, y, sx, sz), P(-w * 0.15 + 8, y - 5, sx, sz)], closed: false });
+  }
+  return out;
+}
+export function allDoorSymbols(rooms, n = 12) {
+  const out = [];
+  for (const r of rooms) for (const op of r.openings || []) for (const sym of doorSymbols(r, op, n)) {
+    const xs = sym.pts.map((p) => p[0]), zs = sym.pts.map((p) => p[1]);
+    out.push({ ...sym, x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) });
+  }
+  return out;
+}
+
+// Una corredissa hi cap? El tros de paret per on llisca (al costat de la frontissa, tan llarg com la porta) ha de ser paret
+// sencera per la cara triada: sense cap altre buit i amb una habitació a tocar en tot el tros (si no, toparia amb una cantonada).
+export function slideFits(rooms, room, op) {
+  const f = doorFrame(room, op);
+  if (!f || doorKind(op) !== 'corredissa') return true;
+  const { seg } = f, w = f.r;
+  const lo = (op.hinge || 'a') === 'a' ? seg.a - w : seg.b, hi = lo + w;
+  const face = doorFace(op);
+  const dirs = face === 'wall' ? [1, -1] : [face === 'out' ? -1 : 1]; // amagada: n'hi ha prou que hi hagi paret
+  for (const o of allOpenings(rooms)) if (o.axis === seg.axis && Math.abs(o.line - seg.line) <= 1 && o.b > lo + 1 && o.a < hi - 1) return false;
+  const ok = (d) => {
+    const n = seg.axis === 'x' ? { x: 0, z: f.inz * d } : { x: f.inx * d, z: 0 };
+    const spans = [];
+    for (const r of rooms) {
+      if (r.kind && !['room', 'terrace'].includes(r.kind)) continue;
+      const edge = seg.axis === 'x' ? (n.z > 0 ? r.z : r.z + r.d) : (n.x > 0 ? r.x : r.x + r.w);
+      if (Math.abs(edge - seg.line) > 1) continue;
+      spans.push(seg.axis === 'x' ? [r.x, r.x + r.w] : [r.z, r.z + r.d]);
+    }
+    spans.sort((p, q) => p[0] - q[0]);
+    let at = lo;
+    for (const [s0, s1] of spans) { if (s0 > at + 1) break; at = Math.max(at, s1); }
+    return at >= hi - 1;
+  };
+  return face === 'wall' ? dirs.some(ok) : dirs.every(ok);
 }

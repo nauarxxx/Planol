@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=43';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=43';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=43';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=43';
-import { mergeStates } from './merge.js?v=43';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=43';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=43';
-import { initAssistant } from './assistant.js?v=43';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=43';
-import { initMeasure } from './measure.js?v=43';
-import { initColorPicker } from './colorpicker.js?v=43';
-import { initPhotoAdd } from './photo.js?v=43';
-import { initTape } from './tape.js?v=43';
-import { checkZones } from './zones.js?v=43';
-import { fitCheck } from './fit.js?v=43';
-import { initShop, STATUS, statusOf } from './shop.js?v=43';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=43';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=43';
-import { drawPreview as drawRoomPreview } from './preview.js?v=43';
-import { arSupported, startAR as startARView } from './ar.js?v=43';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=43';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=43';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=43';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=43';
+import { DEFAULT_PLAN } from './plan.js?v=44';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=44';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=44';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=44';
+import { mergeStates } from './merge.js?v=44';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=44';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=44';
+import { initAssistant } from './assistant.js?v=44';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=44';
+import { initMeasure } from './measure.js?v=44';
+import { initColorPicker } from './colorpicker.js?v=44';
+import { initPhotoAdd } from './photo.js?v=44';
+import { initTape } from './tape.js?v=44';
+import { checkZones } from './zones.js?v=44';
+import { fitCheck } from './fit.js?v=44';
+import { initShop, STATUS, statusOf } from './shop.js?v=44';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=44';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=44';
+import { drawPreview as drawRoomPreview } from './preview.js?v=44';
+import { arSupported, startAR as startARView } from './ar.js?v=44';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=44';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=44';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=44';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=44';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -268,11 +268,11 @@ function entranceDoor() {
     if (STRUCT.has(r.kind) || r.kind === 'terrace') continue;
     for (const op of r.openings || []) {
       if (op.type !== 'puerta') continue;
-      const sw = doorSwing(r, op);
+      const sw = doorFrame(r, op);
       if (!sw) continue;
       const cx = sw.hx + sw.wx * sw.r / 2, cz = sw.hz + sw.wz * sw.r / 2; // centre de l'obertura
-      const out = roomAt(state.rooms, cx - sw.ix * 25, cz - sw.iz * 25);
-      if (!out || out.kind === 'void') found.push({ x: cx, z: cz, ix: sw.ix, iz: sw.iz, room: r });
+      const out = roomAt(state.rooms, cx - sw.inx * 25, cz - sw.inz * 25);
+      if (!out || out.kind === 'void') found.push({ x: cx, z: cz, ix: sw.inx, iz: sw.inz, room: r });
     }
   }
   return found.find((f) => f.room.id === 'salon' || /menjador/i.test(f.room.name)) || found[0] || null;
@@ -581,8 +581,16 @@ function stepDoors(now) {
     doors[key] = a.from + (a.to - a.from) * e;
     if (k >= 1) doorAnims.delete(key);
   }
-  planGroup.traverse((o) => { if (o.userData.door && o.userData.door.key !== undefined && doors[o.userData.door.key] !== undefined) o.rotation.y = doorAngle(o.userData.door, doors[o.userData.door.key]); });
+  planGroup.traverse((o) => { if (o.userData.door && o.userData.door.key !== undefined && doors[o.userData.door.key] !== undefined) applyDoor(o, doors[o.userData.door.key]); });
   return true;
+}
+// Posa una fulla (o un grup de fulles) en l'estat t (0 = tancada, 1 = oberta).
+function applyDoor(o, t) {
+  const d = o.userData.door;
+  if (d.slide) { const s = d.slide; o.position.set(s.x + s.ux * s.len * t, 0, s.z + s.uz * s.len * t); return; }
+  const ang = doorAngle(d, t);
+  o.rotation.y = ang;
+  if (d.fold) { let off = ang - d.closed; off = Math.atan2(Math.sin(off), Math.cos(off)); d.fold.rotation.y = -2 * off; }
 }
 const doorMat = new THREE.MeshStandardMaterial({ color: 0xa98562, roughness: 0.7 });
 const frameMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.6 });
@@ -609,8 +617,63 @@ function windowLeaves(r, o, e, a, b, y0, y1, n) {
     leaf.traverse((m) => { m.userData.door = key; });
     pivot.add(leaf);
     pivot.userData.door = { key: key, closed: Math.atan2(-wz, wx), open: Math.atan2(-(iz * 0.94 + wz * 0.34), ix * 0.94 + wx * 0.34), k };
-    pivot.rotation.y = doorAngle(pivot.userData.door, doors[key] ?? 0);
+    applyDoor(pivot, doors[key] ?? 0);
     planGroup.add(pivot);
+  }
+}
+
+// Una porta: símbol en planta i fulles en 3D. Totes les fulles d'una porta comparteixen la clau "habitació|índex" i s'obren juntes.
+function buildDoor(r, op, idx, H) {
+  const pts = [];
+  for (const sym of doorSymbols(r, op, 14)) {
+    const q = sym.closed ? [...sym.pts, sym.pts[0]] : sym.pts;
+    for (let k = 0; k < q.length - 1; k++) pts.push(q[k][0], 0.9, q[k][1], q[k + 1][0], 0.9, q[k + 1][1]);
+  }
+  if (pts.length) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    planGroup.add(new THREE.LineSegments(geo, swingMat));
+  }
+  const f = doorFrame(r, op);
+  if (!f || H <= 20) return;
+  const key = r.id + '|' + idx, kind = doorKind(op), w = f.r;
+  doorSpots.push({ key, x: f.hx + f.wx * w / 2, z: f.hz + f.wz * w / 2 });
+  const h = Math.min(H - 0.4, 205); // una mica per sota de les parets baixes: el cantell de la porta no coincideix amb el de la paret
+  const panel = (len) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(2, len), h, 3), doorMat);
+    m.position.set(len / 2, h / 2, 0); m.castShadow = true; m.userData.door = key;
+    return m;
+  };
+  const hinged = (hx, hz, wx, wz, len, fold) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(hx, 0, hz);
+    if (fold) {
+      // plegable: la primera fulla gira a la frontissa i la segona, penjada de la primera, gira el doble cap a l'altra banda
+      pivot.add(panel(len - 0.4));
+      const child = new THREE.Group(); child.position.set(len, 0, 0); child.add(panel(len - 0.4)); pivot.add(child);
+      const o = 5 * DEG; // no del tot plegada: les dues fulles no queden mai al mateix pla
+      pivot.userData.door = { key, closed: Math.atan2(-wz, wx), open: Math.atan2(-(f.iz * Math.cos(o) + wz * Math.sin(o)), f.ix * Math.cos(o) + wx * Math.sin(o)), fold: child };
+    } else {
+      pivot.add(panel(len));
+      pivot.userData.door = { key, closed: Math.atan2(-wz, wx), open: Math.atan2(-f.iz, f.ix) };
+    }
+    applyDoor(pivot, doors[key] ?? 1);
+    planGroup.add(pivot);
+  };
+  if (kind === 'batent') hinged(f.hx, f.hz, f.wx, f.wz, w, false);
+  else if (kind === 'doble') { hinged(f.hx, f.hz, f.wx, f.wz, w / 2 - 0.2, false); hinged(f.hx + f.wx * w, f.hz + f.wz * w, -f.wx, -f.wz, w / 2 - 0.2, false); }
+  else if (kind === 'llibre') hinged(f.hx, f.hz, f.wx, f.wz, w / 2, true);
+  else {
+    // corredissa: la fulla llisca al llarg de la paret cap al costat de la frontissa, per la cara triada o per dins de la paret
+    const face = doorFace(op), t = state.wallThickness || 10;
+    const off = face === 'wall' ? 0 : (face === 'out' ? -1 : 1) * (t / 2 + 3);
+    const g = new THREE.Group();
+    const m = panel(w - 0.6); m.position.x = 0; g.add(m);
+    g.rotation.y = Math.atan2(-f.wz, f.wx);
+    const cx = f.hx + f.wx * w / 2 + f.inx * off, cz = f.hz + f.wz * w / 2 + f.inz * off;
+    g.userData.door = { key, slide: { x: cx, z: cz, ux: -f.wx, uz: -f.wz, len: w - 4 } };
+    applyDoor(g, doors[key] ?? 1);
+    planGroup.add(g);
   }
 }
 
@@ -902,34 +965,8 @@ function rebuildPlan() {
       }
       tagEdge = edgeTag;
     }
-    // Batents de les portes d'aquesta habitació: arc al terra i la fulla oberta.
-    for (const op of r.openings || []) {
-      const sw = doorSwing(r, op);
-      if (!sw) continue;
-      const arc = swingArc(sw, 14);
-      const pts = [];
-      for (let k = 0; k < arc.length - 1; k++) pts.push(arc[k][0], 0.9, arc[k][1], arc[k + 1][0], 0.9, arc[k + 1][1]);
-      pts.push(sw.hx, 0.9, sw.hz, sw.hx + sw.ix * sw.r, 0.9, sw.hz + sw.iz * sw.r);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-      planGroup.add(new THREE.LineSegments(geo, swingMat));
-      if (H > 20) {
-        // la fulla, penjada de la frontissa: gira entre tancada (seguint la paret) i oberta (cap a dins)
-        const key = r.id + '|' + (r.openings || []).indexOf(op);
-        doorSpots.push({ key, x: sw.hx + sw.wx * sw.r / 2, z: sw.hz + sw.wz * sw.r / 2 });
-        const h = Math.min(H - 0.4, 205); // una mica per sota de les parets baixes: el cantell de la porta no coincideix amb el de la paret
-        const pivot = new THREE.Group();
-        pivot.position.set(sw.hx, 0, sw.hz);
-        const leaf = new THREE.Mesh(new THREE.BoxGeometry(sw.r, h, 3), doorMat);
-        leaf.position.set(sw.r / 2, h / 2, 0);
-        leaf.castShadow = true;
-        leaf.userData.door = key;
-        pivot.add(leaf);
-        pivot.userData.door = { key, closed: Math.atan2(-sw.wz, sw.wx), open: Math.atan2(-sw.iz, sw.ix) };
-        pivot.rotation.y = doorAngle(pivot.userData.door, doors[key] ?? 1);
-        planGroup.add(pivot);
-      }
-    }
+    // Portes d'aquesta habitació: el símbol al terra i les fulles (batent, doble, plegable o corredissa).
+    (r.openings || []).forEach((op, idx) => { if (op.type === 'puerta') buildDoor(r, op, idx, H); });
 
     if (ui.labels) {
       const lines = [r.name, `${fmtLen(r.w, 0)} × ${fmtLen(r.d, 1)}`];
@@ -1315,6 +1352,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     const fp = floorPoint(), fd = fp ? fp.distanceTo(walkCam.position) : Infinity;
     drag = { look: true, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, item: near(ih) && (!dh || ih.distance <= dh.distance) ? ih.object.userData.itemId : null, door: near(dh) && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null, wall: near(wh) ? wh.object.userData.wall : null,
       floor: fp && fd < 1500 && (!wh || fd < wh.distance) && (!ih || fd < ih.distance) ? { x: fp.x, z: fp.z } : null };
+    if (drag.door) startHold(e, drag.door);
     capture(e); return;
   }
   if (tape.active) { drag = { tape: true, x: e.clientX, y: e.clientY }; return; } // la càmera es pot moure; un toc posa un punt
@@ -1337,7 +1375,38 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     const dh = ph.find((h) => typeof h.object.userData.door === 'string');
     const wh = ph.find((h) => h.object.userData.wall);
     drag = { empty: true, x: e.clientX, y: e.clientY, wall: wh ? wh.object.userData.wall : null, door: dh && (!wh || dh.distance <= wh.distance + 1) ? dh.object.userData.door : null };
+    // mantenir premuda una porta (o el seu batent al terra, si les parets estan amagades) obre el panell per canviar-la
+    const hk = drag.door && doorRef(drag.door) ? drag.door : !wh || !drag.door ? doorNear(floorPoint()) : null;
+    if (hk) startHold(e, hk);
   }
+});
+
+// Toc llarg (uns 0,55 s sense moure el dit): obre el panell de la porta en comptes d'obrir-la o tancar-la.
+let hold = null;
+function startHold(e, key) {
+  clearHold();
+  if (!doorRef(key)) return;
+  const d = drag;
+  hold = { x: e.clientX, y: e.clientY, key, timer: setTimeout(() => {
+    hold = null;
+    if (drag !== d || twist.touches.size >= 2) return;
+    if (openDoorPanel(key)) { if (drag) drag.held = true; vib([10, 40, 10]); }
+  }, 550) };
+}
+function clearHold() { if (hold) { clearTimeout(hold.timer); hold = null; } }
+renderer.domElement.addEventListener('pointermove', (e) => { if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 8) clearHold(); }, true);
+renderer.domElement.addEventListener('pointerdown', (e) => { if (hold && (e.button !== 0 || twist.touches.size >= 2)) clearHold(); }, true);
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) renderer.domElement.addEventListener(ev, clearHold, true);
+// Ordinador: el botó dret sobre una porta (sense arrossegar) també obre el panell.
+let rightDown = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { if (e.button === 2) rightDown = { x: e.clientX, y: e.clientY }; }, true);
+renderer.domElement.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (rightDown && Math.hypot(e.clientX - rightDown.x, e.clientY - rightDown.y) > 6) return; // ha arrossegat (desplaçar la vista)
+  setPointer(e);
+  const dh = raycaster.intersectObjects(planGroup.children, true).find((h) => typeof h.object.userData.door === 'string');
+  const key = dh && doorRef(dh.object.userData.door) ? dh.object.userData.door : doorNear(floorPoint());
+  if (key) openDoorPanel(key);
 });
 
 // Toca una paret: se'n veu la llargada amb una línia de cota i un rètol que sempre mira cap a tu (des del costat on ets),
@@ -1430,6 +1499,7 @@ function wallSideCheck() {
   if (wallSideSeen && s !== wallSideSeen) { wallSideSeen = s; drawWallMeasure(); } else wallSideSeen = s;
 }
 function showWallMeasure(w) {
+  if (w) ui.doorSel = null;
   if (w && ui.wallSel && (ui.wallSel.room !== w.room || ui.wallSel.key !== w.key)) ui.wallAll = false; // «totes» només per a la paret on s'ha marcat
   ui.wallSel = w || null;
   if (!w) {
@@ -1459,6 +1529,7 @@ function paintWall(w, hex, all) {
 function renderWallPanel() {
   const el = $('#wallpanel');
   if (!el) return;
+  if (ui.doorSel && !ui.wallSel) { renderDoorPanel(el); return; }
   const w = ui.wallSel;
   if (!w) { el.hidden = true; return; }
   const cur = w.room.walls?.[w.key] || '';
@@ -1466,6 +1537,7 @@ function renderWallPanel() {
   el.innerHTML = `
     <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(cur || '#f3f1ec')}"></span>${w.whole ? esc(w.room.name) : `Paret ${WALL_TXT[w.key] || ''} · ${esc(w.room.name)}`}<button class="close" id="wp-close" title="Tanca">×</button></h3>
     <div class="dist">${w.over ? 'Damunt d’un buit de ' : 'Aquest tros: '}<b>${fmtLen(Math.round(w.b - w.a), 1)}</b> de llarg · ${fmtLen(state.ceiling || 250, 1)} d’alt${w.edgeB !== undefined && Math.round(w.edgeB - w.edgeA) - Math.round(w.b - w.a) > 1 ? ` · paret sencera ${fmtLen(Math.round(w.edgeB - w.edgeA), 1)}` : ''}</div>
+    ${w.over === 'puerta' ? '<div class="btns wp-door"><button type="button" class="btn small" id="wp-door">🚪 Tipus i sentit de la porta</button></div>' : ''}
     ${wallSizeHtml(w)}
     <h4 class="wp-sub">🎨 Color</h4>
     <div class="swatches">${WALL_PALETTE.map(([c, n]) => `<button type="button" data-c="${c}" title="${n} ${c}" class="${cur === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>
@@ -1477,6 +1549,7 @@ function renderWallPanel() {
     <div class="btns"><button class="btn secondary small" id="wp-clear">Treu el color</button></div>`;
   const all = () => $('#wp-all').checked;
   $('#wp-close').addEventListener('click', () => showWallMeasure(null));
+  $('#wp-door')?.addEventListener('click', () => { const m = (w.a + w.b) / 2, key = doorNear(w.axis === 'x' ? { x: m, z: w.line } : { x: w.line, z: m }); if (key) openDoorPanel(key); });
   $('#wp-all').addEventListener('change', (e) => { ui.wallAll = e.target.checked; });
   el.querySelectorAll('.swatches button').forEach((b) => b.addEventListener('click', () => paintWall(w, b.dataset.c, all())));
   $('#wp-color').addEventListener('change', (e) => paintWall(w, normHex(e.target.value), all()));
@@ -1486,6 +1559,101 @@ function renderWallPanel() {
   $('#wp-hex').addEventListener('input', (e) => e.target.classList.remove('bad'));
   $('#wp-clear').addEventListener('click', () => paintWall(w, null, all()));
   bindWallSize(w);
+}
+
+// --- Porta: mantenint-la premuda (o amb el botó dret) s'obre aquest panell per triar-ne el tipus i el sentit d'obertura.
+const DOOR_TXT = { batent: ['🚪', 'Normal', 'una fulla que gira'], corredissa: ['↔️', 'Corredissa', 'llisca per la paret'], llibre: ['📖', 'Plegable', 'dues fulles tipus llibre'], doble: ['🚪🚪', 'Doble', 'dues fulles batents'] };
+function doorRef(key) {
+  const i = String(key).lastIndexOf('|');
+  if (i < 0 || key.includes('|w')) return null;
+  const r = roomById(key.slice(0, i)), idx = +key.slice(i + 1), op = r?.openings?.[idx];
+  return op && op.type === 'puerta' ? { r, idx, op, key } : null;
+}
+// Porta més propera a un punt del terra (a menys de 35 cm del buit o dins del lloc on s'obre).
+function doorNear(p) {
+  if (!p) return null;
+  let best = null, bd = 35;
+  for (const r of state.rooms) (r.openings || []).forEach((op, idx) => {
+    const f = doorFrame(r, op);
+    if (!f) return;
+    const { seg } = f;
+    const u = seg.axis === 'x' ? p.x : p.z, v = seg.axis === 'x' ? p.z : p.x;
+    const du = Math.max(seg.a - u, 0, u - seg.b), dv = Math.abs(v - seg.line);
+    let d = Math.hypot(du, dv);
+    if (doorSwings(r, op).some((sw) => boxHitsSwing({ x0: p.x - 1, x1: p.x + 1, z0: p.z - 1, z1: p.z + 1 }, sw))) d = Math.min(d, 20);
+    if (d < bd) { bd = d; best = r.id + '|' + idx; }
+  });
+  return best;
+}
+function openDoorPanel(key) {
+  const d = doorRef(key);
+  if (!d) return false;
+  if (ui.wallSel) showWallMeasure(null);
+  if (ui.selected) select(null);
+  ui.doorSel = { roomId: d.r.id, idx: d.idx };
+  renderWallPanel(); requestRender();
+  return true;
+}
+function closeDoorPanel() { ui.doorSel = null; renderWallPanel(); }
+function renderDoorPanel(el) {
+  const d = doorRef(ui.doorSel.roomId + '|' + ui.doorSel.idx);
+  if (!d) { ui.doorSel = null; el.hidden = true; return; }
+  const { r, op, key } = d, kind = doorKind(op), face = doorFace(op), f = doorFrame(r, op);
+  const mx = f.hx + f.wx * f.r / 2, mz = f.hz + f.wz * f.r / 2;
+  const nb = roomAt(state.rooms, mx - f.inx * 25, mz - f.inz * 25);
+  const other = nb && nb.kind !== 'void' && nb.id !== r.id ? nb.name : 'fora del pis';
+  // esquerra i dreta mirant la porta des de dins de l'habitació: a les parets de dalt i de la dreta, la cantonada «a» queda a l'esquerra
+  const leftIsA = op.wall === 'N' || op.wall === 'E';
+  const side = (v) => ((v === 'a') === leftIsA ? 'l’esquerra' : 'la dreta');
+  const hinge = op.hinge || 'a';
+  const btn = (attr, val, on, title, sub = '') => `<button type="button" ${attr}="${val}" class="${on ? 'on' : ''}"><b>${title}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`;
+  let opts = '';
+  if (kind === 'batent' || kind === 'llibre') {
+    opts += `<div class="wside"><span>Frontissa (mirant-la des de ${esc(r.name)})</span>${(leftIsA ? ['a', 'b'] : ['b', 'a']).map((v) => btn('data-hinge', v, hinge === v, `A ${side(v)}`)).join('')}</div>`;
+  }
+  if (kind !== 'corredissa') {
+    opts += `<div class="wside"><span>S’obre cap a</span>${btn('data-swing', 'in', face === 'in', 'Dins', r.name)}${btn('data-swing', 'out', face === 'out', 'Fora', other)}</div>`;
+  } else {
+    opts += `<div class="wside"><span>Llisca cap a (mirant-la des de ${esc(r.name)})</span>${(leftIsA ? ['a', 'b'] : ['b', 'a']).map((v) => btn('data-hinge', v, hinge === v, `Cap a ${side(v)}`)).join('')}</div>`;
+    opts += `<div class="wside w3"><span>Per on llisca</span>${btn('data-swing', 'in', face === 'in', 'Per dins', r.name)}${btn('data-swing', 'out', face === 'out', 'Per fora', other)}${btn('data-swing', 'wall', face === 'wall', 'Amagada', 'dins de la paret')}</div>`;
+  }
+  const hits = doorSwings(r, op), blocked = state.items.filter((it) => (it.elev || 0) < 200 && hits.some((sw) => boxHitsSwing(aabb(it), sw)));
+  const open = (doors[key] ?? 1) > 0.5;
+  el.hidden = false;
+  el.innerHTML = `
+    <h3>🚪 Porta · ${esc(r.name)}<button class="close" id="dp-close" title="Tanca">×</button></h3>
+    <div class="dist">Buit de <b>${fmtLen(Math.round(op.width), 1)}</b> · paret ${WALL_TXT[op.wall] || ''}</div>
+    <h4 class="wp-sub">Tipus de porta</h4>
+    <div class="wside dkinds">${DOOR_KINDS.map((k) => btn('data-kind', k, kind === k, `${DOOR_TXT[k][0]} ${DOOR_TXT[k][1]}`, DOOR_TXT[k][2])).join('')}</div>
+    <h4 class="wp-sub">Sentit d’obertura</h4>
+    ${opts}
+    ${blocked.length ? `<p class="dwarn">⚠️ En obrir-se toca: ${blocked.map((it) => esc(it.name)).join(', ')}</p>` : ''}
+    ${kind === 'corredissa' && !slideFits(state.rooms, r, op) ? `<p class="dwarn">⚠️ Cap a ${side(hinge)} no hi ha prou paret per on lliscar (hi ha una cantonada o un altre buit).</p>` : ''}
+    <div class="btns"><button type="button" class="btn secondary small" id="dp-toggle">${open ? 'Tanca-la' : 'Obre-la'}</button></div>`;
+  const set = (patch) => {
+    commit();
+    Object.assign(op, patch);
+    if (op.door === 'batent') delete op.door;
+    if (op.swing === 'in') delete op.swing;
+    op.doorEdited = true;
+    save(); rebuildPlan(); updateOverlays(); renderWallPanel(); requestRender();
+  };
+  $('#dp-close').addEventListener('click', closeDoorPanel);
+  el.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.kind;
+    // una corredissa amagada passa a obrir-se cap a dins si es torna a fer batent
+    const patch = { door: k, swing: k !== 'corredissa' && (op.swing === 'wall' || op.swing === 'none') ? 'in' : op.swing === 'none' ? 'wall' : (op.swing || 'in') };
+    if (k === 'corredissa') {
+      // llisca cap al costat on hi ha paret (si cap a la frontissa no n'hi ha i cap a l'altre sí)
+      const other = { ...op, ...patch, hinge: hinge === 'a' ? 'b' : 'a' };
+      if (!slideFits(state.rooms, r, { ...op, ...patch }) && slideFits(state.rooms, r, other)) patch.hinge = other.hinge;
+    }
+    set(patch);
+    toast(`Porta ${DOOR_TXT[k][1].toLowerCase()} ✓`);
+  }));
+  el.querySelectorAll('[data-hinge]').forEach((b) => b.addEventListener('click', () => set({ hinge: b.dataset.hinge })));
+  el.querySelectorAll('[data-swing]').forEach((b) => b.addEventListener('click', () => set({ door: kind, swing: b.dataset.swing })));
+  $('#dp-toggle').addEventListener('click', () => { toggleDoor(key); setTimeout(() => ui.doorSel && renderWallPanel(), 700); });
 }
 
 // --- Mida de la paret: es canvia des del mateix panell i el pis s'hi adapta (js/walledit.js).
@@ -1619,6 +1787,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 
 renderer.domElement.addEventListener('pointercancel', (e) => { pointers.delete(e.pointerId); if (drag && drag.look) drag = null; });
 renderer.domElement.addEventListener('pointerup', (e) => {
+  if (drag && drag.held) { pointers.delete(e.pointerId); drag = null; return; } // toc llarg: ja s'ha obert el panell de la porta
   if (drag && drag.look) {
     pointers.delete(e.pointerId);
     if (drag.pinch) { if (pointers.size === 0) drag = null; return; }
@@ -1635,7 +1804,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     drag = null; return;
   }
   if (drag && drag.empty) {
-    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (drag.door) toggleDoor(drag.door); else if (drag.wall) showWallMeasure(drag.wall); else if (ui.wallSel) showWallMeasure(null); }
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) { select(null); if (ui.doorSel && !drag.door) closeDoorPanel(); if (drag.door) toggleDoor(drag.door); else if (drag.wall) showWallMeasure(drag.wall); else if (ui.wallSel) showWallMeasure(null); }
   } else if (drag) {
     const it = itemById(drag.id);
     if (drag.moved) {
@@ -1704,6 +1873,7 @@ const groupIds = (id) => { const it = itemById(id); return it?.group ? state.ite
 function selIds() { if (!ui.selected || !itemById(ui.selected)) return []; return [...new Set([ui.selected, ...(ui.multi || [])])].filter((id) => itemById(id)); }
 function select(id, add = false) {
   if (id && ui.wallSel) showWallMeasure(null);
+  if (id && ui.doorSel) closeDoorPanel();
   if (add && id) {
     const cur = new Set(selIds()), grp = groupIds(id);
     if (cur.has(id)) { grp.forEach((x) => cur.delete(x)); ui.selected = [...cur].pop() || null; } else { grp.forEach((x) => cur.add(x)); ui.selected = id; }
@@ -2654,8 +2824,9 @@ function renderPlano() {
               <select data-ok="type">${[['puerta', 'porta'], ['ventana', 'finestra'], ['ventanal', 'finestral (terra-sostre, doble)'], ['paso', 'pas']].map(([t, lb]) => `<option value="${t}" ${o.type === t ? 'selected' : ''}>${lb}</option>`).join('')}</select>
               <button data-del-op="${k}" title="Treu">×</button>
               ${o.type === 'puerta' ? `<div class="op-sub">
-                <label>S’obre<select data-ok="swing">${[['in', 'cap a dins'], ['out', 'cap a fora'], ['none', 'no es dibuixa (corredissa)']].map(([v, l]) => `<option value="${v}" ${(o.swing || 'in') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-                <label>Frontissa<select data-ok="hinge">${[['a', o.wall === 'N' || o.wall === 'S' ? 'a l’esquerra' : 'a dalt'], ['b', o.wall === 'N' || o.wall === 'S' ? 'a la dreta' : 'a baix']].map(([v, l]) => `<option value="${v}" ${(o.hinge || 'a') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+                <label>Tipus<select data-ok="door">${DOOR_KINDS.map((k) => `<option value="${k}" ${doorKind(o) === k ? 'selected' : ''}>${DOOR_TXT[k][1].toLowerCase()}</option>`).join('')}</select></label>
+                <label>${doorKind(o) === 'corredissa' ? 'Llisca' : 'S’obre'}<select data-ok="swing">${(doorKind(o) === 'corredissa' ? [['in', 'per dins'], ['out', 'per fora'], ['wall', 'amagada a la paret']] : [['in', 'cap a dins'], ['out', 'cap a fora']]).map(([v, l]) => `<option value="${v}" ${doorFace(o) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+                ${doorKind(o) === 'doble' ? '' : `<label>${doorKind(o) === 'corredissa' ? 'Cap a' : 'Frontissa'}<select data-ok="hinge">${[['a', o.wall === 'N' || o.wall === 'S' ? 'l’esquerra' : 'dalt'], ['b', o.wall === 'N' || o.wall === 'S' ? 'la dreta' : 'baix']].map(([v, l]) => `<option value="${v}" ${(o.hinge || 'a') === v ? 'selected' : ''}>${doorKind(o) === 'corredissa' ? '' : 'a '}${l}</option>`).join('')}</select></label>`}
               </div>` : ''}
             </div>`).join('')}
           <div class="btns">
@@ -2688,9 +2859,17 @@ function renderPlano() {
       row.querySelectorAll('[data-ok]').forEach((inp) => inp.addEventListener('change', () => {
         commit();
         const k = inp.dataset.ok;
-        o[k] = k === 'offset' || k === 'width' ? +inp.value || 0 : inp.value;
+        if (k === 'door') {
+          const face = doorFace(o);
+          o.door = inp.value;
+          o.swing = inp.value === 'corredissa' ? face : face === 'out' ? 'out' : 'in';
+          if (o.door === 'batent') delete o.door;
+        } else o[k] = k === 'offset' || k === 'width' ? +inp.value || 0 : inp.value;
+        if (o.swing === 'in') delete o.swing;
+        if (['door', 'swing', 'hinge'].includes(k)) o.doorEdited = true;
         save(); rebuildPlan(); updateOverlays();
-        if (k === 'type' || k === 'wall') renderPlano();
+        if (k === 'type' || k === 'wall' || k === 'door') renderPlano();
+        if (ui.doorSel) renderWallPanel();
       }));
     });
     card.querySelectorAll('[data-del-op]').forEach((b) => b.addEventListener('click', () => {
@@ -2996,7 +3175,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v43',
+  version: 'v44',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -3152,7 +3331,7 @@ function zFightFaces(tol = 0.05, groups = [planGroup, itemsGroup]) {
 }
 
 window.planta3d = {
-  zFightFaces,
+  zFightFaces, openDoorPanel,
   screenOf(x, z, y = 40) {
     const v = new THREE.Vector3(x, y, z).project(camera);
     const r = renderer.domElement.getBoundingClientRect();

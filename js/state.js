@@ -1,6 +1,6 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=43';
-import { roomAt } from './geom.js?v=43';
+import { DEFAULT_PLAN } from './plan.js?v=44';
+import { roomAt } from './geom.js?v=44';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -38,6 +38,21 @@ export function migratePlan(s) {
     // es conserva el color de les parets pintades
     const paint = Object.fromEntries((s.rooms || []).filter((r) => r.walls).map((r) => [r.id, r.walls]));
     for (const r of fresh.rooms) if (paint[r.id]) r.walls = paint[r.id];
+    // i el tipus i el sentit de les portes que l'usuari ha canviat (la mateixa porta: mateixa habitació, paret i ordre a la paret)
+    const doorsOn = (r, w) => (r.openings || []).filter((o) => o.type === 'puerta' && o.wall === w);
+    for (const r of fresh.rooms) {
+      const old = (s.rooms || []).find((x) => x.id === r.id);
+      if (!old) continue;
+      for (const w of ['N', 'S', 'E', 'W']) {
+        const was = doorsOn(old, w);
+        doorsOn(r, w).forEach((o, k) => {
+          const p = was[k];
+          if (!p || !p.doorEdited) return;
+          for (const key of ['door', 'swing', 'hinge']) { if (p[key] === undefined) delete o[key]; else o[key] = p[key]; }
+          o.doorEdited = true;
+        });
+      }
+    }
     s.rooms = fresh.rooms;
   }
   s.version = fresh.version;
