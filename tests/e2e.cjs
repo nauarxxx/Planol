@@ -101,6 +101,29 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     await p.click('#zonesBtn'); await sleep(100); await p.click('#zonesBtn');
     return { tape: on };
   });
+  await step('cap cara superposada (parets pintades, baranes, finestres, mobles)', async () => {
+    // dues cares al mateix pla amb colors diferents parpellegen: no n'hi ha d'haver cap, ni pintant parets ni en cap vista
+    const found = {};
+    for (const mode of ['low', 'full', 'none']) {
+      await ev((m) => { const s = document.getElementById('wallMode'); s.value = m; s.dispatchEvent(new Event('change')); }, mode);
+      await ev(() => { const cols = ['#7f9a82', '#c46e4b', '#8fa9bf', '#e3b55b']; planta3d.state.rooms.forEach((r, i) => { if (r.kind === 'room') r.walls = { N: cols[i % 4], S: cols[(i + 1) % 4], E: cols[(i + 2) % 4], W: cols[(i + 3) % 4] }; }); });
+      for (const view of ['top', '3d']) { await ev((v) => planta3d.setView(v), view); await sleep(150); const z = await ev(() => planta3d.zFightFaces()); if (z.length) found[mode + '/' + view] = z.slice(0, 3); }
+      await ev(() => planta3d.state.rooms.forEach((r) => delete r.walls));
+    }
+    // tots els mobles del catàleg, en totes les formes
+    const cat = await ev(async () => {
+      const v = document.querySelector('script[type=module][src*="main.js"]').src.split('?')[1];
+      const F = await import('./js/furniture.js?' + v), bad = [];
+      for (const type of Object.keys(F.CATALOG)) for (const [shape] of F.SHAPES[type] || [[undefined]]) for (let k = 0; k < 6; k++) {
+        const it = F.newItem(type, shape ? { shape, ...(F.SHAPE_SIZES[type]?.[shape] || {}) } : {}); it.id = 'zf' + k;
+        if (planta3d.zFightFaces(0.05, [F.buildFurniture(it)]).length) bad.push(type + (shape ? '/' + shape : ''));
+      }
+      return [...new Set(bad)];
+    });
+    if (cat.length) found.mobles = cat;
+    must(!Object.keys(found).length, JSON.stringify(found).slice(0, 400));
+    return 0;
+  });
   await step('cap error a la consola', async () => { must(!errs.length, errs.slice(0, 5).join(' | ')); return 0; });
 
   for (const r of results) console.log(`${r.ok ? '✓' : '✗'} ${r.name}${r.r !== undefined ? ' — ' + JSON.stringify(r.r).slice(0, 200) : ''}`);

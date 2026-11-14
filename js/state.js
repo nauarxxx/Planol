@@ -1,6 +1,6 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=40';
-import { roomAt } from './geom.js?v=40';
+import { DEFAULT_PLAN } from './plan.js?v=41';
+import { roomAt } from './geom.js?v=41';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
