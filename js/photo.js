@@ -2,8 +2,8 @@
 // Es llegeix el text de la imatge amb Tesseract (vendor/ocr, sense cap servei extern) i se'n treuen l'amplada, el fons
 // i l'alçada, el tipus de moble i un color aproximat. Tot es pot corregir abans d'afegir-lo al plànol.
 
-import { CATALOG } from './furniture.js?v=33';
-import { TYPES } from './assistant.js?v=33';
+import { CATALOG } from './furniture.js?v=34';
+import { TYPES } from './assistant.js?v=34';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’'`´]/g, ' ');
 const EXTRA = [ // paraules en anglès i francès que surten a les fitxes de les botigues
@@ -195,7 +195,9 @@ export function initPhotoAdd(api) {
     if (!(+$('#pa-w').value && +$('#pa-d').value && +$('#pa-h').value)) { api.toast('Falten mides: escriu l’amplada, el fons i l’alçada.'); return; }
     let catalogId;
     if ($('#pa-cat').checked) catalogId = await api.saveToCatalog(it, file);
-    api.addItems(it.type, { ...it, catalogId }, 1, $('#pa-room').value);
+    let photo;
+    if (!catalogId && file && api.shrinkImage) { try { photo = await api.shrinkImage(file, 256, 0.75); } catch (e) { /* sense foto */ } }
+    api.addItems(it.type, { ...it, catalogId, photo, photoLook: !!(catalogId || photo) }, 1, $('#pa-room').value); // el moble es veu amb la seva foto
     close();
   });
   return (roomId) => { reset(); if (roomId) $('#pa-room').value = roomId; m.hidden = false; };
