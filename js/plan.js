@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 24, // v24: vàter i lavabo del bany 1 mirant cap a dins; v23: racó del mirall segons la foto: pilar amb el mirall dins del racó, tocant a la paret del passadís; v22: mobles de tot el pis segons el vídeo (menjador, dormitori, office amb llitera, banys); porta del bany 2 cap enfora; v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 25, // v25: la porta d'entrada és just abans del menjador (paret est de la cuina, tocant al mur de la nevera) i de la porta al pas del passadís la paret fa 226 (cota del croquis); v24: vàter i lavabo del bany 1 mirant cap a dins; v23: racó del mirall segons la foto: pilar amb el mirall dins del racó, tocant a la paret del passadís; v22: mobles de tot el pis segons el vídeo (menjador, dormitori, office amb llitera, banys); porta del bany 2 cap enfora; v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -25,35 +25,42 @@ export const DEFAULT_PLAN = {
     {
       id: 'cocina', name: 'Cuina', kind: 'room', color: '#d9c7a3',
       x: 0, z: 120, w: 270, d: 260,
-      notes: 'Cuina oberta al menjador (estar-menjador-cuina: 26,80 m² en total). Taulell de 55 de fons (cota del croquis). Vist des de la porta de la terrassa: a l’esquerra (est) el taulell amb la pica, la rentadora i la nevera, que recolza al mur que separa la cuina del menjador; a la dreta (oest) el taulell amb la placa i la campana, i al fons a la dreta el pas obert al menjador. Llargada del mur de la nevera (105) i de la cuina estimades.',
+      notes: 'Cuina oberta al menjador (estar-menjador-cuina: 26,80 m² en total). Taulell de 55 de fons (cota del croquis). Vist des de la porta de la terrassa: a l’esquerra (est) el taulell amb la pica, la rentadora i la nevera, que recolza al mur que separa la cuina del menjador; a la dreta (oest) el taulell amb la placa i la campana, i al fons a la dreta el pas obert al menjador. La porta d’entrada del pis és a la paret de l’est, a la cantonada amb el menjador, i s’obre contra el mur de la nevera; en entrar, la nevera queda a l’esquerra, amagada per un muret curt. Llargada del mur de la nevera (150) i de la cuina estimades.',
       estimated: true,
       openings: [
         { wall: 'N', offset: 62, width: 90, type: 'puerta', hinge: 'b' },
-        { wall: 'S', offset: 0, width: 165, type: 'paso' },
+        { wall: 'E', offset: 180, width: 80, type: 'puerta', hinge: 'b' },
+        { wall: 'S', offset: 0, width: 115, type: 'paso' },
       ],
     },
     {
       id: 'salon', name: 'Menjador', kind: 'room', color: '#c89b6a',
       x: 0, z: 380, w: 270, d: 440,
-      notes: 'Menjador 270 × 440 segons les cotes del croquis (440 de llarg per la paret exterior, 270 d’ample; paret de la tele 275). Entrada des del replà, a la paret de la tele. Sense finestra: la llum entra per la porta de vidre doble de la terrassa (164, confirmada). Sostre inclinat que baixa cap a la terrassa.',
+      notes: 'Menjador 270 × 440 segons les cotes del croquis (440 de llarg per la paret exterior, 270 d’ample; paret de la tele 275). Entrada des del replà per la porta que hi ha just abans del menjador, a la cantonada amb la cuina (a la paret de la tele). De la porta al pas del passadís la paret fa 226 (cota del croquis). Sense finestra: la llum entra per la porta de vidre doble de la terrassa (164, confirmada). Sostre inclinat que baixa cap a la terrassa.',
       estimated: false,
       openings: [
-        { wall: 'E', offset: 15, width: 85, type: 'puerta' },
-        { wall: 'E', offset: 220, width: 90, type: 'paso' },
+        { wall: 'E', offset: 226, width: 90, type: 'paso' },
         { wall: 'S', offset: 53, width: 164, type: 'ventanal' },
       ],
     },
     {
       id: 'raco', name: 'Racó', kind: 'room', color: '#c89b6a',
       x: 270, z: 740, w: 50, d: 80,
-      notes: 'Racó obert al menjador, al costat de la terrassa: després del pas al passadís la paret del menjador segueix 45 (la paret del quadre i els interruptors) i després recula uns 50 fins a l’office, amb la biga baixa a sobre. Dins del racó, tocant a la paret del passadís, hi ha el pilar del mirall (≈45 d’ample i 30 de fons) amb el mirall a la cara que mira al menjador. Mides estimades a partir de la foto.',
+      notes: 'Racó obert al menjador, al costat de la terrassa: després del pas al passadís la paret del menjador segueix 44 (la paret del quadre i els interruptors) i després recula uns 50 fins a l’office, amb la biga baixa a sobre. Dins del racó, tocant a la paret del passadís, hi ha el pilar del mirall (≈40 d’ample i 35 de fons) amb el mirall a la cara que mira al menjador. Mides estimades a partir de la foto.',
       estimated: true,
       openings: [{ wall: 'W', offset: 0, width: 80, type: 'paso' }],
     },
     {
       id: 'pilar-mirall', name: 'Pilar del mirall', kind: 'pillar', color: '#f3f1ec',
-      x: 290, z: 740, w: 30, d: 45,
-      notes: 'Pilar de terra a sostre dins del racó, enganxat a la paret del fons i a la del passadís; el mirall és a la seva cara oest. Mides estimades a partir de la foto.',
+      x: 285, z: 740, w: 35, d: 40,
+      notes: 'Pilar de terra a sostre dins del racó, enganxat a la paret del fons i a la del passadís; el mirall és a la seva cara oest, una mica reculada respecte a la paret del quadre. Al seu costat, cap a la terrassa, el racó queda obert fins al fons (≈50). Mides estimades a partir de la foto.',
+      estimated: true,
+      openings: [],
+    },
+    {
+      id: 'muret-nevera', name: 'Muret de la nevera', kind: 'pillar', color: '#f3f1ec',
+      x: 180, z: 310, w: 10, d: 70,
+      notes: 'Muret curt de la cuina, entre la porta d’entrada i la nevera: en entrar, la nevera queda a l’esquerra però no es veu perquè aquest muret la tapa. Mides estimades.',
       estimated: true,
       openings: [],
     },
@@ -129,9 +136,9 @@ export const DEFAULT_PLAN = {
   ],
   // Mobles fixos de la cuina (foto del 2026-11-13 des de la porta de la terrassa). Bloquejats: les propostes no els mouen.
   items: [
-    { id: 'fix-pica', type: 'encimeraPica', name: 'Taulell amb pica', w: 120, d: 55, h: 90, elev: 0, color: '#e9e4da', x: 237.5, z: 185, rot: 270, roomId: 'cocina', locked: true },
-    { id: 'fix-rentadora', type: 'rentadora', name: 'Rentadora', w: 60, d: 60, h: 85, elev: 0, color: '#f2f2f0', x: 235, z: 275, rot: 270, roomId: 'cocina', locked: true },
-    { id: 'fix-nevera', type: 'nevera', name: 'Nevera', w: 60, d: 65, h: 185, elev: 0, color: '#f2f2f0', x: 235, z: 342.5, rot: 180, roomId: 'cocina', locked: true },
+    { id: 'fix-pica', type: 'encimeraPica', name: 'Taulell amb pica', w: 115, d: 55, h: 90, elev: 0, color: '#e9e4da', x: 237.5, z: 182.5, rot: 270, roomId: 'cocina', locked: true },
+    { id: 'fix-rentadora', type: 'rentadora', name: 'Rentadora', w: 60, d: 60, h: 85, elev: 0, color: '#f2f2f0', x: 235, z: 270, rot: 270, roomId: 'cocina', locked: true },
+    { id: 'fix-nevera', type: 'nevera', name: 'Nevera', w: 60, d: 65, h: 185, elev: 0, color: '#f2f2f0', x: 145, z: 342.5, rot: 180, roomId: 'cocina', locked: true },
     { id: 'fix-placa', type: 'encimeraPlaca', name: 'Taulell amb placa', w: 160, d: 55, h: 90, elev: 0, color: '#e9e4da', x: 32.5, z: 205, rot: 90, roomId: 'cocina', locked: true },
     { id: 'fix-campana', type: 'campana', name: 'Campana extractora', w: 60, d: 50, h: 40, elev: 155, color: '#9ea3a8', x: 30, z: 255, rot: 90, roomId: 'cocina', locked: true },
     // Menjador (vídeo): taula de fusta amb 4 cadires blanques a prop de la cuina, sofà gris a la paret de l'oest tocant a la terrassa, tauleta blanca, moble baix blanc amb la tele a la paret de l'est entre la porta d'entrada i el passadís.

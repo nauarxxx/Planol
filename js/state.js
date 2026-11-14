@@ -1,6 +1,6 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=38';
-import { roomAt } from './geom.js?v=38';
+import { DEFAULT_PLAN } from './plan.js?v=39';
+import { roomAt } from './geom.js?v=39';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -39,7 +39,12 @@ export function migratePlan(s) {
   }
   // mobles fixos del plànol (p. ex. els de la cuina) que encara no hi siguin, tret dels que l'usuari hagi esborrat expressament
   const removed = new Set(s.removedFixed || []);
-  for (const it of fresh.items || []) if (!removed.has(it.id) && !s.items.some((x) => x.id === it.id)) s.items.push(clone(it));
+  for (const it of fresh.items || []) {
+    const mine = s.items.find((x) => x.id === it.id);
+    if (!mine) { if (!removed.has(it.id)) s.items.push(clone(it)); continue; }
+    // moble fix del plànol que l'usuari no ha desbloquejat: segueix el plànol nou (p. ex. la nevera quan es mou la porta)
+    if (it.locked && mine.locked) Object.assign(mine, { x: it.x, z: it.z, rot: it.rot, w: it.w, d: it.d, h: it.h, roomId: it.roomId });
+  }
   return s;
 }
 

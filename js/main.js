@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=38';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=38';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=38';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=38';
-import { mergeStates } from './merge.js?v=38';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=38';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=38';
-import { initAssistant } from './assistant.js?v=38';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=38';
-import { initMeasure } from './measure.js?v=38';
-import { initColorPicker } from './colorpicker.js?v=38';
-import { initPhotoAdd } from './photo.js?v=38';
-import { initTape } from './tape.js?v=38';
-import { checkZones } from './zones.js?v=38';
-import { fitCheck } from './fit.js?v=38';
-import { initShop, STATUS, statusOf } from './shop.js?v=38';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=38';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=38';
-import { drawPreview as drawRoomPreview } from './preview.js?v=38';
-import { arSupported, startAR as startARView } from './ar.js?v=38';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=38';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=38';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=38';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=38';
+import { DEFAULT_PLAN } from './plan.js?v=39';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=39';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=39';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=39';
+import { mergeStates } from './merge.js?v=39';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=39';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=39';
+import { initAssistant } from './assistant.js?v=39';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=39';
+import { initMeasure } from './measure.js?v=39';
+import { initColorPicker } from './colorpicker.js?v=39';
+import { initPhotoAdd } from './photo.js?v=39';
+import { initTape } from './tape.js?v=39';
+import { checkZones } from './zones.js?v=39';
+import { fitCheck } from './fit.js?v=39';
+import { initShop, STATUS, statusOf } from './shop.js?v=39';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=39';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=39';
+import { drawPreview as drawRoomPreview } from './preview.js?v=39';
+import { arSupported, startAR as startARView } from './ar.js?v=39';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=39';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=39';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=39';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=39';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -99,6 +99,12 @@ function redo() {
 function afterStateReplace(remote = true) {
   if (ui.selected && !state.items.find((i) => i.id === ui.selected)) ui.selected = null;
   save(remote); rebuildPlan(); rebuildItems(); renderAll();
+}
+
+// Vibració curta (si està activada a la configuració). Només quan l'usuari ja ha tocat la pàgina: si no, el navegador la bloqueja i omple la consola d'avisos.
+function vib(pattern) {
+  if (!+prefs.vib || !navigator.vibrate || navigator.userActivation?.hasBeenActive === false) return;
+  try { navigator.vibrate(pattern); } catch (e) { /* no disponible */ }
 }
 
 // Longituds segons les unitats triades a la configuració (cm o m).
@@ -555,7 +561,7 @@ function toggleDoor(key) {
   const def = key.includes('|w') ? 0 : 1; // finestres (clau "…|wN") tancades per defecte
   const to = (doors[key] ?? def) > 0.5 ? 0 : 1;
   doorAnims.set(key, { from: doors[key] ?? def, to, t0: performance.now() });
-  if (+prefs.vib) navigator.vibrate?.(8);
+  vib(8);
   requestRender();
 }
 function stepDoors(now) {
@@ -1001,7 +1007,7 @@ function warnBeep() {
     const t0 = beepCtx.currentTime;
     [[330, 0, 0.09], [262, 0.1, 0.14]].forEach(([f, d, len]) => { const o = beepCtx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.connect(g); o.start(t0 + d); o.stop(t0 + d + len); });
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.26);
-    if (+prefs.vib) navigator.vibrate?.([30, 40, 30]);
+    vib([30, 40, 30]);
   } catch (e) { /* sense so */ }
 }
 function updateOverlays() {
@@ -1472,6 +1478,7 @@ function wallSizeHtml(w) {
       </div>
       <div class="wside" id="wp-side">${wallSideHtml(w)}</div>
       <div class="btns"><button type="button" class="btn small" id="wp-size">✓ Aplica la mida</button></div>
+      <div class="wgrow" id="wp-grow" hidden></div>
     </div>`;
 }
 function bindWallSize(w) {
@@ -1483,7 +1490,7 @@ function bindWallSize(w) {
   $('#wp-whole').addEventListener('focus', () => setMode('whole'));
   for (const id of ['#wp-len', '#wp-whole']) {
     const inp = $(id); if (!inp) continue;
-    inp.addEventListener('input', () => { inp.classList.remove('bad'); setMode(id === '#wp-len' ? 'piece' : 'whole'); });
+    inp.addEventListener('input', () => { inp.classList.remove('bad'); const g = $('#wp-grow'); if (g) g.hidden = true; setMode(id === '#wp-len' ? 'piece' : 'whole'); });
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyWallSize(); } });
   }
   // pointerdown per no perdre el focus de la casella (al mòbil es tancaria el teclat i es perdria el mode)
@@ -1491,10 +1498,11 @@ function bindWallSize(w) {
   box.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-side]'); if (!b) return;
     ws.side[ws.mode] = +b.dataset.side;
+    const g = $('#wp-grow'); if (g) g.hidden = true;
     box.innerHTML = wallSideHtml(w);
   });
   $('#wp-size').addEventListener('pointerdown', (e) => e.preventDefault());
-  $('#wp-size').addEventListener('click', applyWallSize);
+  $('#wp-size').addEventListener('click', () => applyWallSize());
 }
 // Tros de paret (amb les seves mides actuals) que hi ha entre a i b d'una paret.
 function wallTagAt(room, key, sel) {
@@ -1504,15 +1512,27 @@ function wallTagAt(room, key, sel) {
   const side = Object.keys(WALL_KEY).find((k) => WALL_KEY[k] === key);
   return { room, axis: e.axis, line: e.line, a: sg.a, b: sg.b, side, key, inSide: key === 'N' || key === 'W' ? 1 : -1, edgeA: e.a, edgeB: e.b, over: sg.solid ? undefined : sg.ops[0].type };
 }
-function applyWallSize() {
+function applyWallSize(opts = {}) {
   const w = ui.wallSel, ws = ui.ws;
   if (!w || !ws) return;
   const mode = ws.mode, inp = $(mode === 'piece' ? '#wp-len' : '#wp-whole');
   if (!inp) return;
   const before = JSON.stringify(state);
   const totalBefore = Math.round((w.edgeB ?? w.b) - (w.edgeA ?? w.a));
-  const res = editWall(state, w, mode, inp.value, ws.side[mode]);
-  if (!res.ok) { if (!res.same) { inp.classList.add('bad'); toast(res.msg); } return; }
+  const res = editWall(state, w, mode, inp.value, ws.side[mode], opts);
+  const gr = $('#wp-grow');
+  if (!res.ok) {
+    if (res.same) return;
+    inp.classList.add('bad');
+    if (res.canGrow && gr) {
+      // no hi cap sense canviar la paret sencera: s'ofereix allargar-la (el que hi ha després es desplaça)
+      gr.hidden = false;
+      gr.innerHTML = `<p>${esc(res.msg)}</p><button type="button" class="btn secondary small" id="wp-grow-ok">Allarga la paret fins a ${fmtLen(res.growTotal, 1)}</button>`;
+      $('#wp-grow-ok').addEventListener('click', () => applyWallSize({ grow: true }));
+      relayout();
+    } else toast(res.msg);
+    return;
+  }
   pushHistory(before);
   state.roomsEdited = true;
   save(); rebuildPlan(); rebuildItems(); renderAll();
@@ -1532,7 +1552,7 @@ function applyWallSize() {
     if (res.items) msg += ` ${res.items === 1 ? 'Un moble s’ha mogut' : res.items + ' mobles s’han mogut'} amb la paret.`;
   }
   toast(msg);
-  if (+prefs.vib) navigator.vibrate?.(12);
+  vib(12);
 }
 
 renderer.domElement.addEventListener('pointermove', (e) => {
@@ -1567,7 +1587,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     pointers.delete(e.pointerId);
     if (drag.pinch) { if (pointers.size === 0) drag = null; return; }
     if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) {
-      if (drag.item) { select(drag.item); if (+prefs.vib) navigator.vibrate?.(8); }
+      if (drag.item) { select(drag.item); vib(8); }
       else if (drag.door) toggleDoor(drag.door);
       else if (drag.floor && roomAt(state.rooms, drag.floor.x, drag.floor.z)) { walk.target = drag.floor; requestRender(); } // toca el terra: hi vas caminant
       else if (drag.wall) showWallMeasure(drag.wall);
@@ -1587,7 +1607,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
       for (const id of drag.ids) { const o = itemById(id), r = roomAt(state.rooms, o.x, o.z); if (r) o.roomId = r.id; }
       if (drag.ids.length === 1 && CATALOG[it.type]?.mount && nearWall(it) < 45) { snapItem(it); updateItem(it); } // un objecte de paret s'hi torna a enganxar
       save(); renderAll();
-      if (+prefs.vib) navigator.vibrate?.(12);
+      vib(12);
     }
     controls.enabled = true;
   }
@@ -2905,7 +2925,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v38',
+  version: 'v39',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
