@@ -9,7 +9,7 @@
 // mou (p. ex. el racó al costat del menjador) s'allarguen amb ella.
 // side: +1 = cap a baix / la dreta (Z o X creixent), -1 = cap a dalt / l'esquerra. Mides en cm.
 
-import { openingSegment, aabb, roomAt } from './geom.js?v=42';
+import { openingSegment, aabb, roomAt } from './geom.js?v=43';
 
 const AXIS = { N: 'x', S: 'x', W: 'z', E: 'z' };
 const OPP = { N: 'S', S: 'N', W: 'E', E: 'W' };
@@ -100,6 +100,10 @@ export function defaultSide(state, w, mode) {
     const solidAt = (d) => { for (let j = i + d; j >= 0 && j < segs.length; j += d) if (segs[j].solid) return true; return false; };
     if (solidAt(1)) return 1;
     if (solidAt(-1)) return -1;
+    // cap tros per absorbir-ho: el costat on es pot fer (p. ex. no cap al pas del passadís)
+    const works = (d) => { const st2 = JSON.parse(JSON.stringify(state)), r2 = st2.rooms.find((q) => q.id === w.room.id); return !!r2 && editWall(st2, { ...w, room: r2 }, 'piece', Math.round(w.b - w.a) + 1, d).ok; };
+    const ok1 = works(1), ok0 = works(-1);
+    if (ok1 !== ok0) return ok1 ? 1 : -1;
   }
   const n = (side) => {
     const u = AXIS[w.key], e = edgeOf(w.room, w.key);
@@ -268,6 +272,19 @@ export function editWall(state, w, mode, newLen, side, opts = {}) {
 
   // no n'hi ha: s'arriba a la cantonada i l'habitació creix
   const c = side > 0 ? sg.b : sg.a;
+  // però si entremig hi ha un pas cap a una habitació que no es mouria (p. ex. el passadís, lligat a la resta del pis),
+  // el pas deixaria de quedar davant d'aquella habitació: no es fa i es diu per què
+  if (!opts.grow) {
+    const act = plan(state.rooms, R, u, c, side, state.wallThickness || 10);
+    for (const s2 of between) for (const o of s2.ops) {
+      const q = o.own
+        ? state.rooms.find((r2) => r2 !== R && r2.kind === 'room' && (() => { const e2 = edgeOf(r2, OPP[key]); return Math.abs(e2.line - e.line) <= 1 && e2.b > o.a + 1 && e2.a < o.b - 1; })())
+        : o.room;
+      if (q && q !== R && !act.has(q)) {
+        return { ok: false, msg: `Darrere hi ha ${o.own ? 'el pas a ' : ''}«${q.name}», que no es pot moure amb aquesta paret: el pas deixaria de quedar-hi davant. Canvia la mida pel costat de l’altra banda o la paret sencera.` };
+      }
+    }
+  }
   if (delta < 0 && bandBlocked(state.rooms, R, OPP[key], side > 0 ? c + delta : c, side > 0 ? c : c - delta)) {
     return { ok: false, msg: 'A la paret del davant, a la mateixa alçada, hi ha una porta o una finestra. Prova l’altre costat.' };
   }
