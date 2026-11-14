@@ -1,7 +1,7 @@
 // «Hi passa?»: comprova si un moble es pot entrar des de la porta del pis fins a l'habitació on va,
 // passant per totes les portes i passos del camí i pels girs dels passadissos. És un càlcul aproximat:
 // prova el moble pla, de cantó i dret, i per als girs fa servir la fórmula de la cantonada entre dos passadissos.
-import { allOpenings, roomAt } from './geom.js?v=34';
+import { allOpenings, roomAt } from './geom.js?v=35';
 
 const DOOR_H = { puerta: 203, ventanal: 210 };
 const PASSABLE = new Set(['puerta', 'paso', 'ventanal']);

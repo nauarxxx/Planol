@@ -3,8 +3,9 @@
 // sillas alrededor de la mesa, cama con cabecero en la pared...), las puntúa y devuelve
 // las mejores que sean distintas entre sí.
 
-import { CATALOG } from './furniture.js?v=34';
-import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, structItems, DEG } from './geom.js?v=34';
+import { CATALOG } from './furniture.js?v=35';
+import { evalGoals } from './goals.js?v=35';
+import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, structItems, DEG } from './geom.js?v=35';
 
 function mulberry32(seed) {
   return function () {
@@ -118,9 +119,12 @@ function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
   free.sort((a, b) => ORDER.indexOf(roleOf(a)) - ORDER.indexOf(roleOf(b)) || b.w * b.d - a.w * a.d);
 
   const candidates = [];
+  const goals = opts.goals || [];
+  const placedItems = (pl) => [...locked, ...free.map((i) => ({ ...i, ...pl.placements[i.id] }))];
   for (let n = 0; n < tries; n++) {
     const pl = buildCandidate(free, locked, R, rand, doorWalls, keepouts);
-    const score = scoreLayout(pl, free, locked, R, keepouts);
+    let score = scoreLayout(pl, free, locked, R, keepouts);
+    if (goals.length) score += evalGoals(placedItems(pl), room, allRooms, goals, t).penalty; // objectius triats
     candidates.push({ pl, score });
     if (n % 25 === 24) yield n / tries;
   }
@@ -134,6 +138,7 @@ function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
   }
   chosen.forEach((c) => { c.debug = {}; scoreLayout(c.pl, free, locked, R, keepouts, c.debug); });
   return chosen.map((c, i) => ({
+    goals: goals.length ? evalGoals(placedItems(c.pl), room, allRooms, goals, t).report : [],
     debug: c.debug,
     score: c.score,
     rating: rate(c.score, c.debug),

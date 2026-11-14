@@ -1,56 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=34';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=34';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=34';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=34';
-import { mergeStates } from './merge.js?v=34';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=34';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=34';
-import { initAssistant } from './assistant.js?v=34';
-import { drawPlan, printSheet } from './sheet.js?v=34';
-import { initMeasure } from './measure.js?v=34';
-import { initColorPicker } from './colorpicker.js?v=34';
-import { initPhotoAdd } from './photo.js?v=34';
-import { initTape } from './tape.js?v=34';
-import { checkZones } from './zones.js?v=34';
-import { fitCheck } from './fit.js?v=34';
-import { initShop, STATUS, statusOf } from './shop.js?v=34';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=34';
+import { DEFAULT_PLAN } from './plan.js?v=35';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=35';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=35';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=35';
+import { mergeStates } from './merge.js?v=35';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=35';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=35';
+import { initAssistant } from './assistant.js?v=35';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=35';
+import { initMeasure } from './measure.js?v=35';
+import { initColorPicker } from './colorpicker.js?v=35';
+import { initPhotoAdd } from './photo.js?v=35';
+import { initTape } from './tape.js?v=35';
+import { checkZones } from './zones.js?v=35';
+import { fitCheck } from './fit.js?v=35';
+import { initShop, STATUS, statusOf } from './shop.js?v=35';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=35';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=35';
+import { drawPreview as drawRoomPreview } from './preview.js?v=35';
+import { arSupported, startAR as startARView } from './ar.js?v=35';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=35';
+import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=35';
 
 // ---------------------------------------------------------------- estado
-const STORE_KEY = 'planta3d-v1';
-const clone = (o) => JSON.parse(JSON.stringify(o));
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const s = JSON.parse(raw);
-      if (s && Array.isArray(s.rooms) && Array.isArray(s.items)) return s;
-    }
-  } catch (e) { /* sin almacenamiento */ }
-  return clone(DEFAULT_PLAN);
-}
-
-// Si el plano por defecto es más nuevo que el guardado, se actualizan las habitaciones
-// y se conservan los muebles (se reasignan a la habitación donde caen).
-function migratePlan(s) {
-  if (!s || (s.version || 1) >= DEFAULT_PLAN.version) return s;
-  const fresh = clone(DEFAULT_PLAN);
-  s.rooms = fresh.rooms;
-  s.version = fresh.version;
-  s.items = s.items || [];
-  for (const it of s.items) {
-    const r = roomAt(s.rooms, it.x, it.z);
-    it.roomId = r ? r.id : (s.rooms.find((x) => x.kind === 'room') || {}).id;
-  }
-  // mobles fixos del plànol (p. ex. els de la cuina) que encara no hi siguin, tret dels que l'usuari hagi esborrat expressament
-  const removed = new Set(s.removedFixed || []);
-  for (const it of fresh.items || []) if (!removed.has(it.id) && !s.items.some((x) => x.id === it.id)) s.items.push(clone(it));
-  return s;
-}
-
 let state = migratePlan(loadState());
 // Ajustos avançats (mode developer): es desen amb el plànol a state.cfg; si no n'hi ha, valors per defecte.
 const cfgGet = (k) => { const v = +(state.cfg?.[k]); return Number.isFinite(v) ? Math.min(CFGR[k][1], Math.max(CFGR[k][0], v)) : CFGD[k]; };
@@ -77,7 +50,19 @@ function cloudCount(k) {
   cloudStats[k]++;
   try { localStorage.setItem(CLOUD_KEY, JSON.stringify(cloudStats)); } catch (e) { /* res */ }
 }
+// Qui soc (per a les notes, els vots i l'historial): el nom del compte de Google, o el principi del correu.
+function whoAmI() {
+  const u = currentUser?.();
+  const n = (u?.displayName || '').trim().split(/\s+/)[0] || (u?.email || currentUserEmail() || '').split('@')[0];
+  return n ? n[0].toUpperCase() + n.slice(1) : 'Jo';
+}
+const changeLog = initLog(); // historial de canvis («qui ha canviat què»)
+changeLog.reset(state);
 function save(remote = true) {
+  try {
+    changeLog.record(state, whoAmI(), (id) => state.rooms.find((r) => r.id === id)?.name || '—');
+    const gl = document.getElementById('g-log'); if (gl) gl.innerHTML = logHtml(state, esc, ui.logAll ? 200 : 25);
+  } catch (e) { console.warn('historial', e); }
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignorar */ }
   if (remote) saveRemote(() => state, setSync);
 }
@@ -1992,6 +1977,8 @@ function renderItemList() {
         <span class="nm">${esc(i.name)}${i.locked ? ' 🔒' : ''}</span>
         ${bad.has(i.id) ? `<span class="badge bad" title="${esc(bad.get(i.id))}">xoc</span>` : ''}
         ${ui.zoneBad?.has(i.id) ? `<span class="badge warn" title="${esc(ui.zoneBad.get(i.id).map((r) => `${r.label}: cal ${r.need} cm, n’hi ha ${r.have}`).join(' · '))}">pas</span>` : ''}
+        ${i.notes?.length ? `<span class="badge" title="${esc(i.notes.map((n) => `${n.who}: ${n.text}`).join('\n'))}">💬${i.notes.length}</span>` : ''}
+        ${Object.values(i.votes || {}).some((v) => v > 0) ? `<span class="badge" title="Vots">👍${Object.values(i.votes).filter((v) => v > 0).length}</span>` : ''}
         <span class="dm">${i.w}×${i.d}×${i.h}</span>
       </li>`).join('')}</ul>`;
   }).join('') + (state.items.some((i) => !roomById(i.roomId)) ? '<p class="note">Hi ha mobles fora de qualsevol habitació.</p>' : '');
@@ -2097,6 +2084,7 @@ function renderProps(onlyPos = false) {
       <label>Preu (€)<input type="number" id="p-price" min="0" step="1" value="${+it.price || ''}" placeholder="—" /></label>
     </div>
     <div class="row"><label>Enllaç de la botiga<input type="url" id="p-url" value="${esc(it.url || '')}" placeholder="https://…" /></label></div>
+    <div id="p-social">${itemSocialHtml(it, whoAmI(), esc)}</div>
     <label style="flex-direction:row;align-items:center;gap:6px;margin:4px 0 8px"><input type="checkbox" id="p-lock" ${it.locked ? 'checked' : ''}/> Fix (no es mou a les propostes)</label>
     <div class="btns">
       <button class="btn secondary small" id="p-rl">⟲ 90°</button>
@@ -2105,10 +2093,13 @@ function renderProps(onlyPos = false) {
       <button class="btn secondary small" id="p-dup">Duplica</button>
       <button class="btn secondary small" id="p-cat" title="Desa al catàleg dels meus mobles">★</button>
       <button class="btn secondary small" id="p-fit" title="Comprova si el moble passa per les portes i els passadissos fins aquí">🚪 Hi passa?</button>
+      <button class="btn secondary small" id="p-ar" title="Mira el moble a mida real a casa amb la càmera del mòbil" hidden>📱 Veure-ho a casa</button>
       <button class="btn danger small" id="p-del">Elimina</button>
     </div>`;
   const num = (id) => +$(id).value;
   const apply = (fn, rebuild) => { commit(); fn(); save(); updateItem(it, rebuild); renderProps(); renderItemList(); };
+  bindItemSocial($('#p-social'), it, whoAmI(), (fn) => { commit(); fn(); save(); renderProps(); renderItemList(); });
+  arSupported().then((ok) => { const b = $('#p-ar'); if (b) { b.hidden = !ok && !isMobile(); b.onclick = () => (ok ? startARView(it, { photo: photoOf(it), toast }) : showInfo('Realitat augmentada', '<p>Per veure el moble a mida real a casa cal un mòbil Android amb Chrome (i els Serveis de Google Play per a RA). A l’iPhone el navegador encara no ho permet.</p>')); } });
   $('#p-close').addEventListener('click', () => { if (isMobile()) { ui.propsOpen = false; renderProps(); } else select(null); });
   $('#p-name').addEventListener('change', (e) => apply(() => { it.name = e.target.value; }));
   $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; if (it.shape && !SHAPES[it.type]?.some(([k]) => k === it.shape)) { delete it.shape; for (const k of ['sd', 'lw', 'bw', 'bh']) delete it[k]; } }, true));
@@ -2221,6 +2212,10 @@ function setRoomItems(room, items) {
   save(); rebuildItems(); renderAll();
 }
 let propBusy = false;
+// Objectius triats per a les propostes (es recorden en aquest dispositiu).
+let goalSel = GOAL_DEFAULT;
+try { const g = JSON.parse(localStorage.getItem('planta3d-goals') || 'null'); if (Array.isArray(g)) goalSel = g.filter((k) => GOALS.some((x) => x[0] === k)); } catch (e) { /* res */ }
+const goalsHtml = (rep) => (rep?.length ? `<ul class="goal-rep">${rep.map((g) => `<li class="${g.ok ? 'ok' : 'bad'}">${g.ok ? '✓' : '✗'} <b>${esc(g.label)}</b>: ${esc(g.text)}</li>`).join('')}</ul>` : '');
 async function generateProposal(room) {
   if (propBusy) return;
   const H = propHist(room.id), n = ui.propN[room.id] || 0;
@@ -2247,13 +2242,13 @@ async function generateProposal(room) {
   show(0);
   let props = [];
   try {
-    props = await generateLayoutsAsync(room, items, state.rooms, { wallThickness: state.wallThickness, seed: ui.seed, count: cfgGet('count'), tries: cfgGet('tries'), clear: cfgGet('clear'), gapMin: cfgGet('gapMin') }, show);
+    props = await generateLayoutsAsync(room, items, state.rooms, { wallThickness: state.wallThickness, seed: ui.seed, count: cfgGet('count'), tries: cfgGet('tries'), clear: cfgGet('clear'), gapMin: cfgGet('gapMin'), goals: goalSel }, show);
   } finally { propBusy = false; }
   if (!props.length) { toast('No he trobat cap col·locació que hi càpiga. Prova amb menys mobles.'); renderDistribuir(); return; }
   const best = props[0];
   const placed = applyPlacements(items, best.placements);
   H.list.length = H.idx + 1;
-  H.list.push({ name: `${label} · ${best.rating}`, items: placed, alts: props.slice(1).map((p) => ({ name: p.name, rating: p.rating, placements: p.placements })), base: items });
+  H.list.push({ name: `${label} · ${best.rating}`, goals: best.goals, items: placed, alts: props.slice(1).map((p) => ({ name: p.name, rating: p.rating, goals: p.goals, placements: p.placements })), base: items });
   if (H.list.length > 30) H.list.shift();
   H.idx = H.list.length - 1;
   setRoomItems(room, placed);
@@ -2282,6 +2277,10 @@ function renderDistribuir() {
         ? (kits.length ? `${esc(room.name)} no té mobles${locked ? ` (a part dels ${locked} fixos)` : ''}: et proposo un equipament típic i com col·locar-lo. Cada proposta en prova un altre (${kits.length} variants).` : `${esc(room.name)} no necessita mobles. Si en vols, afegeix-ne des de la pestanya Mobles.`)
         : `Torno a col·locar els ${movable} mobles de ${esc(room.name)} <b>sense afegir-ne ni treure’n cap</b>${locked ? ` (els ${locked} fixos no es mouen)` : ''}.`}</p>
     </div>
+    <details class="goals" ${ui.goalsOpen ? 'open' : ''}><summary>🎯 Objectius (${goalSel.length})</summary>
+      ${GOALS.map(([k, l, d]) => `<label class="chk" title="${esc(d)}"><input type="checkbox" data-goal="${k}" ${goalSel.includes(k) ? 'checked' : ''}/> ${esc(l)}</label>`).join('')}
+      <p class="note">Les propostes intenten complir els objectius triats i t’expliquen per què.</p>
+    </details>
     <div class="btns">
       <button class="btn" id="d-gen" ${furnish && !kits.length ? 'disabled' : ''}>✨ ${furnish ? 'Proposa mobles' : 'Redistribueix'}</button>
       <button class="btn secondary" id="d-focus">Mostra l’estança</button>
@@ -2292,10 +2291,23 @@ function renderDistribuir() {
       <button class="btn secondary small" id="d-prev" ${H.idx > 0 ? '' : 'disabled'} title="Proposta anterior">◀ Anterior</button>
       <span class="cnt">Proposta ${H.idx + 1} de ${H.list.length}<br><small>${esc(snap?.name || '')}</small></span>
       <button class="btn secondary small" id="d-next" ${H.idx < H.list.length - 1 ? '' : 'disabled'} title="Proposta següent">Següent ▶</button>
-    </div>` : ''}
+    </div>${goalsHtml(snap?.goals)}` : ''}
     ${snap?.alts?.length ? `<p class="note">Altres col·locacions amb els mateixos mobles (toca’n una per aplicar-la):</p>` : ''}
     <div class="layouts" id="d-cards"></div>
-    ${H.list.length > 1 ? '<div class="btns"><button class="btn secondary small" id="d-cmp">⇆ Compara les propostes</button></div>' : ''}`;
+    <div class="btns">${H.list.length > 1 ? '<button class="btn secondary small" id="d-cmp">⇆ Compara les propostes</button>' : ''}${its.length ? '<button class="btn secondary small" id="d-vote" title="Desa com està ara aquesta estança perquè l’altra persona la pugui votar i comentar">⭐ Desa-la per votar</button>' : ''}</div>
+    <div id="d-saved">${savedHtml(state, room.id, whoAmI(), esc)}</div>`;
+  $('#d-vote')?.addEventListener('click', () => {
+    const nm = prompt('Nom d’aquesta proposta (per votar-la):', snap?.name?.split(' · ')[0] || `${room.name} de ${whoAmI()}`);
+    if (nm === null) return;
+    commit();
+    saveProposal(state, room, roomItemsOf(room.id), whoAmI(), nm.trim(), snap?.goals);
+    save(); renderDistribuir(); toast('⭐ Desada. L’altra persona la veurà aquí per votar-la i comentar-la.');
+  });
+  bindSaved($('#d-saved'), state, whoAmI(), {
+    change: (fn) => { commit(); fn(); save(); renderDistribuir(); },
+    preview: (cv, p) => drawPreview(cv, room, { placements: Object.fromEntries(p.items.map((i) => [i.id, { x: i.x, z: i.z, rot: i.rot }])) }, p.items),
+    apply: (p) => { setRoomItems(room, p.items); toast(`«${p.name}» aplicada (↶ per desfer).`); },
+  });
   $('#d-empty')?.addEventListener('click', () => {
     commit();
     state.removedFixed = [...new Set([...(state.removedFixed || []), ...its.filter((i) => !i.locked && i.id.startsWith('fix-')).map((i) => i.id)])];
@@ -2304,6 +2316,12 @@ function renderDistribuir() {
     save(); rebuildItems(); renderAll(); toast(`${room.name} buidada. Ara pots demanar un equipament nou (↶ per desfer).`);
   });
   $('#d-room').addEventListener('change', (e) => { ui.layoutRoom = e.target.value; renderDistribuir(); });
+  el.querySelector('details.goals').addEventListener('toggle', (e) => { ui.goalsOpen = e.target.open; });
+  el.querySelectorAll('[data-goal]').forEach((c) => c.addEventListener('change', () => {
+    goalSel = [...el.querySelectorAll('[data-goal]:checked')].map((x) => x.dataset.goal);
+    try { localStorage.setItem('planta3d-goals', JSON.stringify(goalSel)); } catch (err) { /* res */ }
+    el.querySelector('details.goals summary').textContent = `🎯 Objectius (${goalSel.length})`;
+  }));
   $('#d-focus').addEventListener('click', () => frameCamera(room));
   $('#d-gen').addEventListener('click', () => generateProposal(room));
   $('#d-prev')?.addEventListener('click', () => { if (H.idx > 0) { H.idx--; setRoomItems(room, H.list[H.idx].items); } });
@@ -2311,14 +2329,14 @@ function renderDistribuir() {
   $('#d-cmp')?.addEventListener('click', () => compareProposals(room));
   if (snap?.alts?.length) {
     const cards = $('#d-cards');
-    cards.innerHTML = snap.alts.map((p, i) => `<div class="layout-card" data-i="${i}"><canvas width="320" height="240"></canvas><div class="t">${esc(p.name)}</div><div class="r">${esc(p.rating)}</div></div>`).join('');
+    cards.innerHTML = snap.alts.map((p, i) => `<div class="layout-card" data-i="${i}"><canvas width="320" height="240"></canvas><div class="t">${esc(p.name)}</div><div class="r">${esc(p.rating)}</div>${p.goals?.length ? `<div class="g">${p.goals.map((g) => `<span class="${g.ok ? 'ok' : 'bad'}" title="${esc(g.label)}: ${esc(g.text)}">${g.ok ? '✓' : '✗'}</span>`).join('')}</div>` : ''}</div>`).join('');
     cards.querySelectorAll('.layout-card').forEach((card) => {
       const p = snap.alts[+card.dataset.i];
       drawPreview(card.querySelector('canvas'), room, p, snap.base);
       card.addEventListener('click', () => {
         const placed = applyPlacements(snap.base, p.placements);
         H.list.length = H.idx + 1;
-        H.list.push({ name: `${p.name} · ${p.rating}`, items: placed, alts: snap.alts.filter((a) => a !== p).concat([{ name: snap.name.split(' · ')[0], rating: snap.name.split(' · ').slice(1).join(' · '), placements: Object.fromEntries(snap.items.map((i) => [i.id, { x: i.x, z: i.z, rot: i.rot }])) }]), base: snap.base });
+        H.list.push({ name: `${p.name} · ${p.rating}`, goals: p.goals, items: placed, alts: snap.alts.filter((a) => a !== p).concat([{ name: snap.name.split(' · ')[0], rating: snap.name.split(' · ').slice(1).join(' · '), placements: Object.fromEntries(snap.items.map((i) => [i.id, { x: i.x, z: i.z, rot: i.rot }])) }]), base: snap.base });
         H.idx = H.list.length - 1;
         setRoomItems(room, placed);
       });
@@ -2341,66 +2359,7 @@ function applyProposal(room, p) {
   save(); rebuildItems(); renderAll();
 }
 
-function drawPreview(cv, room, p, items = null) {
-  const ctx = cv.getContext('2d');
-  const pad = 14;
-  const s = Math.min((cv.width - 2 * pad) / room.w, (cv.height - 2 * pad) / room.d);
-  const ox = (cv.width - room.w * s) / 2 - room.x * s, oz = (cv.height - room.d * s) / 2 - room.z * s;
-  const X = (x) => ox + x * s, Z = (z) => oz + z * s;
-  ctx.clearRect(0, 0, cv.width, cv.height);
-  ctx.fillStyle = room.color || '#c89b6a';
-  ctx.globalAlpha = 0.35;
-  ctx.fillRect(X(room.x), Z(room.z), room.w * s, room.d * s);
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#2b2926'; ctx.lineWidth = 3;
-  ctx.strokeRect(X(room.x), Z(room.z), room.w * s, room.d * s);
-  // huecos
-  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
-  for (const o of allOpenings(state.rooms)) {
-    const edge = o.axis === 'x' ? [room.z, room.z + room.d] : [room.x, room.x + room.w];
-    if (!edge.some((l) => Math.abs(l - o.line) < 1)) continue;
-    const lim = o.axis === 'x' ? [room.x, room.x + room.w] : [room.z, room.z + room.d];
-    const a = Math.max(o.a, lim[0]), b = Math.min(o.b, lim[1]);
-    if (b <= a) continue;
-    ctx.strokeStyle = o.type === 'ventana' || o.type === 'ventanal' ? '#7fb2d0' : '#ffffff';
-    ctx.lineWidth = o.type === 'ventanal' ? 7 : 4;
-    ctx.beginPath();
-    if (o.axis === 'x') { ctx.moveTo(X(a), Z(o.line)); ctx.lineTo(X(b), Z(o.line)); }
-    else { ctx.moveTo(X(o.line), Z(a)); ctx.lineTo(X(o.line), Z(b)); }
-    ctx.stroke();
-    if (o.type === 'ventanal') { // montante central del ventanal doble
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath();
-      const m = (a + b) / 2;
-      if (o.axis === 'x') { ctx.moveTo(X(m), Z(o.line) - 4); ctx.lineTo(X(m), Z(o.line) + 4); }
-      else { ctx.moveTo(X(o.line) - 4, Z(m)); ctx.lineTo(X(o.line) + 4, Z(m)); }
-      ctx.stroke();
-    }
-  }
-  // batents de les portes
-  ctx.strokeStyle = 'rgba(90,60,30,.7)'; ctx.lineWidth = 1;
-  for (const sw of allSwings(state.rooms)) {
-    if (sw.x1 < room.x || sw.x0 > room.x + room.w || sw.z1 < room.z || sw.z0 > room.z + room.d) continue;
-    const arc = swingArc(sw, 10);
-    ctx.beginPath(); ctx.moveTo(X(sw.hx), Z(sw.hz));
-    arc.forEach(([x, z]) => ctx.lineTo(X(x), Z(z)));
-    ctx.closePath(); ctx.stroke();
-  }
-  const its = (items || state.items.filter((i) => i.roomId === room.id)).map((i) => ({ ...i, ...(p.placements[i.id] || {}) }));
-  its.sort((a, b) => (a.type === 'alfombra' ? -1 : 0) - (b.type === 'alfombra' ? -1 : 0) || (a.elev || 0) - (b.elev || 0));
-  for (const it of its) {
-    const cs = corners(it);
-    ctx.beginPath();
-    cs.forEach(([x, z], k) => (k ? ctx.lineTo(X(x), Z(z)) : ctx.moveTo(X(x), Z(z))));
-    ctx.closePath();
-    ctx.fillStyle = it.color; ctx.globalAlpha = it.type === 'alfombra' ? 0.5 : 0.95; ctx.fill(); ctx.globalAlpha = 1;
-    ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1; ctx.stroke();
-    // marca del frente
-    const f = { x: Math.sin(it.rot * DEG), z: Math.cos(it.rot * DEG) };
-    ctx.strokeStyle = '#d9864d'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(X(it.x), Z(it.z));
-    ctx.lineTo(X(it.x + f.x * (it.d / 2)), Z(it.z + f.z * (it.d / 2))); ctx.stroke();
-  }
-}
+const drawPreview = (cv, room, p, items = null) => drawRoomPreview(cv, room, p, items || state.items.filter((i) => i.roomId === room.id), state.rooms);
 
 // --- Comparar (propostes o escenes) costat a costat
 function showCompare(title, panels) {
@@ -2451,7 +2410,12 @@ function renderPlano() {
     <p class="note">Les mides són interiors, en centímetres. X va d’esquerra a dreta i Z de dalt a baix a la vista en planta. Les marcades com a <span class="badge">estimades</span> no surten al plànol: corregeix-les quan les mesuris.</p>
     <h2>Habitacions</h2>
     <div id="rooms"></div>
-    <div class="btns"><button class="btn secondary" id="g-addroom">+ Afegeix una habitació</button></div>`;
+    <div class="btns"><button class="btn secondary" id="g-addroom">+ Afegeix una habitació</button></div>
+    <h2>🕘 Historial de canvis</h2>
+    <p class="note">Qui ha canviat què (es desa amb el plànol i el veieu tots dos).</p>
+    <div id="g-log">${logHtml(state, esc, ui.logAll ? 200 : 25)}</div>
+    ${(state.log || []).length > 25 ? `<div class="btns"><button class="btn secondary small" id="g-logall">${ui.logAll ? 'Mostra’n menys' : `Mostra-ho tot (${state.log.length})`}</button></div>` : ''}`;
+  $('#g-logall')?.addEventListener('click', () => { ui.logAll = !ui.logAll; renderPlano(); });
   $('#g-ceil').addEventListener('change', (e) => { commit(); state.ceiling = Math.max(150, +e.target.value || 250); state.ceilingEstimated = false; save(); rebuildPlan(); renderPlano(); });
   $('#g-wall').addEventListener('change', (e) => { commit(); state.wallThickness = Math.max(4, +e.target.value || 10); save(); rebuildPlan(); updateOverlays(); });
   $('#g-addroom').addEventListener('click', () => {
@@ -2574,6 +2538,15 @@ function renderDatos(target) {
     <h2>Imprimeix / PDF</h2>
     <p class="note">Obre una fulla amb el plànol acotat, la llista d’habitacions amb les obertures i tots els mobles amb les mides. Al diàleg d’impressió tria «Desa com a PDF» (al mòbil: Comparteix → Imprimeix → pessiga per fer-lo PDF).</p>
     <div class="btns"><button class="btn" id="x-pdf">🖨 Plànol amb cotes (PDF)</button></div>
+    <h2>Plànol a escala</h2>
+    <p class="note">Per portar a la botiga o al muntador: el plànol a escala real (a 1:50, 1 m del pis = 2 cm al paper), amb les cotes de les habitacions, els mobles i un regle per comprovar-ho. Imprimeix-lo al 100 %.</p>
+    <div class="row c3">
+      <label>Què<select id="x-sc-room"><option value="">Tot el pis</option>${roomOptions('')}</select></label>
+      <label>Paper<select id="x-sc-paper"><option>A4</option><option>A3</option></select></label>
+      <label>Escala<select id="x-sc-scale"><option value="">Automàtica</option><option value="20">1:20</option><option value="25">1:25</option><option value="50">1:50</option><option value="75">1:75</option><option value="100">1:100</option></select></label>
+    </div>
+    <p class="note" id="x-sc-info"></p>
+    <div class="btns"><button class="btn" id="x-scale">📐 Imprimeix a escala</button></div>
     <h2>Instal·la l’app</h2>
     <div id="x-install-status">${installStatusHtml()}</div>
     <div class="btns"><button class="btn" id="x-install" ${isStandalone() ? 'disabled' : ''}>⬇ Instal·la al dispositiu</button></div>
@@ -2609,6 +2582,12 @@ function renderDatos(target) {
   });
   $('#x-install').addEventListener('click', () => installApp());
   $('#x-pdf').addEventListener('click', () => printSheet(state));
+  const scInfo = () => {
+    const rid = $('#x-sc-room').value || null, f = fitScale(state, $('#x-sc-paper').value, rid), a3 = fitScale(state, 'A3', rid);
+    $('#x-sc-info').textContent = `En ${$('#x-sc-paper').value} hi cap a 1:${f.scale} (${f.landscape ? 'horitzontal' : 'vertical'}).${$('#x-sc-paper').value === 'A4' && a3.scale < f.scale ? ` En A3, a 1:${a3.scale}.` : ''}`;
+  };
+  ['#x-sc-paper', '#x-sc-room'].forEach((k) => $(k).addEventListener('change', scInfo)); scInfo();
+  $('#x-scale').addEventListener('click', () => { const r = printScale(state, { paper: $('#x-sc-paper').value, scale: +$('#x-sc-scale').value || 0, roomId: $('#x-sc-room').value || null }); if (r.error) toast('El navegador ha bloquejat la finestra: permet les finestres emergents.'); });
   $('#sc-save').addEventListener('click', () => {
     const name = prompt('Nom de l’escena:', `Escena ${(state.scenes || []).length + 1}`);
     if (name === null) return;
@@ -2699,6 +2678,7 @@ async function syncNow() {
       cloudBase = clone(r.state);
       const changed = JSON.stringify(merged) !== JSON.stringify(state);
       state = migratePlan(merged);
+      changeLog.reset(state);
       afterStateReplace(true);
       toast(changed ? `↻ Canvis rebuts del núvol (${r.by.split('@')[0] || 'altre dispositiu'}).` : '↻ Tot al dia: no hi havia canvis nous.');
     } else { save(true); toast('↻ Pujat al núvol.'); }
@@ -2741,7 +2721,7 @@ if (cloudEnabled) {
       const acc = document.getElementById('account');
       acc.hidden = false;
       cloudCount('reads');
-      if (initial) { history.past = []; history.future = []; const v = initial.version || 1; cloudBase = clone(initial); state = migratePlan(initial); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
+      if (initial) { history.past = []; history.future = []; const v = initial.version || 1; cloudBase = clone(initial); state = migratePlan(initial); changeLog.reset(state); afterStateReplace(v < DEFAULT_PLAN.version); frameCamera(); setSync('guardado'); }
       else save();
       setTimeout(() => { applyCfg(); api.dev?.bkAutoCheck(); }, 1500);
     },
@@ -2752,6 +2732,7 @@ if (cloudEnabled) {
       cloudBase = clone(s);
       const needsResave = JSON.stringify(merged) !== JSON.stringify(s);
       state = migratePlan(merged);
+      changeLog.reset(state); // el que ve del núvol ja porta el seu historial
       afterStateReplace(needsResave);
       if (!needsResave) setSync('Actualitzat per ' + String(by).split('@')[0]);
     },
@@ -2799,7 +2780,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v34',
+  version: 'v35',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
