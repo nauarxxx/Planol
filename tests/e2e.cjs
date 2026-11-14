@@ -97,6 +97,31 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     must(zf === 0, `${zf} cares superposades en canviar el tipus de porta`);
     return 0;
   });
+  await step('passeig: triar, arrossegar, girar i afegir mobles i tocar una paret', async () => {
+    await ev(() => { planta3d.api.select(null); planta3d.setView('walk'); const r = planta3d.state.rooms.find((x) => x.id === 'salon'); Object.assign(planta3d.walk, { x: r.x + r.w / 2, z: r.z + 120, yaw: Math.PI, pitch: -0.3 }); });
+    await sleep(400);
+    const t = await ev(() => { const it = planta3d.state.items.find((i) => i.type === 'mesaCentro'); return { id: it.id, x: it.x, z: it.z, sc: planta3d.screenOf(it.x, it.z, it.h - 2) }; });
+    await p.mouse.click(t.sc[0], t.sc[1]); await sleep(200);
+    must(await ev(() => planta3d.ui.selected) === t.id, 'tocar un moble al passeig no el tria');
+    must(await p.isVisible('#selbar'), 'sense barra ràpida al passeig');
+    await p.mouse.move(t.sc[0], t.sc[1]); await p.mouse.down();
+    for (let k = 1; k <= 6; k++) { await p.mouse.move(t.sc[0] + k * 6, t.sc[1] + k * 4); await sleep(20); }
+    await p.mouse.up(); await sleep(150);
+    const moved = await ev((id) => { const i = planta3d.state.items.find((x) => x.id === id); return [i.x, i.z]; }, t.id);
+    must(moved[0] !== t.x || moved[1] !== t.z, 'arrossegar el moble triat no el mou');
+    await p.click('#selbar [data-act=undo]'); await sleep(100);
+    await p.keyboard.press('r'); await sleep(100);
+    const n0 = await ev(() => planta3d.state.items.length);
+    await p.click('#wk-add'); await p.click('#infodlg [data-type="planta"]'); await sleep(200);
+    must(await ev(() => planta3d.state.items.length) === n0 + 1, '＋ no afegeix el moble');
+    await p.keyboard.press('Escape'); await sleep(100);
+    must(await ev(() => planta3d.ui.view === 'walk' && !planta3d.ui.selected), 'Esc ha de deixar el moble sense sortir del passeig');
+    const w = await ev(() => { const r = planta3d.state.rooms.find((x) => x.id === 'salon'); return planta3d.screenOf(r.x + r.w / 2, r.z + r.d, 150); });
+    await p.mouse.click(w[0], w[1]); await sleep(200);
+    must(await p.isVisible('#wallpanel'), 'tocar una paret al passeig no obre el panell');
+    await ev(() => { planta3d.setView('3d'); }); await sleep(100);
+    return 0;
+  });
   await step('panell del moble: zones, notes i vot', async () => {
     const id = await ev(() => { const s = planta3d.state.items.find((i) => i.type === 'sofa'); planta3d.api.select(s.id); return s.id; });
     await sleep(200);
