@@ -4,7 +4,7 @@
 // l'armari petit a la dreta, a baix. Amb aquestes tres coses, el simulador només hi cap a la paret de l'esquerra,
 // mirant cap a la paret de la porta, on hi ha 105 cm de paret per a la pantalla (43″). Els escriptoris van a les parets que queden.
 // Les posicions es calculen a partir de l'interior de l'habitació, perquè segueixin la paret si se'n canvien les mides.
-import { innerRect } from './geom.js?v=48';
+import { innerRect } from './geom.js?v=49';
 
 const MON = { w: 62, d: 20, h: 52 };
 const DESK_H = 75;

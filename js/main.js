@@ -1,29 +1,34 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=48';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=48';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=48';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=48';
-import { mergeStates } from './merge.js?v=48';
-import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=48';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=48';
-import { initAssistant } from './assistant.js?v=48';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=48';
-import { initMeasure } from './measure.js?v=48';
-import { initColorPicker } from './colorpicker.js?v=48';
-import { initPhotoAdd } from './photo.js?v=48';
-import { initTape } from './tape.js?v=48';
-import { checkZones } from './zones.js?v=48';
-import { fitCheck } from './fit.js?v=48';
-import { initShop, STATUS, statusOf } from './shop.js?v=48';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=48';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=48';
-import { drawPreview as drawRoomPreview } from './preview.js?v=48';
-import { arSupported, startAR as startARView } from './ar.js?v=48';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=48';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=48';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=48';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=48';
+import { RoomEnvironment } from '../vendor/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from '../vendor/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from '../vendor/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from '../vendor/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from '../vendor/addons/postprocessing/OutputPass.js';
+import { DEFAULT_PLAN } from './plan.js?v=49';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=49';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=49';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=49';
+import { mergeStates } from './merge.js?v=49';
+import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=49';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=49';
+import { initAssistant } from './assistant.js?v=49';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=49';
+import { initMeasure } from './measure.js?v=49';
+import { initColorPicker } from './colorpicker.js?v=49';
+import { initPhotoAdd } from './photo.js?v=49';
+import { initTape } from './tape.js?v=49';
+import { checkZones } from './zones.js?v=49';
+import { fitCheck } from './fit.js?v=49';
+import { initShop, STATUS, statusOf } from './shop.js?v=49';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=49';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=49';
+import { drawPreview as drawRoomPreview } from './preview.js?v=49';
+import { arSupported, startAR as startARView } from './ar.js?v=49';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=49';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=49';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=49';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=49';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -142,7 +147,17 @@ let needsRender = true;
 function requestRender() { needsRender = true; }
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xe9e6e0);
+const userBg = new THREE.Color(0xe9e6e0); // fons triat a la configuració (segueix el tema)
+scene.background = userBg;
+// cel per a les finestres al passeig amb l'aspecte realista: degradat de blau a blanquinós
+const skyBg = (() => {
+  if (typeof document === 'undefined') return userBg;
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#8fb8dc'); gr.addColorStop(0.55, '#cfe1ee'); gr.addColorStop(1, '#eef1ee');
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
 
 const persp = new THREE.PerspectiveCamera(45, 1, 5, 20000);
 const ortho = new THREE.OrthographicCamera(-500, 500, 500, -500, -5000, 5000);
@@ -157,7 +172,8 @@ controlsTop.screenSpacePanning = true;
 controlsTop.enabled = false;
 let controls = controls3d;
 
-scene.add(new THREE.HemisphereLight(0xfff6ea, 0xb0a898, 2.6));
+const hemi = new THREE.HemisphereLight(0xfff6ea, 0xb0a898, 2.6);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff1dc, 1.6);
 sun.castShadow = true;
 { const sh = state.cfg?.shadow ? cfgGet('shadow') : (window.matchMedia('(max-width: 800px)').matches ? 2048 : 4096); sun.shadow.mapSize.set(sh, sh); }
@@ -166,6 +182,55 @@ sun.shadow.normalBias = 1.5;
 scene.add(sun, sun.target);
 const fill = new THREE.DirectionalLight(0xdfe9ff, 0.5); // llum de farciment freda des de l'altre costat
 scene.add(fill, fill.target);
+
+// Aspecte realista: llum que rebota d'una habitació (entorn) per als reflexos i la llum suau,
+// i ombra als racons i sota els mobles (oclusió ambiental, GTAO) en les vistes en perspectiva.
+const real = { on: false, env: null, composer: null, gtao: null, pass: null, size: [1, 1] };
+function realEnv() {
+  if (!real.env) { const pm = new THREE.PMREMGenerator(renderer); real.env = pm.fromScene(new RoomEnvironment(), 0.04).texture; pm.dispose(); }
+  return real.env;
+}
+function realComposer() {
+  if (real.composer) return real.composer;
+  const [w, h] = real.size;
+  const c = new EffectComposer(renderer);
+  real.pass = new RenderPass(scene, persp);
+  real.gtao = new GTAOPass(scene, persp, w, h);
+  real.gtao.output = GTAOPass.OUTPUT.Default;
+  c.addPass(real.pass); c.addPass(real.gtao); c.addPass(new OutputPass());
+  c.setPixelRatio(renderer.getPixelRatio()); c.setSize(w, h);
+  real.composer = c;
+  applyRealism();
+  return c;
+}
+function applyRealism() {
+  const on = real.on;
+  scene.environment = on ? realEnv() : null;
+  // menys llum «plana» i més sol i llum de l'entorn: més contrast, com una foto
+  scene.environmentIntensity = on ? 0.45 * cfgGet('env') / 100 : 1;
+  hemi.intensity = on ? 0.6 : 2.6;
+  sun.intensity = on ? 2.4 : 1.6;
+  fill.intensity = on ? 0.35 : 0.5;
+  renderer.toneMappingExposure = (on ? 1.0 : 1.05) * cfgGet('expo') / 100;
+  if (real.gtao) {
+    const r = cfgGet('aoRad'), k = cfgGet('ao') / 100;
+    real.gtao.updateGtaoMaterial({ radius: r, distanceExponent: 1, thickness: r * 0.6, scale: 2 * Math.max(1, k), samples: 16, distanceFallOff: 1 });
+    real.gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, radiusExponent: 1, rings: 2, samples: 16 });
+    real.gtao.blendIntensity = Math.min(1, k);
+  }
+  scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
+  requestRender();
+}
+// Dibuixa l'escena: amb l'aspecte realista i una càmera en perspectiva, passant per l'oclusió ambiental.
+// fast: mentre la càmera es mou al mòbil, sense l'oclusió (més fluid); quan s'atura es torna a dibuixar amb tot.
+function renderScene(fast = false) {
+  scene.background = real.on && ui.view === 'walk' ? skyBg : userBg;
+  if (!fast && real.on && !perfMode && camera.isPerspectiveCamera && cfgGet('ao') > 0) {
+    const c = realComposer();
+    real.pass.camera = camera; real.gtao.camera = camera;
+    c.render();
+  } else renderer.render(scene, camera);
+}
 
 const planGroup = new THREE.Group();
 const itemsGroup = new THREE.Group();
@@ -188,6 +253,8 @@ function planBounds() {
 function resize() {
   const w = wrap.clientWidth, h = wrap.clientHeight;
   renderer.setSize(w, h);
+  real.size = [w, h];
+  if (real.composer) { real.composer.setPixelRatio(renderer.getPixelRatio()); real.composer.setSize(w, h); }
   persp.aspect = w / h;
   persp.updateProjectionMatrix();
   walkCam.aspect = w / h;
@@ -545,7 +612,7 @@ function floorMaterial(r, worldUV = false) {
   tex.needsUpdate = true;
   // El color de l'habitació tenyeix la textura (que és clara i grisa).
   const col = new THREE.Color(r.color || '#c89b6a').multiplyScalar(kind === 'parquet' ? 1.25 : 1.1);
-  const m = new THREE.MeshStandardMaterial({ color: col, map: tex, roughness: kind === 'rajola' ? 0.45 : 0.7, metalness: 0 });
+  const m = new THREE.MeshStandardMaterial({ color: col, map: tex, roughness: kind === 'rajola' ? 0.32 : 0.55, metalness: 0 });
   if (floorMatCache.size > 200) floorMatCache.clear();
   floorMatCache.set(key, m);
   return m;
@@ -554,7 +621,12 @@ const wallTex = makeTexture('estuc');
 wallTex.repeat.set(2, 2);
 const wallMat = new THREE.MeshStandardMaterial({ color: 0xf3f1ec, roughness: 0.92, map: wallTex });
 const wallTopMat = new THREE.MeshStandardMaterial({ color: 0x2b2926, roughness: 0.9 });
-const glassMat = new THREE.MeshStandardMaterial({ color: 0x8fbfdc, transparent: true, opacity: 0.55, roughness: 0.1 });
+// sòcols i marcs de les portes: blanc setinat
+const trimMat = new THREE.MeshStandardMaterial({ color: 0xf7f5f0, roughness: 0.42 });
+const SOCOL_H = 8, SOCOL_T = 1.2, CASE_W = 7, CASE_T = 1.6;
+// sostre (només al passeig: des de dalt taparia l'habitació); no fa ombra perquè el sol entri per les finestres
+const ceilMat = new THREE.MeshStandardMaterial({ color: 0xf4f2ee, roughness: 0.95 });
+const glassMat = new THREE.MeshStandardMaterial({ color: 0xa9cfe3, transparent: true, opacity: 0.32, roughness: 0.04, metalness: 0.1, envMapIntensity: 2 });
 const windowMat = new THREE.MeshStandardMaterial({ color: 0x6fb1d6, roughness: 0.6 });
 const railMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.5, roughness: 0.4 });
 const voidMat = new THREE.MeshStandardMaterial({ color: 0x5b6066, roughness: 0.8 });
@@ -898,6 +970,13 @@ function rebuildPlan() {
     floor.receiveShadow = true;
     floor.userData.roomId = r.id;
     planGroup.add(floor);
+    if (ui.view === 'walk' && r.kind === 'room') {
+      const ceil = new THREE.Mesh(new THREE.PlaneGeometry(r.w, r.d), ceilMat);
+      ceil.rotation.x = Math.PI / 2; // mira cap avall
+      ceil.position.set(r.x + r.w / 2, H - 0.3, r.z + r.d / 2);
+      ceil.receiveShadow = true;
+      planGroup.add(ceil);
+    }
 
     const edges = [
       { axis: 'x', line: r.z, a: r.x, b: r.x + r.w },
@@ -923,6 +1002,12 @@ function rebuildPlan() {
       const edgeTag = tagEdge;
       const piece = (a, b, over) => { tagEdge = { ...edgeTag, a, b, edgeA: e.a, edgeB: e.b, over }; };
       for (const [a, b] of solid) { piece(a, b); wallPiece(e.axis, e.line, a, b, 0, H, t, wallMat, true, inSide, paint); }
+      // sòcol al peu de cada tros de paret, per dins (a les cantonades s'atura a la cara de la paret del costat)
+      if (H >= 30 && r.kind === 'room') for (const [a, b] of solid) {
+        const a2 = Math.abs(a - e.a) < 0.5 ? a + t / 2 : a, b2 = Math.abs(b - e.b) < 0.5 ? b - t / 2 : b;
+        piece(a, b);
+        if (b2 - a2 > 2) wallBox(e.axis, e.line + inSide * (t / 2 + SOCOL_T / 2), a2, b2, 0, SOCOL_H, SOCOL_T, trimMat, 0, 0);
+      }
       tagEdge = edgeTag;
       if (paint && (ui.view === 'top' || H < 60)) {
         // en planta (o amb les parets amagades) la paret pintada es marca amb una franja del seu color a tocar de la paret
@@ -958,6 +1043,14 @@ function rebuildPlan() {
           const strip = new THREE.Mesh(new THREE.BoxGeometry(e.axis === 'x' ? b - a - 1 : t + 4, 0.8, e.axis === 'x' ? t + 4 : b - a - 1), windowMat);
           if (e.axis === 'x') strip.position.set((a + b) / 2, 0.4, e.line); else strip.position.set(e.line, 0.4, (a + b) / 2);
           planGroup.add(strip);
+        }
+        if (o.type === 'puerta' && H >= 214 && r.kind === 'room' && o.door !== 'corredissa') {
+          // marc de la porta (tapajuntes) a la cara de dins: dos muntants i la llinda; no es fica dins la paret del costat
+          piece(a, b, o.type);
+          const fl = e.line + inSide * (t / 2 + CASE_T / 2);
+          if (a - CASE_W >= e.a + t / 2 - 0.5) wallBox(e.axis, fl, a - CASE_W, a, 0, 214, CASE_T, trimMat, 0, 0);
+          if (b + CASE_W <= e.b - t / 2 + 0.5) wallBox(e.axis, fl, b, b + CASE_W, 0, 214, CASE_T, trimMat, 0, 0);
+          wallBox(e.axis, fl, Math.max(a - CASE_W, e.a + t / 2), Math.min(b + CASE_W, e.b - t / 2), 210, 217, CASE_T, trimMat, 0, 0);
         }
         if (o.type === 'puerta' && H > 20) {
           // marco fino para que la puerta se vea en el suelo
@@ -3068,7 +3161,7 @@ function renderDatos(target) {
     } catch (err) { el.insertAdjacentHTML('beforeend', '<p class="note" style="color:var(--bad)">El fitxer no és vàlid.</p>'); }
   });
   $('#x-png').addEventListener('click', () => {
-    renderer.render(scene, camera);
+    renderScene();
     const a = document.createElement('a');
     a.href = renderer.domElement.toDataURL('image/png'); a.download = 'planta-3d.png'; a.click();
   });
@@ -3167,7 +3260,9 @@ function loop(now = 0) {
     needsRender = false; lastFrame = now;
     if (wallSprite) { wallSideCheck(); fitWallSprite(); }
     tape.fit();
-    renderer.render(scene, camera);
+    const fast = moved && isMobile() && real.on;
+    renderScene(fast);
+    if (fast) { clearTimeout(real.t); real.t = setTimeout(requestRender, 200); }
   }
 }
 loop();
@@ -3298,7 +3393,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v48',
+  version: 'v49',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -3344,6 +3439,7 @@ const api = {
   setView: (v) => setView(v),
   sync: syncNow, toggleDoor,
   signOut: () => signOutUser(), userEmail: () => currentUserEmail(),
+  setRealism: (on) => { if (real.on !== on) { real.on = on; applyRealism(); } },
   setShadows: (on) => { if (renderer.shadowMap.enabled !== on) { renderer.shadowMap.enabled = on; scene.traverse((o) => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach((m) => { m.needsUpdate = true; }); } }); requestRender(); } },
   renderDades: (el) => renderDatos(el),
   getCamera, applyCamera, simulate,
@@ -3352,7 +3448,7 @@ const api = {
   pickVoice: () => assistant.pickVoice(),
   cloud: { enabled: () => cloudEnabled, user: () => (currentUserEmail() ? { email: currentUserEmail() } : null), backupList, backupSave, backupLoad, backupDelete },
   setScenePrefs: ({ wall, bg, ground: g }) => {
-    try { if (wall) wallMat.color.set(wall); if (bg) scene.background.set(bg); if (g) ground.material.color.set(g); } catch (e) { /* color no vàlid */ }
+    try { if (wall) wallMat.color.set(wall); if (bg) userBg.set(bg); if (g) ground.material.color.set(g); } catch (e) { /* color no vàlid */ }
     requestRender();
   },
   cloudInfo: () => { const bk = api.dev?.bkList?.() || []; return { enabled: cloudEnabled, bytes: JSON.stringify(state).length, writes: cloudStats.day === today() ? cloudStats.writes : 0, reads: cloudStats.day === today() ? cloudStats.reads : 0, items: state.items.length, rooms: state.rooms.length, bkCount: bk.length, bkBytes: bk.reduce((a, b) => a + (b.bytes || 0), 0) }; },
@@ -3372,7 +3468,9 @@ function applyCfg() {
   setSaveDelay(cfgGet('saveDelay'));
   perfMode = cfgGet('perf') === 1;
   renderer.setPixelRatio(perfMode ? 1 : Math.min(window.devicePixelRatio, cfgGet('pixelRatio')));
+  if (real.composer) { real.composer.setPixelRatio(renderer.getPixelRatio()); real.composer.setSize(...real.size); }
   api.setShadows(!perfMode && !!+prefs.shadows);
+  applyRealism();
   document.body.classList.toggle('perf', perfMode);
   rebuildPlan();
 }

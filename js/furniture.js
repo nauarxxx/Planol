@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { shapeRects, hasWing } from './geom.js?v=48';
+import { RoundedBoxGeometry } from '../vendor/addons/geometries/RoundedBoxGeometry.js';
+import { shapeRects, hasWing } from './geom.js?v=49';
 export { shapeRects, hasWing };
 
 // Catálogo de tipos de mueble. w = ancho (X local), d = fondo (Z local), h = alto. cm.
@@ -79,11 +80,62 @@ export function shapeParams(type, shape) {
 }
 // Rectangles [x0, ample, z0, fons] que formen una peça en L o en U dins la petjada w × d (esquena a −z).
 
+// Superfícies realistes: textures fetes al moment (sense fitxers), clares perquè el color del moble les tenyeixi.
+// Fusta (veta), tela (trama) i pell; també fan de relleu (bumpMap) perquè la llum hi faci joc.
+const surfTex = new Map();
+function surfTexture(kind) {
+  if (surfTex.has(kind) || typeof document === 'undefined') return surfTex.get(kind) || null;
+  const N = 256, c = document.createElement('canvas'); c.width = c.height = N;
+  const g = c.getContext('2d');
+  let seed = kind.length * 977;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  if (kind === 'wood') {
+    g.fillStyle = '#ece6dd'; g.fillRect(0, 0, N, N);
+    for (let i = 0; i < 70; i++) { // vetes llargues i ondulades
+      const y = rnd() * N, a = 0.04 + rnd() * 0.09, amp = 1 + rnd() * 4, f = 0.01 + rnd() * 0.03;
+      g.strokeStyle = `rgba(${rnd() < 0.5 ? '90,60,30' : '255,250,240'},${a})`; g.lineWidth = 0.6 + rnd() * 2.2;
+      g.beginPath(); for (let x = 0; x <= N; x += 8) g.lineTo(x, y + Math.sin(x * f + i) * amp); g.stroke();
+    }
+    for (let k = 0; k < 4; k++) { // algun nus
+      const x = rnd() * N, y = rnd() * N; const gr = g.createRadialGradient(x, y, 0, x, y, 6 + rnd() * 6);
+      gr.addColorStop(0, 'rgba(80,50,25,0.18)'); gr.addColorStop(1, 'rgba(80,50,25,0)'); g.fillStyle = gr; g.fillRect(x - 14, y - 14, 28, 28);
+    }
+  } else if (kind === 'fabric') {
+    g.fillStyle = '#e9e9e9'; g.fillRect(0, 0, N, N);
+    for (let y = 0; y < N; y += 2) for (let x = 0; x < N; x += 2) {
+      const v = 200 + Math.floor(rnd() * 55) - ((x + y) % 4 === 0 ? 14 : 0);
+      g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 2, 2);
+    }
+  } else if (kind === 'leather') {
+    g.fillStyle = '#e6e6e6'; g.fillRect(0, 0, N, N);
+    for (let i = 0; i < 2500; i++) { g.fillStyle = `rgba(0,0,0,${0.03 + rnd() * 0.05})`; g.beginPath(); g.arc(rnd() * N, rnd() * N, 0.6 + rnd() * 1.6, 0, Math.PI * 2); g.fill(); }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  if (kind === 'fabric') t.repeat.set(3, 3);
+  surfTex.set(kind, t);
+  return t;
+}
+const SURF = {
+  wood: { roughness: 0.55, metalness: 0 },
+  fabric: { roughness: 0.97, metalness: 0, bumpScale: 0.4 },
+  leather: { roughness: 0.5, metalness: 0, bumpScale: 0.25 },
+};
+// Material de cada tipus de moble (la resta: llis, una mica setinat).
+const SURF_OF = {
+  mesa: 'wood', escritorio: 'wood', mesaCentro: 'wood', mesita: 'wood', armario: 'wood', estanteria: 'wood', comoda: 'wood', muebleTv: 'wood', prestatge: 'wood',
+  sofa: 'fabric', sillon: 'fabric', cama: 'fabric', alfombra: 'fabric', cortina: 'fabric', cadiraOficina: 'fabric', litera: 'wood',
+};
 const matCache = new Map();
 function mat(color, opts = {}) {
   const key = color + JSON.stringify(opts);
   if (!matCache.has(key)) {
-    matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.05, ...opts }));
+    const { surf, ...rest } = opts;
+    const extra = surf ? { ...SURF[surf], ...rest } : rest;
+    const m = new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.02, ...extra });
+    const tx = surf && surfTexture(surf);
+    if (tx) { m.map = tx; if (surf !== 'wood') m.bumpMap = tx; }
+    matCache.set(key, m);
   }
   return matCache.get(key);
 }
@@ -117,7 +169,10 @@ export function photoMaterial(src, faceW, faceH, extra = {}) {
 let partN = 0, partSalt = 0;
 function box(group, w, h, d, x, y, z, material) {
   const e = 0.1 + 0.075 * ((partN++ + partSalt) % 5);
-  const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(w - 2 * e, 0.5), Math.max(h - 2 * e, 0.5), Math.max(d - 2 * e, 0.5)), material);
+  // cantells arrodonits (com els mobles de debò): la llum hi fa un reflex i les peces no semblen de cartró
+  const W = Math.max(w - 2 * e, 0.5), H = Math.max(h - 2 * e, 0.5), D = Math.max(d - 2 * e, 0.5);
+  const rad = Math.min(1.2, Math.min(W, H, D) * 0.3);
+  const m = new THREE.Mesh(rad > 0.15 ? new RoundedBoxGeometry(W, H, D, 2, rad) : new THREE.BoxGeometry(W, H, D), material);
   m.position.set(x, y + h / 2, z);
   m.castShadow = true;
   m.receiveShadow = true;
@@ -276,7 +331,8 @@ export function buildFurniture(item, opts = {}) {
   }
   const { w, d, h } = item;
   const c = item.color;
-  const main = mat(c);
+  const surf = SURF_OF[item.type];
+  const main = surf ? mat(c, { surf }) : mat(c);
   const dark = mat(shade(c, 0.6));
   const metal = mat('#333333', { metalness: 0.6, roughness: 0.4 });
 
