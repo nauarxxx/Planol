@@ -5,30 +5,30 @@ import { EffectComposer } from '../vendor/addons/postprocessing/EffectComposer.j
 import { RenderPass } from '../vendor/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from '../vendor/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from '../vendor/addons/postprocessing/OutputPass.js';
-import { DEFAULT_PLAN } from './plan.js?v=50';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=50';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=50';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=50';
-import { mergeStates } from './merge.js?v=50';
-import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=50';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=50';
-import { initAssistant } from './assistant.js?v=50';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=50';
-import { initMeasure } from './measure.js?v=50';
-import { initColorPicker } from './colorpicker.js?v=50';
-import { initPhotoAdd } from './photo.js?v=50';
-import { initTape } from './tape.js?v=50';
-import { checkZones } from './zones.js?v=50';
-import { fitCheck } from './fit.js?v=50';
-import { initShop, STATUS, statusOf } from './shop.js?v=50';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=50';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=50';
-import { drawPreview as drawRoomPreview } from './preview.js?v=50';
-import { arSupported, startAR as startARView } from './ar.js?v=50';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=50';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=50';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=50';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=50';
+import { DEFAULT_PLAN } from './plan.js?v=51';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=51';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=51';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=51';
+import { mergeStates } from './merge.js?v=51';
+import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=51';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=51';
+import { initAssistant } from './assistant.js?v=51';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=51';
+import { initMeasure } from './measure.js?v=51';
+import { initColorPicker } from './colorpicker.js?v=51';
+import { initPhotoAdd } from './photo.js?v=51';
+import { initTape } from './tape.js?v=51';
+import { checkZones } from './zones.js?v=51';
+import { fitCheck } from './fit.js?v=51';
+import { initShop, STATUS, statusOf } from './shop.js?v=51';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=51';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=51';
+import { drawPreview as drawRoomPreview } from './preview.js?v=51';
+import { arSupported, startAR as startARView } from './ar.js?v=51';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=51';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=51';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=51';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=51';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -139,12 +139,15 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffe
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, cfgGet('pixelRatio')));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false; // es recalculen a mà (shadowDirty)
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 wrap.appendChild(renderer.domElement);
 // Només es redibuixa quan canvia alguna cosa (estalvia bateria i CPU).
-let needsRender = true;
-function requestRender() { needsRender = true; }
+// Les ombres només es tornen a calcular quan canvia l'escena (mobles, parets, portes, llums), no quan només es mou la càmera.
+let needsRender = true, shadowDirty = true;
+function requestRender() { needsRender = true; shadowDirty = true; }
+function requestView() { needsRender = true; } // només s'ha mogut la càmera
 
 const scene = new THREE.Scene();
 const userBg = new THREE.Color(0xe9e6e0); // fons triat a la configuració (segueix el tema)
@@ -196,6 +199,9 @@ function realComposer() {
   const c = new EffectComposer(renderer);
   real.pass = new RenderPass(scene, persp);
   real.gtao = new GTAOPass(scene, persp, w, h);
+  // l'oclusió es calcula a menys resolució (aoRes, %) i després es barreja amb la imatge sencera: costa molt menys i quasi no es nota
+  const gtaoSize = real.gtao.setSize.bind(real.gtao);
+  real.gtao.setSize = (W, H) => { const q = cfgGet('aoRes') / 100; gtaoSize(Math.max(1, Math.round(W * q)), Math.max(1, Math.round(H * q))); };
   real.gtao.output = GTAOPass.OUTPUT.Default;
   c.addPass(real.pass); c.addPass(real.gtao); c.addPass(new OutputPass());
   c.setPixelRatio(renderer.getPixelRatio()); c.setSize(w, h);
@@ -217,6 +223,7 @@ function applyRealism() {
     real.gtao.updateGtaoMaterial({ radius: r, distanceExponent: 1, thickness: r * 0.5, scale: 1.6 * Math.max(1, k), samples: 16, distanceFallOff: 1 });
     real.gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 10, radiusExponent: 1, rings: 2, samples: 16 });
     real.gtao.blendIntensity = Math.min(1, k);
+    real.composer.setSize(...real.size); // per si ha canviat la resolució de l'oclusió (aoRes)
   }
   scene.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); });
   requestRender();
@@ -3247,22 +3254,25 @@ frameCamera();
 renderAll();
 if (location.search.includes('sim=1')) document.body.classList.add('sim');
 
-controls3d.addEventListener('change', requestRender);
-controlsTop.addEventListener('change', requestRender);
+controls3d.addEventListener('change', requestView);
+controlsTop.addEventListener('change', requestView);
 let perfMode = false, lastFrame = 0;
 function loop(now = 0) {
   requestAnimationFrame(loop);
   if (perfMode && now - lastFrame < 31) return; // ~30 fps en mode rendiment
   let moved = controls.update();
   if (ui.view === 'walk') { if (walkStep(performance.now())) moved = true; }
-  if (stepDoors(now)) moved = true;
+  if (stepDoors(now)) { moved = true; shadowDirty = true; }
   if (moved || needsRender) {
     needsRender = false; lastFrame = now;
+    if (shadowDirty) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; }
     if (wallSprite) { wallSideCheck(); fitWallSprite(); }
     tape.fit();
-    const fast = moved && isMobile() && real.on;
-    renderScene(fast);
-    if (fast) { clearTimeout(real.t); real.t = setTimeout(requestRender, 200); }
+    // Amb l'aspecte realista, mentre alguna cosa es mou (càmera, passeig, un moble, una porta) es dibuixa sense l'oclusió ambiental,
+    // que és el pas més car; quan tot s'atura una estona (aoWait), es fa un sol dibuix complet. Així no va a estrebades.
+    const full = real.full; real.full = false;
+    renderScene(real.on && !full);
+    if (real.on && !full) { clearTimeout(real.t); real.t = setTimeout(() => { real.full = true; needsRender = true; }, cfgGet('aoWait')); }
   }
 }
 loop();
@@ -3393,7 +3403,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v50',
+  version: 'v51',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -3561,4 +3571,13 @@ window.planta3d = {
   get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, minimap, rebuildItems, get tape() { return tape; }, ui,
   showWall(roomId, key = 'N', at) { let w = null; planGroup.traverse((o) => { const u = o.userData.wall; if (!w && u && !u.whole && (!roomId || u.room.id === roomId) && u.key === key && (at === undefined || (u.a <= at && at <= u.b && !u.over))) w = u; }); showWallMeasure(w); return !!w; },
   get wallSel() { return ui.wallSel ? { room: ui.wallSel.room.id, key: ui.wallSel.key } : null; },
-  camAz() { const c = ui.view === 'top' ? controlsTop : controls3d; const o = c.object.position.clone().sub(c.target); return Math.atan2(o.x, o.z); } };
+  camAz() { const c = ui.view === 'top' ? controlsTop : controls3d; const o = c.object.position.clone().sub(c.target); return Math.atan2(o.x, o.z); },
+  // mesura de rendiment (eines de desenvolupador i proves): ms de reconstruir i de dibuixar, i què es dibuixa
+  perf(n = 5) {
+    const t = (fn) => { const a = performance.now(); for (let i = 0; i < n; i++) fn(); renderer.getContext().finish(); return +((performance.now() - a) / n).toFixed(1); };
+    const out = { plan: t(rebuildPlan), items: t(rebuildItems), shadows: t(() => { renderer.shadowMap.needsUpdate = true; renderScene(true); }), full: t(() => renderScene(false)), fast: t(() => renderScene(true)) };
+    renderer.info.reset(); renderScene(true);
+    let meshesN = 0, geos = new Set(), mats = new Set();
+    scene.traverse((o) => { if (o.isMesh) { meshesN++; geos.add(o.geometry); (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => mats.add(m)); } });
+    return { ...out, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, meshes: meshesN, geometries: geos.size, materials: mats.size, shadow: sun.shadow.mapSize.x, ratio: renderer.getPixelRatio(), realism: real.on };
+  } };

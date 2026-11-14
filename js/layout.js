@@ -3,9 +3,9 @@
 // sillas alrededor de la mesa, cama con cabecero en la pared...), las puntúa y devuelve
 // las mejores que sean distintas entre sí.
 
-import { CATALOG } from './furniture.js?v=50';
-import { evalGoals } from './goals.js?v=50';
-import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, structItems, DEG } from './geom.js?v=50';
+import { CATALOG } from './furniture.js?v=51';
+import { evalGoals } from './goals.js?v=51';
+import { aabb, overlaps, rectOverlapArea, rectGap, innerRect, outsideAmount, allOpenings, openingsOnRoom, allSwings, structItems, DEG } from './geom.js?v=51';
 
 function mulberry32(seed) {
   return function () {
@@ -80,15 +80,9 @@ export function generateLayoutsAsync(room, roomItems, allRooms, opts = {}, onPro
   });
 }
 
-function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
-  const t = opts.wallThickness ?? 10;
-  const count = opts.count ?? 4;
-  const tries = opts.tries ?? 2000;
-  const rand = mulberry32(opts.seed ?? Date.now());
-  CLEAR = opts.clear ?? 60; GAPMIN = opts.gapMin ?? 65;
-  const R = innerRect(room, t);
+// Zones on no es pot posar res (davant de portes, batents, pilars) o només mobles alts o baixos (finestres, bigues).
+function roomKeepouts(room, allRooms, R) {
   const doors = openingsOnRoom(room, allOpenings(allRooms));
-
   // Zonas de paso delante de puertas (no se pueden ocupar) y delante de ventanas (solo muebles altos).
   const keepouts = doors.map((o) => {
     const isWin = o.type === 'ventana' || o.type === 'ventanal';
@@ -112,6 +106,35 @@ function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
     if (st.kind === 'pillar') keepouts.push({ ...k, window: false, wall: null, solid: true });
     else keepouts.push({ ...k, window: false, wall: null, beam: st.h0 });
   }
+
+  return keepouts;
+}
+
+// Revisa una distribució ja feta (p. ex. una proposta dibuixada a mà): mateixos criteris que el generador.
+// Torna la puntuació i el detall (xocs, coses fora, portes tapades, mobles sense accés, TV i sofà...).
+// pairs: parelles d'ids que es poden tocar (cadira sota la taula, monitor damunt de l'escriptori...).
+export function checkLayout(room, items, allRooms, opts = {}) {
+  const t = opts.wallThickness ?? 10;
+  CLEAR = opts.clear ?? 60; GAPMIN = opts.gapMin ?? 65;
+  const R = innerRect(room, t);
+  const keepouts = roomKeepouts(room, allRooms, R);
+  const dbg = {};
+  const pairs = new Set(opts.pairs || []);
+  // cadires ficades sota la seva taula o escriptori: és el seu lloc, no un xoc
+  for (const a of items) if (roleOf(a) === 'seat') for (const b of items) if ((roleOf(b) === 'table' || roleOf(b) === 'desk') && overlaps(a, b)) pairs.add(a.id + '|' + b.id);
+  const score = scoreLayout({ placements: {}, extra: { pairs } }, items, [], R, keepouts, dbg);
+  return { score, dbg, rating: rate(score, dbg) };
+}
+
+function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
+  const t = opts.wallThickness ?? 10;
+  const count = opts.count ?? 4;
+  const tries = opts.tries ?? 2000;
+  const rand = mulberry32(opts.seed ?? Date.now());
+  CLEAR = opts.clear ?? 60; GAPMIN = opts.gapMin ?? 65;
+  const R = innerRect(room, t);
+
+  const keepouts = roomKeepouts(room, allRooms, R);
   const doorWalls = new Set(keepouts.filter((k) => !k.window && !k.solid && k.beam === undefined).map((k) => k.wall));
 
   const locked = roomItems.filter((i) => i.locked);
@@ -150,7 +173,7 @@ function* layoutGenerator(room, roomItems, allRooms, opts = {}) {
 function rate(score, dbg) {
   const sum = (pre, min = 0) => Object.entries(dbg).filter(([k, v]) => k.startsWith(pre) && v > min).length;
   if (sum('choque:') || sum('fuera:', 5)) return 'Hi ha xocs: no hi cap tot';
-  if (sum('puerta:')) return 'Bona, però alguna cosa frega una porta o finestra';
+  if (sum('puerta:') || sum('finestra:')) return 'Bona, però alguna cosa frega una porta o finestra';
   if (sum('accés:')) return 'Bona, però a algun moble no s’hi arriba bé';
   if (score < 250) return 'Molt bona';
   return 'Bona';
@@ -470,7 +493,7 @@ function accessibility(items, R, keepouts) {
   const W = Math.ceil((R.x1 - R.x0) / CELL), D = Math.ceil((R.z1 - R.z0) / CELL);
   if (W < 2 || D < 2) return null;
   const occ = new Uint8Array(W * D);
-  const solid = items.filter((i) => roleOf(i) !== 'rug' && (i.elev || 0) < 120);
+  const solid = items.filter((i) => roleOf(i) !== 'rug' && (i.elev || 0) < 40); // el que és damunt d'un moble o penjat no fa nosa per passar
   const boxes = solid.map((i) => aabb(i));
   for (const b of [...boxes, ...keepouts.filter((k) => k.solid)]) {
     const i0 = Math.max(0, Math.floor((b.x0 - R.x0) / CELL)), i1 = Math.min(W - 1, Math.floor((b.x1 - R.x0 - 0.01) / CELL));
@@ -545,7 +568,7 @@ function scoreLayout(pl, free, locked, R, keepouts, dbg = null) {
         if (k.window && A.h + (A.elev || 0) < 110) continue;
         if (k.beam !== undefined && A.h + (A.elev || 0) <= k.beam) continue;
         const ov = rectOverlapArea(boxes[a], k);
-        if (ov > 0) s += add((k.solid ? 'pilar:' : k.beam !== undefined ? 'biga:' : 'puerta:') + A.name, (k.window ? 150 : 500) + ov * 0.3);
+        if (ov > 0) s += add((k.solid ? 'pilar:' : k.beam !== undefined ? 'biga:' : k.window ? 'finestra:' : 'puerta:') + A.name, (k.window ? 150 : 500) + ov * 0.3);
       }
     }
     for (let b = a + 1; b < items.length; b++) {

@@ -168,7 +168,7 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     await p.click('.tabs button[data-tab="distribuir"]'); await sleep(150);
     await p.selectOption('#d-room', 'office'); await sleep(200);
     const names = await ev(() => [...document.querySelectorAll('#d-saved .saved-card .nm')].map((i) => i.value).filter((n) => n.includes('Simulador')));
-    must(names.length === 2, 'falten les propostes del simulador');
+    must(names.length === 4, 'falten les propostes del simulador');
     for (let k = 0; k < names.length; k++) {
       await ev((k) => [...document.querySelectorAll('#d-saved .saved-card')].filter((c) => c.querySelector('.nm').value.includes('Simulador'))[k].querySelector('[data-apply]').click(), k);
       await sleep(250);
@@ -177,6 +177,22 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     }
     await p.keyboard.press('Control+z'); await sleep(100);
     return names.length;
+  });
+  await step('propostes de WALL-E al menjador, al dormitori i a la terrassa: s’apliquen sense xocs', async () => {
+    const out = {};
+    for (const rid of ['salon', 'dormitorio', 'terraza']) {
+      await p.selectOption('#d-room', rid); await sleep(200);
+      const n = await ev(() => [...document.querySelectorAll('#d-saved .saved-card')].filter((c) => /WALL-E/.test(c.textContent)).length);
+      must(n >= 2, `${rid}: ${n} propostes de WALL-E`);
+      for (let k = 0; k < n; k++) {
+        await ev((k) => [...document.querySelectorAll('#d-saved .saved-card')].filter((c) => /WALL-E/.test(c.textContent))[k].querySelector('[data-apply]').click(), k);
+        await sleep(200);
+        const bad = await ev((rid) => planta3d.conflicts.filter(([id]) => planta3d.state.items.find((i) => i.id === id)?.roomId === rid), rid);
+        must(!bad.length, `${rid} ${k}: ${JSON.stringify(bad)}`);
+      }
+      out[rid] = n;
+    }
+    return out;
   });
   await step('llista de compra i CSV', async () => {
     await p.click('.tabs button[data-tab="compra"]'); await sleep(150);

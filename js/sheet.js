@@ -1,6 +1,6 @@
 // Plànol en 2D sobre un canvas (per comparar escenes i per imprimir / desar en PDF), amb cotes.
-import { corners, allOpenings, allDoorSymbols, DEG } from './geom.js?v=50';
-import { CATALOG } from './furniture.js?v=50';
+import { corners, allOpenings, allDoorSymbols, DEG } from './geom.js?v=51';
+import { CATALOG } from './furniture.js?v=51';
 
 // Dibuixa el plànol complet. opts: { items, cotes, labels, furnitureDims, pad, bg, highlight }
 // Mides per dins (de paret a paret): el rectangle de l'habitació va fins al mig de les parets.
