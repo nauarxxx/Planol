@@ -8,6 +8,7 @@ export const PREFS_DEFAULT = {
   accent: '', bg: '', panel: '', ink: '', // buit = color del tema
   wall3d: '#f3f1ec', bg3d: '',  // bg3d buit = segons el tema (fosc o clar)
   font: 'm',           // s | m | l
+  tbStyle: 'classic',  // estil de la barra de botons: classic | glass | pills | bar
   wvol: 60,            // volum del so de WALL-E (0 = silenci)
   voice: 2,            // assistent: 0 només text · 1 només veu · 2 text i veu
   autoOpen: 0,         // obrir l'assistent en entrar
@@ -39,6 +40,7 @@ const FONT = { s: '14px', m: '16px', l: '18px' };
 export function isDark() {
   return prefs.theme === 'dark' || (prefs.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 }
+export const TB_STYLES = [['classic', 'Clàssica (blocs)'], ['glass', 'Vidre (una càpsula translúcida)'], ['pills', 'Píndoles (botons rodons solts)'], ['bar', 'Barra (franja sencera a dalt)']];
 export function applyPrefs(api) {
   const root = document.documentElement;
   if (prefs.theme === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', prefs.theme);
@@ -46,6 +48,7 @@ export function applyPrefs(api) {
     if (prefs[k]) root.style.setProperty('--' + k, prefs[k]); else root.style.removeProperty('--' + k);
   }
   root.style.fontSize = FONT[prefs.font] || FONT.m;
+  for (const s of TB_STYLES) document.body.classList.toggle('tb-' + s[0], prefs.tbStyle === s[0] && s[0] !== 'classic');
   const hint = document.getElementById('hint'); if (hint) hint.classList.toggle('off', !+prefs.hint);
   const tb = document.getElementById('theme-btn');
   if (tb) { const d = isDark(); tb.textContent = d ? '☀️' : '🌙'; tb.title = d ? 'Mode clar' : 'Mode fosc'; tb.setAttribute('aria-label', tb.title); }
@@ -126,6 +129,9 @@ export function initSettings(api) {
           <option value="s" ${prefs.font === 's' ? 'selected' : ''}>Petita</option>
           <option value="m" ${prefs.font === 'm' ? 'selected' : ''}>Normal</option>
           <option value="l" ${prefs.font === 'l' ? 'selected' : ''}>Gran</option>
+        </select></label>
+        <label>Estil de la barra de botons<select id="s-tbstyle">
+          ${TB_STYLES.map(([v, t]) => `<option value="${v}" ${prefs.tbStyle === v ? 'selected' : ''}>${t}</option>`).join('')}
         </select></label>
       </div>
       <div class="row c4">
@@ -214,6 +220,7 @@ export function initSettings(api) {
     const set = (k, v) => { prefs[k] = v; savePrefs(); applyPrefs(api); if (k === 'units' || k === 'unitLabel') api.applyUnits?.(); };
     body.querySelector('#s-theme').addEventListener('change', (e) => set('theme', e.target.value));
     body.querySelector('#s-font').addEventListener('change', (e) => set('font', e.target.value));
+    body.querySelector('#s-tbstyle').addEventListener('change', (e) => set('tbStyle', e.target.value));
     body.querySelector('#s-startview').addEventListener('change', (e) => set('startView', e.target.value));
     body.querySelector('#s-units').addEventListener('change', (e) => set('units', e.target.value));
     body.querySelector('#s-warn').addEventListener('change', (e) => set('warn', e.target.value));

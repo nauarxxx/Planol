@@ -110,6 +110,16 @@ input[type="checkbox"] { accent-color: var(--accent); }
 #props .shape button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); color: var(--muted); cursor: pointer; }
 #props .shape button small { font-size: 10px; line-height: 1.1; }
 #props .shape button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+#wallpanel { position: absolute; right: 80px; bottom: 44px; width: 300px; z-index: 3; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); max-height: calc(100% - 120px); overflow-y: auto; }
+#wallpanel h3 { margin: 0 0 6px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+#wallpanel h3 .close { margin-left: auto; background: none; border: 0; font-size: 18px; cursor: pointer; color: var(--muted); }
+#wallpanel .dist { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+#wallpanel .swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 10px; }
+#wallpanel .swatches button { aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; }
+#wallpanel .swatches button.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+#wallpanel .hexrow { display: flex; gap: 4px; }
+#wallpanel .hexrow input { font-family: ui-monospace, monospace; }
+#wallpanel input.bad { border-color: var(--bad); }
 #props .dist { font-size: 12px; color: var(--muted); margin: -4px 0 8px; font-variant-numeric: tabular-nums; }
 #props .dist b { color: var(--ink); font-weight: 600; }
 /* Barra d'eines: text als botons de vista (escriptori) i icones (mòbil). Els controls .mob només surten al mòbil; els .desk, a l'escriptori. */
@@ -139,7 +149,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
   #toolbar .mob { display: inline-flex; align-items: center; justify-content: center; }
   #toolbar .mob.active { background: var(--accent); color: var(--accent-ink); }
   #account .who { display: none; }
-  #props { left: 10px; right: 10px; width: auto; bottom: 68px; max-height: 60%; }
+  #props, #wallpanel { left: 10px; right: 10px; width: auto; bottom: 68px; max-height: 60%; }
   #ai-fab { bottom: max(10px, env(safe-area-inset-bottom)); right: 10px; width: 50px; height: 50px; }
   #ai-panel { left: 10px; right: 10px; width: auto; bottom: 70px; height: min(60%, 460px); }
   #selbar { left: 10px; transform: none; }
@@ -356,3 +366,31 @@ label small { color: var(--muted); font-weight: 400; }
 #sync-btn[data-st]::after { content: ''; position: absolute; right: 3px; top: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
 #sync-btn[data-st="pending"]::after { background: var(--warn); }
 #sync-btn[data-st="bad"]::after { background: var(--bad); }
+
+/* ---------------------------------------------------------------- estils de la barra de botons (⚙ → Aspecte) */
+/* Vidre: una sola càpsula translúcida amb separadors entre grups. */
+body.tb-glass #toolbar { right: auto; max-width: calc(100% - 20px); gap: 0; padding: 4px; pointer-events: auto; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); background: color-mix(in srgb, var(--panel) 68%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); box-shadow: 0 6px 24px rgba(0,0,0,.22); }
+body.tb-glass #toolbar .group { background: none; border-color: transparent; box-shadow: none; border-radius: 12px; }
+body.tb-glass #toolbar .group + .group:not([hidden]) { border-left-color: color-mix(in srgb, var(--ink) 16%, transparent); border-radius: 0; }
+body.tb-glass #toolbar button { border-radius: 10px; }
+body.tb-glass #toolbar button:not(.active):hover { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+/* Píndoles: cada botó és una pastilla rodona amb ombra, sense caixes al voltant. */
+body.tb-pills #toolbar .group { background: none; border-color: transparent; box-shadow: none; gap: 6px; padding: 2px 3px; }
+body.tb-pills #toolbar { gap: 4px; }
+body.tb-pills #toolbar button, body.tb-pills #toolbar label { background: var(--panel); border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,.28); border: 1px solid var(--line); }
+body.tb-pills #toolbar button { padding: 7px 14px; font-weight: 600; }
+body.tb-pills #toolbar label { padding: 4px 12px; min-height: 32px; }
+body.tb-pills #toolbar button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* Barra: una franja sòlida a tota l'amplada, com la capçalera d'una app. */
+body.tb-bar #toolbar { top: 0; left: 0; right: 0; padding: max(6px, env(safe-area-inset-top)) 10px 6px; gap: 4px; pointer-events: auto; background: var(--panel); border-bottom: 1px solid var(--line); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+body.tb-bar #toolbar .group { background: none; border-color: transparent; box-shadow: none; }
+body.tb-bar #toolbar .group + .group:not([hidden]) { border-left-color: var(--line); border-radius: 0; }
+body.tb-bar #toolbar #settings-btn { margin-left: 2px; }
+@media (max-width: 800px) {
+  body.tb-glass #toolbar { left: 4px; right: 4px; max-width: none; padding: 1px; gap: 2px; border-radius: 12px; justify-content: space-between; }
+  body.tb-glass #toolbar .group { border-radius: 9px; }
+  body.tb-pills #toolbar { gap: 3px; justify-content: space-between; }
+  body.tb-pills #toolbar .group { padding: 2px 0; gap: 2px; }
+  body.tb-pills #toolbar button { padding: 0; width: var(--tbw); height: var(--tbw); min-height: 0; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  body.tb-bar #toolbar { padding: max(4px, env(safe-area-inset-top)) 4px 4px; gap: 3px; justify-content: space-between; }
+}
