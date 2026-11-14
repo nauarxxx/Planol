@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=45';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=45';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=45';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=45';
-import { mergeStates } from './merge.js?v=45';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=45';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=45';
-import { initAssistant } from './assistant.js?v=45';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=45';
-import { initMeasure } from './measure.js?v=45';
-import { initColorPicker } from './colorpicker.js?v=45';
-import { initPhotoAdd } from './photo.js?v=45';
-import { initTape } from './tape.js?v=45';
-import { checkZones } from './zones.js?v=45';
-import { fitCheck } from './fit.js?v=45';
-import { initShop, STATUS, statusOf } from './shop.js?v=45';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=45';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=45';
-import { drawPreview as drawRoomPreview } from './preview.js?v=45';
-import { arSupported, startAR as startARView } from './ar.js?v=45';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=45';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=45';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=45';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=45';
+import { DEFAULT_PLAN } from './plan.js?v=46';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=46';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=46';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=46';
+import { mergeStates } from './merge.js?v=46';
+import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=46';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=46';
+import { initAssistant } from './assistant.js?v=46';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=46';
+import { initMeasure } from './measure.js?v=46';
+import { initColorPicker } from './colorpicker.js?v=46';
+import { initPhotoAdd } from './photo.js?v=46';
+import { initTape } from './tape.js?v=46';
+import { checkZones } from './zones.js?v=46';
+import { fitCheck } from './fit.js?v=46';
+import { initShop, STATUS, statusOf } from './shop.js?v=46';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=46';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=46';
+import { drawPreview as drawRoomPreview } from './preview.js?v=46';
+import { arSupported, startAR as startARView } from './ar.js?v=46';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=46';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=46';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=46';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=46';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -2210,6 +2210,7 @@ selbar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () 
   const it = itemById(ui.selected);
   if (!it) return;
   const act = b.dataset.act;
+  if (act === 'grip') return;
   if (act === 'undo') { undoEdit(); return; }
   if (act === 'props') { ui.propsOpen = !ui.propsOpen; renderProps(); return; }
   if (act === 'multi') { ui.multiMode = !ui.multiMode; updateSelbar(); toast(ui.multiMode ? '☐+ Toca més mobles per afegir-los (o treure’ls) de la selecció.' : 'Selecció normal.'); return; }
@@ -2219,9 +2220,60 @@ selbar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () 
   else if (act === 'dup') duplicateSel();
   else if (act === 'del') removeSel();
 }));
+// La barra es pot arrossegar per l'asa ⠿ a qualsevol lloc de la pantalla, perquè no tapi el que s'està mirant.
+// Es recorda (en aquest aparell) una posició per a l'edició i una altra per al passeig; doble toc a l'asa la torna al seu lloc.
+const selbarKey = () => (ui.view === 'walk' ? 'walk' : 'edit');
+function placeSelbar() {
+  const pos = prefs.selbarPos?.[selbarKey()];
+  if (!pos || selbar.hidden) { if (!pos) { selbar.classList.remove('placed'); selbar.style.left = selbar.style.top = ''; } return; }
+  const host = selbar.offsetParent || selbar.parentElement, H = host.getBoundingClientRect();
+  selbar.classList.add('placed');
+  const R = selbar.getBoundingClientRect();
+  const x = Math.max(4, Math.min(pos.x * H.width, H.width - R.width - 4)), y = Math.max(4, Math.min(pos.y * H.height, H.height - R.height - 4));
+  selbar.style.left = Math.round(x) + 'px'; selbar.style.top = Math.round(y) + 'px';
+  relayout();
+}
+{
+  const grip = selbar.querySelector('[data-act=grip]');
+  let g = null, lastTap = 0;
+  grip.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const now = performance.now();
+    if (now - lastTap < cfgGet('dblTap')) { // doble toc: al seu lloc
+      lastTap = 0; if (prefs.selbarPos) { delete prefs.selbarPos[selbarKey()]; savePrefs(); } placeSelbar(); relayout(); toast('Barra al seu lloc'); return;
+    }
+    lastTap = now;
+    const host = selbar.offsetParent || selbar.parentElement, H = host.getBoundingClientRect(), R = selbar.getBoundingClientRect();
+    selbar.classList.add('placed');
+    selbar.style.left = Math.round(R.left - H.left) + 'px'; selbar.style.top = Math.round(R.top - H.top) + 'px';
+    g = { id: e.pointerId, dx: e.clientX - R.left, dy: e.clientY - R.top, H, moved: false };
+    try { grip.setPointerCapture(e.pointerId); } catch (err) { /* res */ }
+    selbar.classList.add('dragging');
+  });
+  grip.addEventListener('pointermove', (e) => {
+    if (!g || e.pointerId !== g.id) return;
+    const R = selbar.getBoundingClientRect(), H = g.H;
+    const x = Math.max(4, Math.min(e.clientX - g.dx - H.left, H.width - R.width - 4)), y = Math.max(4, Math.min(e.clientY - g.dy - H.top, H.height - R.height - 4));
+    selbar.style.left = Math.round(x) + 'px'; selbar.style.top = Math.round(y) + 'px'; g.moved = true;
+  });
+  const end = (e) => {
+    if (!g || e.pointerId !== g.id) return;
+    selbar.classList.remove('dragging');
+    if (g.moved) {
+      const H = g.H;
+      prefs.selbarPos = { ...(prefs.selbarPos || {}), [selbarKey()]: { x: parseFloat(selbar.style.left) / H.width, y: parseFloat(selbar.style.top) / H.height } };
+      savePrefs(); lastTap = 0;
+    }
+    g = null; relayout();
+  };
+  grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
+  window.addEventListener('resize', () => placeSelbar());
+}
 function updateSelbar() {
   const it = itemById(ui.selected);
+  const wasHidden = selbar.hidden;
   selbar.hidden = !it;
+  if (it && (wasHidden || selbar.dataset.k !== selbarKey())) { selbar.dataset.k = selbarKey(); placeSelbar(); }
   if (!it) ui.multiMode = false;
   const ub = selbar.querySelector('[data-act=undo]'); if (ub) ub.hidden = !canEditUndo();
   const pu = document.getElementById('p-undo'); if (pu) pu.hidden = !canEditUndo();
@@ -3228,7 +3280,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v45',
+  version: 'v46',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,

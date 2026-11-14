@@ -103,7 +103,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 #selbar[hidden] { display: none; }
 #selbar button[hidden], #props .p-undo[hidden] { display: none; }
 #selbar button[data-act="undo"] { background: var(--accent); color: var(--accent-ink); }
-#props .p-undo { margin-left: auto; margin-right: 6px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 600; padding: 4px 10px; cursor: pointer; }
+#props .p-undo { margin-left: auto; margin-right: 6px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 600; padding: 4px 10px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
 #props .num { display: flex; align-items: stretch; }
 #props .num input { border-radius: 0; text-align: center; padding-left: 2px; padding-right: 2px; -moz-appearance: textfield; }
 #props .num input::-webkit-outer-spin-button, #props .num input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -661,3 +661,10 @@ ul.log li { padding: 5px 0; border-bottom: 1px dashed var(--line, #ddd); }
 body.walking #selbar:not([hidden]) { display: flex; }
 body.walking #props.collapsed { display: none; }
 .wkadd { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+/* Barra ràpida que es pot moure: asa ⠿ a l'esquerra; un cop moguda, fa l'amplada dels seus botons i va on l'has deixat */
+#selbar button.grip { min-width: 28px; padding: 0 4px; background: transparent; color: var(--muted); font-size: 18px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; flex: 0 0 auto; }
+#selbar.dragging { opacity: .92; box-shadow: 0 8px 26px rgba(0,0,0,.3); }
+#selbar.dragging button.grip { cursor: grabbing; color: var(--accent); }
+#selbar.placed { right: auto !important; bottom: auto !important; transform: none !important; width: max-content; max-width: calc(100% - 8px); }
+#selbar.placed button { flex: 0 1 auto; }
+#selbar.placed button:not(.grip) { min-width: 38px; }
