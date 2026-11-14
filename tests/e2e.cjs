@@ -122,6 +122,28 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     await ev(() => { planta3d.setView('3d'); }); await sleep(100);
     return 0;
   });
+  await step('la barra ràpida es pot moure amb l’asa i torna al seu lloc', async () => {
+    await ev(() => { planta3d.setView('walk'); const it = planta3d.state.items.find((i) => i.type === 'mesaCentro'); planta3d.api.select(it.id); });
+    await sleep(200);
+    const g = await p.locator('#selbar [data-act=grip]').boundingBox();
+    must(g, 'sense asa');
+    const vp = await p.locator('#viewport').boundingBox();
+    await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2); await p.mouse.down();
+    for (let k = 1; k <= 8; k++) { await p.mouse.move(g.x + g.width / 2 + (vp.x + 300 - g.x) * k / 8, g.y + g.height / 2 + (vp.y + 200 - g.y) * k / 8); await sleep(15); }
+    await p.mouse.up(); await sleep(150);
+    const r = await p.locator('#selbar').boundingBox();
+    must(Math.abs(r.y - (vp.y + 200)) < 40, `la barra no s’ha mogut (y ${Math.round(r.y)})`);
+    must(await ev(() => !!planta3d.prefs.selbarPos?.walk), 'no es recorda la posició');
+    await ev(() => planta3d.api.select(null)); await sleep(50);
+    await ev(() => { const it = planta3d.state.items.find((i) => i.type === 'mesaCentro'); planta3d.api.select(it.id); }); await sleep(150);
+    const r2 = await p.locator('#selbar').boundingBox();
+    must(Math.abs(r2.y - r.y) < 3, 'en tornar a triar el moble la barra no és on s’havia deixat');
+    const g2 = await p.locator('#selbar [data-act=grip]').boundingBox();
+    await p.mouse.click(g2.x + 5, g2.y + 5); await sleep(60); await p.mouse.click(g2.x + 5, g2.y + 5); await sleep(150);
+    must(await ev(() => !planta3d.prefs.selbarPos?.walk && !document.getElementById('selbar').classList.contains('placed')), 'el doble toc no la torna al seu lloc');
+    await ev(() => { planta3d.api.select(null); planta3d.setView('3d'); }); await sleep(100);
+    return 0;
+  });
   await step('panell del moble: zones, notes i vot', async () => {
     const id = await ev(() => { const s = planta3d.state.items.find((i) => i.type === 'sofa'); planta3d.api.select(s.id); return s.id; });
     await sleep(200);

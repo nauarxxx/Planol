@@ -21,12 +21,13 @@ export const CFGD = {
   undoJoin: 300,                                // ↶ d'un moble: si s'acaba de crear (fa menys d'això), també es desfà la creació (ms)
   walkReach: 700, walkAddDist: 70, walkDragMax: 1500, // passeig: fins on es pot tocar per editar, on es posa un moble nou amb ＋ i fins on es pot arrossegar (cm)
   doorRange: 35,                                // distància a una porta per obrir-ne el panell tocant el terra (cm)
+  dblTap: 350,                                  // doble toc a l'asa ⠿ de la barra ràpida per tornar-la al seu lloc (ms)
 };
 export const CFGR = {
   tap: [400, 3000], aiwait: [200, 1000], coin: [1000, 10000], wgap: [500, 10000], histMax: [10, 500], saveDelay: [200, 5000],
   tries: [200, 10000], count: [2, 8], clear: [40, 100], gapMin: [40, 120], walkSpeed: [50, 400], eyeHeight: [100, 200], snap: [1, 20],
   lowWall: [20, 250], shadow: [1024, 8192], pixelRatio: [1, 3], labelScale: [50, 200], bkMax: [1, 50], bkAuto: [0, 60], bkDays: [0, 365], perf: [0, 1], catalogPhoto: [80, 600],
-  hold: [250, 2000], undoJoin: [0, 3000], walkReach: [200, 2000], walkAddDist: [20, 400], walkDragMax: [300, 5000], doorRange: [10, 120],
+  hold: [250, 2000], undoJoin: [0, 3000], walkReach: [200, 2000], walkAddDist: [20, 400], walkDragMax: [300, 5000], doorRange: [10, 120], dblTap: [150, 1000],
 };
 export const CFG_LABEL = {
   tap: 'Temps del triple toc', aiwait: 'Espera del toc simple', coin: 'Segons abans de bloquejar la moneda', wgap: 'Repetició mínima del so de WALL-E',
@@ -35,10 +36,10 @@ export const CFG_LABEL = {
   snap: 'Imant', lowWall: 'Alçada de les parets baixes', shadow: 'Resolució de les ombres', pixelRatio: 'Píxels per punt (màxim)', labelScale: 'Mida de les etiquetes',
   bkMax: 'Còpies de seguretat que es guarden', bkAuto: 'Dies entre còpies automàtiques', bkDays: 'Dies fins que caduca una còpia', perf: 'Mode rendiment (0 = no, 1 = sí)', catalogPhoto: 'Mida de les fotos del catàleg',
   hold: 'Durada del toc llarg', undoJoin: 'Desfés també la creació del moble', walkReach: 'Abast per editar al passeig', walkAddDist: 'Distància del moble nou (＋) al passeig',
-  walkDragMax: 'Distància màxima per arrossegar al passeig', doorRange: 'Distància per tocar una porta des del terra',
+  walkDragMax: 'Distància màxima per arrossegar al passeig', doorRange: 'Distància per tocar una porta des del terra', dblTap: 'Doble toc a l’asa de la barra ràpida',
 };
-const SEC = new Set(['tap', 'aiwait', 'coin', 'wgap', 'saveDelay', 'hold', 'undoJoin']); // es mostren en segons
-const UNIT = { tap: 's', aiwait: 's', coin: 's', wgap: 's', histMax: 'passos', saveDelay: 's', tries: 'intents', count: 'propostes', clear: 'cm', gapMin: 'cm', walkSpeed: 'cm/s', eyeHeight: 'cm', snap: 'cm', lowWall: 'cm', shadow: 'px', pixelRatio: '×', labelScale: '%', bkMax: 'còpies', bkAuto: 'dies', bkDays: 'dies', perf: '', catalogPhoto: 'px', hold: 's', undoJoin: 's', walkReach: 'cm', walkAddDist: 'cm', walkDragMax: 'cm', doorRange: 'cm' };
+const SEC = new Set(['tap', 'aiwait', 'coin', 'wgap', 'saveDelay', 'hold', 'undoJoin', 'dblTap']); // es mostren en segons
+const UNIT = { tap: 's', aiwait: 's', coin: 's', wgap: 's', histMax: 'passos', saveDelay: 's', tries: 'intents', count: 'propostes', clear: 'cm', gapMin: 'cm', walkSpeed: 'cm/s', eyeHeight: 'cm', snap: 'cm', lowWall: 'cm', shadow: 'px', pixelRatio: '×', labelScale: '%', bkMax: 'còpies', bkAuto: 'dies', bkDays: 'dies', perf: '', catalogPhoto: 'px', hold: 's', undoJoin: 's', walkReach: 'cm', walkAddDist: 'cm', walkDragMax: 'cm', doorRange: 'cm', dblTap: 's' };
 
 export function cfgClean(c) {
   const out = {};
@@ -88,7 +89,7 @@ export function initDevCfg(api) {
       </div>
       <div class="cfg"><h3>⏱️ Funcionament</h3><p class="cfn">Temps en segons. Si poses un valor fora del rang, el camp es marca en vermell.</p>
         ${row('tap')}${row('aiwait')}${row('coin')}${row('wgap')}${row('histMax')}${row('saveDelay')}${row('snap')}
-        ${row('hold', 'mantenir premuda una porta o un moble al passeig')}${row('undoJoin', 'el botó ↶ d’un moble acabat de posar també el treu')}${row('doorRange', 'amb les parets amagades, tocant el batent a terra')}
+        ${row('hold', 'mantenir premuda una porta o un moble al passeig')}${row('undoJoin', 'el botó ↶ d’un moble acabat de posar també el treu')}${row('doorRange', 'amb les parets amagades, tocant el batent a terra')}${row('dblTap', 'temps màxim entre els dos tocs per tornar la barra al seu lloc')}
       </div>
       <div class="cfg"><h3>🪄 Propostes</h3>
         ${row('tries', 'més intents = millors propostes però més lent')}${row('count')}${row('clear')}${row('gapMin')}

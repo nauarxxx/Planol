@@ -48,7 +48,23 @@ function guard() {
 
   // 1) barra de selecció: per sobre dels controls del passeig
   const sel = $('#selbar');
-  if (sel) {
+  if (sel && sel.classList.contains('placed')) {
+    // l'usuari l'ha posada on vol: si (en girar la pantalla, obrir el passeig…) toparia amb un botó fix, es desplaça amunt o avall
+    // fins al lloc lliure més proper; mentre s'arrossega no es toca
+    if (shown(sel) && !sel.classList.contains('dragging')) {
+      const S = box(sel), fixed = [...top, ...bottom];
+      if (fixed.some((r) => hit(S, r, 2))) {
+        let best = null;
+        for (let d = 4; d < P.height && best === null; d += 4) for (const s of [-1, 1]) {
+          const y = S.top + s * d;
+          if (y < P.top + 4 || y + S.height > P.bottom - 4) continue;
+          const T = { left: S.left, right: S.right, top: y, bottom: y + S.height };
+          if (!fixed.some((r) => hit(T, r, 2))) { best = y; break; }
+        }
+        if (best !== null) sel.style.top = `${Math.round(best - P.top)}px`;
+      }
+    }
+  } else if (sel) {
     resetInline(sel, ['bottom']);
     if (shown(sel)) {
       const S = box(sel);
@@ -57,7 +73,9 @@ function guard() {
       if (under.length && shown(walk)) setInline(sel, 'bottom', `${Math.round(P.bottom - Math.min(...bottom.filter((r) => hOverlap(r, S)).map((r) => r.top)) + GAP)}px`);
     }
   }
-  const lows = [...bottom]; if (sel && shown(sel)) lows.push(box(sel));
+  // la barra del moble: si és a la meitat de dalt (l'han moguda), els panells queden per sota; si és a baix, per sobre
+  const lows = [...bottom], highs = [];
+  if (sel && shown(sel)) { const S = box(sel); (S.top + S.height / 2 < P.top + P.height / 2 ? highs : lows).push(S); }
 
   // 2) minimapa del passeig: sota la barra de dalt i per sobre dels botons de baix (si cal, més petit)
   const map = $('#wk-map');
@@ -65,7 +83,7 @@ function guard() {
     resetInline(map, ['top', 'bottom', 'width', 'height']);
     if (shown(map)) {
       const M = box(map);
-      const tbB = Math.max(P.top, ...top.filter((r) => hOverlap(r, M)).map((r) => r.bottom));
+      const tbB = Math.max(P.top, ...[...top, ...highs].filter((r) => hOverlap(r, M)).map((r) => r.bottom));
       const blk = lows.filter((r) => hOverlap(r, M));
       const yb = Math.min(P.bottom, ...blk.map((r) => r.top)) - GAP;
       if (M.top < tbB + GAP || M.bottom > yb) {
@@ -101,7 +119,7 @@ function guard() {
     }
     // tot el que hi ha a la barra de dalt (també el menú de WALL-E desplegat) i el minimapa si és a la meitat de dalt queden per sobre
     const mid = P.top + P.height / 2;
-    const above = [...top, ...mapR.filter((r) => r.top < mid)].filter((r) => hOverlap(r, R));
+    const above = [...top, ...highs, ...mapR.filter((r) => r.top < mid)].filter((r) => hOverlap(r, R));
     const below = [...lows, ...mapR.filter((r) => r.top >= mid)].filter((r) => hOverlap(r, R) && r.bottom > R.top);
     const topLim = Math.max(P.top + GAP, ...above.map((r) => r.bottom + GAP));
     const botLim = Math.min(P.bottom - GAP, ...below.map((r) => r.top - GAP));
@@ -152,7 +170,7 @@ function guard() {
       }
       // després, d'alçada: la posició més baixa on no toqui res (per sobre de cada obstacle, o just sota la barra de dalt)
       const T = box(t), h = T.height;
-      const obst = [...lows, ...panels, ...(chatR ? [chatR] : []), ...top, ...mapR];
+      const obst = [...lows, ...highs, ...panels, ...(chatR ? [chatR] : []), ...top, ...mapR];
       const near = obst.filter((r) => hOverlap(r, T));
       const tb = Math.max(P.top, ...top.filter((r) => hOverlap(r, T)).map((r) => r.bottom));
       const cands = [T.bottom, ...near.map((r) => r.top - GAP), tb + GAP + h].filter((y) => y <= T.bottom + 0.5).sort((a, b) => b - a);
@@ -161,7 +179,7 @@ function guard() {
       if (yb === undefined) {
         // no hi ha cap forat lliure (p. ex. xat obert, panell del moble i avís alhora): a sobre dels missatges del xat,
         // o al mig d'un panell, on hi ha text i no botons
-        const hard = [...lows, ...top, ...mapR];
+        const hard = [...lows, ...highs, ...top, ...mapR];
         for (const r of [...(chatR ? [chatR] : []), ...panels]) {
           setInline(t, 'left', `${Math.round((r.left + r.right) / 2)}px`); setInline(t, 'maxWidth', `${Math.round(r.width - 2 * GAP)}px`);
           const T2 = box(t), y = (r.top + r.bottom) / 2 + T2.height / 2;
@@ -180,7 +198,7 @@ function guard() {
     let off = false;
     if (!hint.hidden && getComputedStyle(hint).display !== 'none') {
       const H = box(hint);
-      const all = [...top, ...lows, ...panels, ...mapR];
+      const all = [...top, ...lows, ...highs, ...panels, ...mapR];
       if (t && shown(t)) all.push(box(t));
       if (chat) all.push(box(chat));
       off = H.width > 2 && all.some((r) => hit(r, H, 2));
