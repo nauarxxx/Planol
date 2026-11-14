@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=42';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=42';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=42';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=42';
-import { mergeStates } from './merge.js?v=42';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=42';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=42';
-import { initAssistant } from './assistant.js?v=42';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=42';
-import { initMeasure } from './measure.js?v=42';
-import { initColorPicker } from './colorpicker.js?v=42';
-import { initPhotoAdd } from './photo.js?v=42';
-import { initTape } from './tape.js?v=42';
-import { checkZones } from './zones.js?v=42';
-import { fitCheck } from './fit.js?v=42';
-import { initShop, STATUS, statusOf } from './shop.js?v=42';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=42';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=42';
-import { drawPreview as drawRoomPreview } from './preview.js?v=42';
-import { arSupported, startAR as startARView } from './ar.js?v=42';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=42';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=42';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=42';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=42';
+import { DEFAULT_PLAN } from './plan.js?v=43';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=43';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=43';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=43';
+import { mergeStates } from './merge.js?v=43';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=43';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=43';
+import { initAssistant } from './assistant.js?v=43';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=43';
+import { initMeasure } from './measure.js?v=43';
+import { initColorPicker } from './colorpicker.js?v=43';
+import { initPhotoAdd } from './photo.js?v=43';
+import { initTape } from './tape.js?v=43';
+import { checkZones } from './zones.js?v=43';
+import { fitCheck } from './fit.js?v=43';
+import { initShop, STATUS, statusOf } from './shop.js?v=43';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=43';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=43';
+import { drawPreview as drawRoomPreview } from './preview.js?v=43';
+import { arSupported, startAR as startARView } from './ar.js?v=43';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=43';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=43';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=43';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=43';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -80,10 +80,19 @@ function setSync(st, json) {
 }
 function pushHistory(json) {
   history.past.push(json);
-  while (history.past.length > cfgGet('histMax')) history.past.shift();
+  while (history.past.length > cfgGet('histMax')) { history.past.shift(); if (ui.editStart > 0) ui.editStart--; }
   history.future = [];
+  lastCommitAt = performance.now();
 }
+let lastCommitAt = -1;
 const commit = () => pushHistory(JSON.stringify(state));
+// Botó ↶ mentre s'edita un moble: desfà només el que s'ha fet des que s'ha triat (moure'l, girar-lo, posar-lo al plànol…).
+const canEditUndo = () => ui.editStart != null && !!itemById(ui.selected) && history.past.length > ui.editStart;
+function undoEdit() {
+  if (!canEditUndo()) return;
+  undo();
+  vib(10);
+}
 function undo() {
   if (!history.past.length) return;
   history.future.push(JSON.stringify(state));
@@ -97,7 +106,7 @@ function redo() {
   afterStateReplace();
 }
 function afterStateReplace(remote = true) {
-  if (ui.selected && !state.items.find((i) => i.id === ui.selected)) ui.selected = null;
+  if (ui.selected && !state.items.find((i) => i.id === ui.selected)) { ui.selected = null; ui.editStart = null; ui.multi = new Set(); }
   save(remote); rebuildPlan(); rebuildItems(); renderAll();
 }
 
@@ -1699,7 +1708,12 @@ function select(id, add = false) {
     const cur = new Set(selIds()), grp = groupIds(id);
     if (cur.has(id)) { grp.forEach((x) => cur.delete(x)); ui.selected = [...cur].pop() || null; } else { grp.forEach((x) => cur.add(x)); ui.selected = id; }
     ui.multi = cur;
-  } else { ui.selected = id; ui.multi = new Set(id ? groupIds(id) : []); }
+  } else {
+    // en triar un altre moble comença una edició nova; si s'acaba de crear (o duplicar o moure d'habitació), també es pot desfer això
+    if (id !== ui.selected || ui.editStart == null) ui.editStart = id ? history.past.length - (performance.now() - lastCommitAt < 300 ? 1 : 0) : null;
+    ui.selected = id; ui.multi = new Set(id ? groupIds(id) : []);
+  }
+  if (!id) ui.editStart = null;
   updateOverlays();
   renderProps();
   renderItemList();
@@ -1973,6 +1987,7 @@ selbar.querySelectorAll('button').forEach((b) => b.addEventListener('click', () 
   const it = itemById(ui.selected);
   if (!it) return;
   const act = b.dataset.act;
+  if (act === 'undo') { undoEdit(); return; }
   if (act === 'props') { ui.propsOpen = !ui.propsOpen; renderProps(); return; }
   if (act === 'multi') { ui.multiMode = !ui.multiMode; updateSelbar(); toast(ui.multiMode ? '☐+ Toca més mobles per afegir-los (o treure’ls) de la selecció.' : 'Selecció normal.'); return; }
   if (it.locked && act !== 'dup' && selIds().length === 1) return;
@@ -1985,6 +2000,8 @@ function updateSelbar() {
   const it = itemById(ui.selected);
   selbar.hidden = !it;
   if (!it) ui.multiMode = false;
+  const ub = selbar.querySelector('[data-act=undo]'); if (ub) ub.hidden = !canEditUndo();
+  const pu = document.getElementById('p-undo'); if (pu) pu.hidden = !canEditUndo();
   selbar.querySelector('[data-act=props]').classList.toggle('on', ui.propsOpen);
   selbar.querySelector('[data-act=multi]')?.classList.toggle('on', !!ui.multiMode);
   const n = selIds().length, c = selbar.querySelector('[data-act=multi] b'); if (c) c.textContent = n > 1 ? n : '';
@@ -2220,7 +2237,7 @@ function renderProps(onlyPos = false) {
   el.dataset.id = it.id;
   const bad = ui.conflicts?.get(it.id);
   el.innerHTML = `
-    <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(it.color)}"></span>${esc(it.name)} ${bad ? `<span class="badge bad">${esc(bad)}</span>` : ''}<button class="close" id="p-close" title="Tanca">×</button></h3>
+    <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(it.color)}"></span>${esc(it.name)} ${bad ? `<span class="badge bad">${esc(bad)}</span>` : ''}<button type="button" class="p-undo" id="p-undo" title="Desfés l’últim canvi d’aquest moble" ${canEditUndo() ? '' : 'hidden'}>↶ Desfés</button><button class="close" id="p-close" title="Tanca">×</button></h3>
     ${(() => { const ph = photoOf(it); return ph ? `<img class="p-photo" src="${ph}" alt="Foto del moble" />` : ''; })()}
     <div class="p-photo-row">
       <label class="btn secondary small" title="Posa una foto a aquest moble (per exemple, la del quadre o la del sofà real)">📷 ${photoOf(it) ? 'Canvia la foto' : 'Posa-hi una foto'}<input type="file" id="p-photo" accept="image/*" hidden /></label>
@@ -2272,6 +2289,7 @@ function renderProps(onlyPos = false) {
   bindItemSocial($('#p-social'), it, whoAmI(), (fn) => { commit(); fn(); save(); renderProps(); renderItemList(); });
   arSupported().then((ok) => { const b = $('#p-ar'); if (b) { b.hidden = !ok && !isMobile(); b.onclick = () => (ok ? startARView(it, { photo: photoOf(it), toast }) : showInfo('Realitat augmentada', '<p>Per veure el moble a mida real a casa cal un mòbil Android amb Chrome (i els Serveis de Google Play per a RA). A l’iPhone el navegador encara no ho permet.</p>')); } });
   $('#p-close').addEventListener('click', () => { if (isMobile()) { ui.propsOpen = false; renderProps(); } else select(null); });
+  $('#p-undo')?.addEventListener('click', undoEdit);
   $('#p-name').addEventListener('change', (e) => apply(() => { it.name = e.target.value; }));
   $('#p-type').addEventListener('change', (e) => apply(() => { it.type = e.target.value; if (it.shape && !SHAPES[it.type]?.some(([k]) => k === it.shape)) { delete it.shape; for (const k of ['sd', 'lw', 'bw', 'bh']) delete it[k]; } }, true));
   for (const k of ['w', 'd', 'h']) $('#p-' + k).addEventListener('change', () => apply(() => { it[k] = Math.max(1, num('#p-' + k)); }, true));
@@ -2798,12 +2816,30 @@ const shop = initShop({ el: document.getElementById('tab-compra'), state: () => 
 function renderAll() {
   updateOverlays();
   shop.render();
-  renderMuebles();
-  renderDistribuir();
-  renderPlano();
-  renderDatos();
-  renderProps();
+  guardRender('#tab-muebles', renderMuebles);
+  guardRender('#tab-distribuir', renderDistribuir);
+  guardRender('#tab-plano', renderPlano);
+  guardRender('#s-dades', () => renderDatos());
+  guardRender('#props', () => renderProps());
+  updateSelbar();
   window.devTools?.refresh?.();
+}
+// Si hi ha una llista desplegada o s'està escrivint en un camp d'un panell, aquest panell no es torna a dibuixar fins que se'n surt:
+// si es redibuixés (p. ex. perquè arriben canvis del núvol o es desa), la llista oberta es tancaria sola i el text es perdria.
+const pendingRender = new Map();
+const editingIn = (el) => { const a = document.activeElement; return Boolean(el && a && a !== document.body && el.contains(a) && /^(SELECT|INPUT|TEXTAREA)$/.test(a.tagName) && !['button', 'checkbox', 'radio', 'range', 'color'].includes(a.type)); };
+function guardRender(sel, fn) {
+  const el = document.querySelector(sel);
+  if (!el || !editingIn(el)) { pendingRender.delete(sel); fn(); return; }
+  const waiting = pendingRender.has(sel);
+  pendingRender.set(sel, fn);
+  if (waiting) return;
+  const later = () => setTimeout(() => {
+    if (!pendingRender.has(sel)) return;
+    if (editingIn(el)) { el.addEventListener('focusout', later, { once: true }); return; } // ha passat a un altre camp del mateix panell
+    const f = pendingRender.get(sel); pendingRender.delete(sel); f();
+  }, 0);
+  el.addEventListener('focusout', later, { once: true });
 }
 
 // ---------------------------------------------------------------- arranque
@@ -2960,7 +2996,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v42',
+  version: 'v43',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2969,7 +3005,7 @@ const api = {
   wallThickness: () => state.wallThickness || 10,
   currentRoom: () => { const it = itemById(ui.selected); return (it && roomById(it.roomId)) || roomById(ui.layoutRoom) || usableRooms()[0] || null; },
   addItems: (type, props, qty, roomId) => addItems(type, props, qty, roomId),
-  removeItem, moveItem, undo, select, frameCamera,
+  removeItem, moveItem, undo, select, rotateSel, frameCamera,
   frame: (room) => { frameCamera(room); if (ui.view === 'top') fitOrtho(); },
   proposals: (room, its, onProgress) => {
     ui.seed = (ui.seed * 9301 + 49297) % 233280 + Date.now() % 1000;

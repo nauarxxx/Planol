@@ -10,7 +10,7 @@
 // estar-menjador-cuina 26,80 m² · dormitori 11,00 · bany 5,00 · traster-safareig 7,70 · traster 2,10
 // · pas 4,60 · interior 56,80 · terrazas 8,25 · total 65,05 m².
 export const DEFAULT_PLAN = {
-  version: 26, // v26: la porta d’entrada (90) és a la paret de la tele del menjador, a la cantonada amb la cuina; després 226 de paret, el pas al passadís (90) i just després el racó (530 en total, segons la persona i el vídeo); el passadís i les habitacions baixen 90; la nevera torna al taulell de l’est; v25: v25: la porta d'entrada és just abans del menjador (paret est de la cuina, tocant al mur de la nevera) i de la porta al pas del passadís la paret fa 226 (cota del croquis); v24: vàter i lavabo del bany 1 mirant cap a dins; v23: racó del mirall segons la foto: pilar amb el mirall dins del racó, tocant a la paret del passadís; v22: mobles de tot el pis segons el vídeo (menjador, dormitori, office amb llitera, banys); porta del bany 2 cap enfora; v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
+  version: 27, // v27: banys segons la persona i el vídeo (bany 1: vàter a l'esquerra de la porta, lavabo al davant, banyera a tota la paret de l'esquerra; bany 2: lavabo a l'esquerra i vàter davant de la porta); v26: la porta d’entrada (90) és a la paret de la tele del menjador, a la cantonada amb la cuina; després 226 de paret, el pas al passadís (90) i just després el racó (530 en total, segons la persona i el vídeo); el passadís i les habitacions baixen 90; la nevera torna al taulell de l’est; v25: v25: la porta d'entrada és just abans del menjador (paret est de la cuina, tocant al mur de la nevera) i de la porta al pas del passadís la paret fa 226 (cota del croquis); v24: vàter i lavabo del bany 1 mirant cap a dins; v23: racó del mirall segons la foto: pilar amb el mirall dins del racó, tocant a la paret del passadís; v22: mobles de tot el pis segons el vídeo (menjador, dormitori, office amb llitera, banys); porta del bany 2 cap enfora; v21: cuina segons la foto (mur de la nevera a l'est, pas obert a l'oest, mobles fixos de cuina); v20: biga baixa damunt del racó (element «biga»); v19: racó amb mirall entre el menjador i l'office, passadís 60 més amunt; v18: mur de 72 entre cuina i menjador; v17: finestrals de 164; v16: 'Menjador'; v15: portes de vidre de les terrasses i finestral del dormitori segons les fotos; v14: noms en català; v13: ventana del office de 107, el salón no tiene ventana; v12: office 205×275 con ventana de 167, ventanal doble del dormitorio; v11: baño 1 190×190 y baño 2 107×145 (croquis); v10: cotas del croquis (salón 270×440, terraza 268×130); v9: baño 1 sobre el final del pasillo, baño 2 detrás del fondo; v5: office, armarios repartidos, baño 2 y terraza en diagonal
   ceiling: 250, // estimado: el plano no indica la altura del techo
   ceilingEstimated: true,
   wallThickness: 10,
@@ -74,9 +74,9 @@ export const DEFAULT_PLAN = {
     {
       id: 'bano', name: 'Bany 1', kind: 'room', color: '#9aa3a8',
       x: 705, z: 495, w: 190, d: 190,
-      notes: 'Bany 1: 190 × 190 segons el croquis (banyera, vàter i bidet). Damunt del tram final del passadís; la porta és al racó on acaba el passadís.',
+      notes: 'Bany 1: 190 × 190 segons el croquis. Damunt del tram final del passadís; la porta és al racó on acaba el passadís i s’obre contra la paret de la dreta. Entrant: el vàter just a l’esquerra de la porta, al davant un espai buit, a l’esquerra d’aquest espai el lavabo amb mirall i, a tota la paret de l’esquerra, la banyera amb cortina.',
       estimated: false,
-      openings: [{ wall: 'S', offset: 110, width: 70, type: 'puerta' }],
+      openings: [{ wall: 'S', offset: 115, width: 70, type: 'puerta', hinge: 'b' }],
     },
     {
       id: 'bano2', name: 'Bany 2', kind: 'room', color: '#a7b1b6',
@@ -151,13 +151,13 @@ export const DEFAULT_PLAN = {
     // Office (vídeo): llitera blanca de metall sota el sostre inclinat i una tauleta petita.
     { id: 'fix-llitera', type: 'litera', name: 'Llitera', w: 90, d: 200, h: 170, elev: 0, color: '#f4f4f2', x: 372, z: 892, rot: 0, roomId: 'office', locked: false },
     { id: 'fix-tauleta-o', type: 'mesita', name: 'Tauleta', w: 45, d: 40, h: 50, elev: 0, color: '#f4f4f2', x: 350, z: 1020, rot: 0, roomId: 'office', locked: false },
-    // Bany 1 (vídeo): banyera amb cortina a la paret de l'oest, vàter suspès i lavabo amb moble blanc i mirall a la paret del nord.
-    { id: 'fix-banyera', type: 'banyera', name: 'Banyera', w: 170, d: 70, h: 55, elev: 0, color: '#f6f6f4', x: 745, z: 585, rot: 90, roomId: 'bano', locked: true },
-    { id: 'fix-vater1', type: 'vater', name: 'Vàter', w: 38, d: 55, h: 42, elev: 0, color: '#f6f6f4', x: 800, z: 528, rot: 0, roomId: 'bano', locked: true },
-    { id: 'fix-lavabo1', type: 'lavabo', name: 'Lavabo', w: 70, d: 45, h: 85, elev: 0, color: '#f2efe9', x: 855, z: 523, rot: 0, roomId: 'bano', locked: true },
-    // Bany 2 (vídeo): lavabo amb moble fosc i mirall, vàter al fons.
-    { id: 'fix-vater2', type: 'vater', name: 'Vàter', w: 38, d: 55, h: 42, elev: 0, color: '#f6f6f4', x: 970, z: 674, rot: 270, roomId: 'bano2', locked: true },
-    { id: 'fix-lavabo2', type: 'lavabo', name: 'Lavabo', w: 60, d: 40, h: 85, elev: 0, color: '#3a3330', x: 977, z: 760, rot: 270, roomId: 'bano2', locked: true },
+    // Bany 1 (persona i vídeo): entrant, el vàter just a l'esquerra de la porta; al davant de la porta, espai buit; a l'esquerra d'aquest espai, el lavabo; i tota la paret de l'esquerra, la banyera.
+    { id: 'fix-banyera', type: 'banyera', name: 'Banyera', w: 180, d: 70, h: 55, elev: 0, color: '#f6f6f4', x: 745, z: 590, rot: 90, roomId: 'bano', locked: true },
+    { id: 'fix-vater1', type: 'vater', name: 'Vàter', w: 38, d: 55, h: 42, elev: 0, color: '#f6f6f4', x: 800, z: 652.5, rot: 180, roomId: 'bano', locked: true },
+    { id: 'fix-lavabo1', type: 'lavabo', name: 'Lavabo', w: 60, d: 45, h: 85, elev: 0, color: '#f2efe9', x: 811, z: 522.5, rot: 0, roomId: 'bano', locked: true },
+    // Bany 2 (persona i vídeo): entrant, el lavabo a l'esquerra i el vàter just davant de la porta (la porta s'obre cap enfora: no hi xoca).
+    { id: 'fix-vater2', type: 'vater', name: 'Vàter', w: 38, d: 55, h: 42, elev: 0, color: '#f6f6f4', x: 969.5, z: 730, rot: 270, roomId: 'bano2', locked: true },
+    { id: 'fix-lavabo2', type: 'lavabo', name: 'Lavabo', w: 60, d: 40, h: 85, elev: 0, color: '#3a3330', x: 935, z: 675, rot: 0, roomId: 'bano2', locked: true },
     // Racó (foto): mirall alt i estret a la cara del pilar que mira al menjador.
     { id: 'fix-mirall', type: 'mirall', name: 'Mirall', w: 35, d: 2, h: 120, elev: 60, color: '#d9e2e6', x: 284, z: 808.5, rot: 270, roomId: 'raco', locked: true },
   ],

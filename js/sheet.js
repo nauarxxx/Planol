@@ -1,6 +1,6 @@
 // Plànol en 2D sobre un canvas (per comparar escenes i per imprimir / desar en PDF), amb cotes.
-import { corners, allOpenings, allSwings, swingArc, DEG } from './geom.js?v=42';
-import { CATALOG } from './furniture.js?v=42';
+import { corners, allOpenings, allSwings, swingArc, DEG } from './geom.js?v=43';
+import { CATALOG } from './furniture.js?v=43';
 
 // Dibuixa el plànol complet. opts: { items, cotes, labels, furnitureDims, pad, bg, highlight }
 export function drawPlan(cv, st, opts = {}) {

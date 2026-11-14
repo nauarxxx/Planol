@@ -54,6 +54,30 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     must(await ev(() => planta3d.state.items.length) === n0, 'desfer');
     return { n0, n1 };
   });
+  await step('botó ↶ mentre s’edita un moble', async () => {
+    const n0 = await ev(() => planta3d.state.items.length);
+    must(!(await p.isVisible('#p-undo')), 'visible abans d’editar');
+    await ev(() => { const r = planta3d.state.rooms.find((x) => x.name === 'Menjador'); planta3d.api.addItems('mesita', {}, 1, r.id); });
+    await sleep(150);
+    must(await p.isVisible('#p-undo'), 'no surt en posar un moble');
+    // girar-lo i desfer només el gir
+    await ev(() => planta3d.api.rotateSel(90)); await sleep(100);
+    const rot = await ev(() => planta3d.state.items.at(-1).rot);
+    await p.click('#p-undo'); await sleep(150);
+    must(await ev(() => planta3d.state.items.at(-1).rot) !== rot, 'no ha desfet el gir');
+    await p.click('#p-undo'); await sleep(150);
+    must(await ev(() => planta3d.state.items.length) === n0, 'no ha tret el moble posat');
+    must(!(await p.isVisible('#p-undo')), 'continua visible sense moble');
+    return 0;
+  });
+  await step('la llista de tipus no es tanca sola', async () => {
+    await ev(() => planta3d.setTab ? planta3d.setTab('muebles') : document.querySelector('[data-tab="muebles"]')?.click());
+    await p.focus('#f-type');
+    const same = await ev(() => { const a = document.getElementById('f-type'); planta3d.api.setPlan({}); return document.getElementById('f-type') === a && document.activeElement === a; });
+    must(same, 'la llista s’ha tornat a dibuixar mentre era oberta');
+    await p.focus('#p-name').catch(() => {}); await ev(() => document.activeElement?.blur()); await sleep(50);
+    return 0;
+  });
   await step('panell del moble: zones, notes i vot', async () => {
     const id = await ev(() => { const s = planta3d.state.items.find((i) => i.type === 'sofa'); planta3d.api.select(s.id); return s.id; });
     await sleep(200);
