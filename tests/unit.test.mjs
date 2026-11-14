@@ -265,3 +265,26 @@ test('migració: els mobles fixos bloquejats segueixen el plànol nou; els desbl
   assert.equal(s.items.find((i) => i.id === 'fix-nevera').x, 232.5);
   assert.equal(s.items.find((i) => i.id === 'fix-pica').x, 50);
 });
+
+test('plànol v27: banys com a la realitat i cap porta xoca amb els mobles', () => {
+  const st = plan();
+  const b1 = st.rooms.find((r) => r.id === 'bano'), b2 = st.rooms.find((r) => r.id === 'bano2');
+  const it = (id) => st.items.find((i) => i.id === id);
+  const d1 = b1.openings.find((o) => o.type === 'puerta'), doorX0 = b1.x + d1.offset;
+  // bany 1: banyera a tota la paret de l'oest, vàter a la paret de la porta just a l'esquerra, lavabo a la paret del davant
+  assert.ok(it('fix-banyera').w >= b1.d - 10 - 1);
+  assert.equal(it('fix-vater1').rot, 180);
+  assert.ok(it('fix-vater1').x + it('fix-vater1').w / 2 <= doorX0);
+  assert.equal(it('fix-lavabo1').rot, 0);
+  // bany 2: vàter davant de la porta (paret de l'est) i lavabo a l'esquerra en entrar (paret del nord)
+  const d2 = b2.openings.find((o) => o.type === 'puerta'), mid = b2.z + d2.offset + d2.width / 2;
+  assert.equal(it('fix-vater2').rot, 270);
+  assert.ok(Math.abs(it('fix-vater2').z - mid) <= 10);
+  assert.equal(it('fix-lavabo2').rot, 0);
+  for (const r of [b1, b2]) for (const o of r.openings.filter((x) => x.type === 'puerta')) {
+    const sw = doorSwing(r, o);
+    for (const i of st.items) assert.ok(!boxHitsSwing(aabb(i), sw), `la porta de ${r.name} xoca amb ${i.name}`);
+  }
+  for (const id of ['fix-banyera', 'fix-vater1', 'fix-lavabo1']) assert.equal(roomAt(st.rooms, it(id).x, it(id).z).id, 'bano');
+  for (const id of ['fix-vater2', 'fix-lavabo2']) assert.equal(roomAt(st.rooms, it(id).x, it(id).z).id, 'bano2');
+});
