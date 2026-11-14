@@ -1,16 +1,17 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=31';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem } from './furniture.js?v=31';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=31';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=31';
-import { mergeStates } from './merge.js?v=31';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=31';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=31';
-import { initAssistant } from './assistant.js?v=31';
-import { drawPlan, printSheet } from './sheet.js?v=31';
-import { initMeasure } from './measure.js?v=31';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=31';
+import { DEFAULT_PLAN } from './plan.js?v=32';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem } from './furniture.js?v=32';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=32';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=32';
+import { mergeStates } from './merge.js?v=32';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=32';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=32';
+import { initAssistant } from './assistant.js?v=32';
+import { drawPlan, printSheet } from './sheet.js?v=32';
+import { initMeasure } from './measure.js?v=32';
+import { initColorPicker } from './colorpicker.js?v=32';
+import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=32';
 
 // ---------------------------------------------------------------- estado
 const STORE_KEY = 'planta3d-v1';
@@ -277,6 +278,7 @@ function setView(v) {
   controlsTop.enabled = v === 'top';
   controls = v === 'top' ? controlsTop : v === 'walk' ? noControls : controls3d;
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+  const fv = document.querySelector('#tb-fab .v'); if (fv) fv.textContent = { '3d': '3D', top: '2D', walk: '🚶' }[v];
   document.getElementById('walkbar').hidden = v !== 'walk';
   document.getElementById('hint').textContent = v === 'walk' ? 'Arrossega per mirar · roda o + / − per al zoom · toca una porta, una finestra o un moble · fletxes / WASD o els botons per caminar · 🧭 per mirar movent el mòbil' : 'Arrossega un moble per moure’l · R / Maj+R girar · Supr esborrar · Ctrl+D duplicar';
   if (v === 'walk' && was !== 'walk') {
@@ -1425,6 +1427,12 @@ function syncMobileBar() {
 $('#wallBtn')?.addEventListener('click', () => { ui.wallMode = WALL_CYCLE[ui.wallMode] || 'low'; $('#wallMode').value = ui.wallMode; rebuildPlan(); syncMobileBar(); toast(WALL_TEXT[ui.wallMode]); });
 $('#labelsBtn')?.addEventListener('click', () => { const c = $('#labels'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); });
 $('#measBtn')?.addEventListener('click', () => { const c = $('#measures'); c.checked = !c.checked; c.dispatchEvent(new Event('change')); });
+// Estil «menú flotant»: el botó rodó obre i tanca la barra; mostra la vista actual i es tanca en tocar el plànol o canviar de vista.
+const tbFab = $('#tb-fab');
+const fabOpen = (on) => { $('#toolbar').classList.toggle('open', on); tbFab?.setAttribute('aria-expanded', on ? 'true' : 'false'); if (tbFab) tbFab.querySelector('.i').textContent = on ? '✕' : '☰'; };
+tbFab?.addEventListener('click', () => fabOpen(!$('#toolbar').classList.contains('open')));
+renderer.domElement.addEventListener('pointerdown', () => { if ($('#toolbar').classList.contains('open')) fabOpen(false); });
+document.querySelectorAll('#toolbar [data-view]').forEach((b) => b.addEventListener('click', () => fabOpen(false)));
 syncMobileBar();
 
 // Barra del passeig: botons per caminar (mantenir premut) i giroscopi.
@@ -2306,7 +2314,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v31',
+  version: 'v32',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2398,6 +2406,7 @@ function simulate(w, h, name) {
 document.getElementById('sim-close').addEventListener('click', () => { const m = document.getElementById('sim'); m.hidden = true; m.querySelector('iframe').src = 'about:blank'; });
 api.dev = initDevCfg(api);
 const assistant = initAssistant(api);
+initColorPicker();
 applyPrefs(api);
 initSettings(api);
 applyCfg();

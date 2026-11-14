@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=2" />
   <link rel="apple-touch-icon" href="icons/planol-apple-180.png" />
   <link rel="icon" href="icons/planol-192.png" type="image/png" />
-  <link rel="stylesheet" href="css/style.css?v=31" />
+  <link rel="stylesheet" href="css/style.css?v=32" />
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.js", "three/addons/OrbitControls.js": "./vendor/OrbitControls.js" } }
   </script>
@@ -36,6 +36,7 @@
     </aside>
     <main id="viewport">
       <div id="toolbar">
+        <button id="tb-fab" type="button" title="Menú" aria-label="Menú" aria-expanded="false"><span class="i">☰</span><span class="v">3D</span></button>
         <div class="group">
           <button data-view="3d" class="active" title="Vista 3D">3D</button>
           <button data-view="top" title="Vista en planta (2D)"><span class="tx">Planta</span><span class="ic">2D</span></button>
@@ -66,7 +67,7 @@
           <button id="redo" title="Refés (Ctrl+Y)">↷</button>
         </div>
         <div class="group" id="install-group" hidden>
-          <button id="install" title="Instal·la l’app al dispositiu">⬇ Instal·la</button>
+          <button id="install" title="Instal·la l’app al dispositiu" aria-label="Instal·la">⬇<span class="tx"> Instal·la</span></button>
         </div>
         <div class="group">
           <button id="theme-btn" title="Mode fosc" aria-label="Mode fosc">🌙</button>
@@ -155,6 +156,6 @@
       <div class="gate-body"></div>
     </div>
   </div>
-  <script type="module" src="js/main.js?v=31"></script>
+  <script type="module" src="js/main.js?v=32"></script>
 </body>
 </html>

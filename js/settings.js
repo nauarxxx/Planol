@@ -8,7 +8,7 @@ export const PREFS_DEFAULT = {
   accent: '', bg: '', panel: '', ink: '', // buit = color del tema
   wall3d: '#f3f1ec', bg3d: '',  // bg3d buit = segons el tema (fosc o clar)
   font: 'm',           // s | m | l
-  tbStyle: 'classic',  // estil de la barra de botons: classic | glass | pills | bar
+  tbStyle: 'wallefab', // estil de la barra de botons: wallefab | classic | rail | fab | walle | brutal
   wvol: 60,            // volum del so de WALL-E (0 = silenci)
   voice: 2,            // assistent: 0 només text · 1 només veu · 2 text i veu
   autoOpen: 0,         // obrir l'assistent en entrar
@@ -22,13 +22,14 @@ export const PREFS_DEFAULT = {
   warn: 'both',        // avís de conflictes: both | visual | sound | none
   voiceName: '',       // veu de WALL-E (nom de la veu del sistema; buit = la catalana que trobi)
   cams: {},            // càmeres desades per estança ('_all' = vista inicial)
-  v2: 1, v3: 1,
+  v2: 1, v3: 1, v4: 1,
 };
 export let prefs = { ...PREFS_DEFAULT };
 try {
   const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
   Object.assign(prefs, saved);
   if (!saved.v2) { prefs.theme = 'dark'; prefs.v2 = 1; } // des de la v21 el tema fosc és el que surt per defecte
+  if (!saved.v4) { prefs.tbStyle = 'wallefab'; prefs.v4 = 1; } // v32: la barra és el menú flotant de WALL-E per defecte
   if (!saved.v3) { if (prefs.bg3d === '#e9e6e0') prefs.bg3d = ''; prefs.v3 = 1; } // v22: el fons 3D segueix el tema
 } catch (e) { /* res */ }
 
@@ -40,7 +41,7 @@ const FONT = { s: '14px', m: '16px', l: '18px' };
 export function isDark() {
   return prefs.theme === 'dark' || (prefs.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 }
-export const TB_STYLES = [['classic', 'Clàssica (blocs)'], ['glass', 'Vidre (una càpsula translúcida)'], ['pills', 'Píndoles (botons rodons solts)'], ['bar', 'Barra (franja sencera a dalt)']];
+export const TB_STYLES = [['wallefab', 'WALL-E flotant (per defecte)'], ['classic', 'Clàssica (blocs)'], ['rail', 'Riell (columna d’icones a l’esquerra)'], ['fab', 'Menú flotant (un sol botó que s’obre)'], ['walle', 'WALL-E (xapa groga i botons que s’encenen)'], ['brutal', 'Brutalista (blanc i negre, ombres dures)']];
 export function applyPrefs(api) {
   const root = document.documentElement;
   if (prefs.theme === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', prefs.theme);
@@ -48,7 +49,10 @@ export function applyPrefs(api) {
     if (prefs[k]) root.style.setProperty('--' + k, prefs[k]); else root.style.removeProperty('--' + k);
   }
   root.style.fontSize = FONT[prefs.font] || FONT.m;
-  for (const s of TB_STYLES) document.body.classList.toggle('tb-' + s[0], prefs.tbStyle === s[0] && s[0] !== 'classic');
+  if (!TB_STYLES.some((t) => t[0] === prefs.tbStyle)) prefs.tbStyle = 'wallefab';
+  // cada estil és una o més classes: «WALL-E flotant» = menú flotant + pell de WALL-E
+  const cls = { wallefab: ['fab', 'walle'], classic: [] }[prefs.tbStyle] || [prefs.tbStyle];
+  for (const c of ['fab', 'walle', 'rail', 'brutal']) document.body.classList.toggle('tb-' + c, cls.includes(c));
   const hint = document.getElementById('hint'); if (hint) hint.classList.toggle('off', !+prefs.hint);
   const tb = document.getElementById('theme-btn');
   if (tb) { const d = isDark(); tb.textContent = d ? '☀️' : '🌙'; tb.title = d ? 'Mode clar' : 'Mode fosc'; tb.setAttribute('aria-label', tb.title); }
