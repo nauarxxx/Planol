@@ -14,6 +14,7 @@ export const PREFS_DEFAULT = {
   autoOpen: 0,         // obrir l'assistent en entrar
   hint: 1,             // mostra la línia d'ajuda de sota del 3D
   shadows: 1,          // ombres al 3D (desactiva-les si el mòbil va lent)
+  realism: 1,          // aspecte realista: llum de l'entorn, ombres als racons i materials (desactiva-ho si el mòbil va lent)
   confirmDel: 0,       // demana confirmació abans d'eliminar un moble
   startView: '3d',     // vista en obrir: 3d | top
   units: 'cm',         // cm | m
@@ -59,6 +60,7 @@ export function applyPrefs(api) {
   const dark = isDark();
   api?.setScenePrefs?.({ wall: prefs.wall3d, bg: prefs.bg3d || (dark ? '#1b1a19' : '#e9e6e0'), ground: prefs.bg3d ? prefs.bg3d : (dark ? '#262421' : '#dcd8d0') });
   api?.setShadows?.(!!+prefs.shadows);
+  api?.setRealism?.(!!+(prefs.realism ?? 1));
 }
 
 const fmtKB = (b) => (b / 1024).toLocaleString('ca', { maximumFractionDigits: 1 }) + ' KB';
@@ -172,6 +174,7 @@ export function initSettings(api) {
       ${chk('s-unitlabel', 'unitLabel', 'Escriu la unitat a les cotes (p. ex. «85 cm» en lloc de «85»)')}
       ${chk('s-vib', 'vib', 'Vibra en col·locar o encaixar un moble (mòbil)')}
       ${chk('s-shadows', 'shadows', 'Ombres al 3D (desactiva-les si el mòbil va lent)')}
+      ${chk('s-realism', 'realism', 'Aspecte realista: llum suau, ombres als racons i reflexos (desactiva-ho si el mòbil va lent)')}
       ${chk('s-hint', 'hint', 'Mostra la línia d’ajuda a sota del 3D')}
       ${chk('s-confirmdel', 'confirmDel', 'Demana confirmació abans d’eliminar un moble')}
       ${chk('s-autoopen', 'autoOpen', 'Obre l’assistent en entrar')}
@@ -241,7 +244,7 @@ export function initSettings(api) {
     });
     body.querySelector('#s-wvol').addEventListener('input', (e) => { set('wvol', +e.target.value); e.target.parentElement.firstChild.textContent = `Volum del so (${prefs.wvol} %)`; });
     body.querySelector('#s-voice').addEventListener('change', (e) => set('voice', +e.target.value));
-    for (const [id, k] of [['s-autoopen', 'autoOpen'], ['s-hint', 'hint'], ['s-shadows', 'shadows'], ['s-confirmdel', 'confirmDel'], ['s-unitlabel', 'unitLabel'], ['s-vib', 'vib']]) {
+    for (const [id, k] of [['s-autoopen', 'autoOpen'], ['s-hint', 'hint'], ['s-shadows', 'shadows'], ['s-realism', 'realism'], ['s-confirmdel', 'confirmDel'], ['s-unitlabel', 'unitLabel'], ['s-vib', 'vib']]) {
       body.querySelector('#' + id).addEventListener('change', (e) => set(k, e.target.checked ? 1 : 0));
     }
     body.querySelector('#s-signout')?.addEventListener('click', () => { close(); api.signOut(); });

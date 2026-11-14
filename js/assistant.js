@@ -5,10 +5,10 @@
 //  - «treu la taula», «mou el sofà al dormitori», «què hi ha al dormitori?», «desfés»…
 // No fa servir cap servei extern: tot passa al navegador.
 
-import { CATALOG } from './furniture.js?v=48';
-import { innerRect, overlaps, aabb } from './geom.js?v=48';
-import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=48';
-import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=48';
+import { CATALOG } from './furniture.js?v=49';
+import { innerRect, overlaps, aabb } from './geom.js?v=49';
+import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=49';
+import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=49';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/·/g, '').replace(/[’'`´]/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -382,7 +382,7 @@ export function initAssistant(api) {
     ['tap', /triple toc/], ['aiwait', /toc simple|espera del toc/], ['coin', /moneda/], ['wgap', /repetici/], ['histMax', /desfes|historial/], ['saveDelay', /retard|desat al nuvol/],
     ['tries', /intents/], ['count', /propostes/], ['clear', /pas lliure|accessibilitat/], ['gapMin', /pas (minim )?entre|pas entre mobles/], ['walkSpeed', /velocitat/], ['eyeHeight', /alcada dels ulls|ulls/],
     ['snap', /imant/], ['lowWall', /parets baixes/], ['shadow', /ombres/], ['pixelRatio', /pixels/], ['labelScale', /etiquetes/], ['bkDays', /caduc|dies de les copies|copies.*dies/], ['bkMax', /copies/], ['bkAuto', /copia automatica|automatica/], ['catalogPhoto', /fotos? del cataleg/], ['perf', /rendiment/],
-    ['hold', /toc llarg|mantenir premut/], ['undoJoin', /desfes la creacio|creacio del moble/], ['walkReach', /abast/], ['walkAddDist', /moble nou|distancia del moble/], ['walkDragMax', /arrossegar/], ['doorRange', /tocar una porta|distancia (a|de) la porta/], ['dblTap', /doble toc|asa de la barra/],
+    ['hold', /toc llarg|mantenir premut/], ['undoJoin', /desfes la creacio|creacio del moble/], ['walkReach', /abast/], ['walkAddDist', /moble nou|distancia del moble/], ['walkDragMax', /arrossegar/], ['doorRange', /tocar una porta|distancia (a|de) la porta/], ['dblTap', /doble toc|asa de la barra/], ['aoRad', /abast de l.?ombra/], ['ao', /ombra dels racons|oclusio/], ['env', /llum (que rebota|de l.?entorn)|reflexos/], ['expo', /exposicio|claredat/],
   ];
   const SECK = new Set(['tap', 'aiwait', 'coin', 'wgap', 'saveDelay', 'hold', 'undoJoin', 'dblTap']);
   const COLORS = { blau: '#3b82f6', 'blau fosc': '#1e40af', verd: '#2f7d4f', 'verd fosc': '#15803d', groc: '#d4a017', taronja: '#b5652f', vermell: '#c0392b', rosa: '#e0609a', lila: '#8b5cf6', morat: '#7c3aed', marro: '#8a5a2b', gris: '#6b7280', negre: '#111111', blanc: '#ffffff', turquesa: '#0e9f8f', beix: '#d9c7a3' };

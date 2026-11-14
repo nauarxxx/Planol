@@ -125,7 +125,7 @@ export function allOpenings(rooms) {
   const out = [];
   for (const r of rooms) for (const op of r.openings || []) {
     const seg = openingSegment(r, op);
-    if (seg) out.push({ ...seg, type: op.type, roomId: r.id });
+    if (seg) out.push({ ...seg, type: op.type, roomId: r.id, door: op.door });
   }
   return out;
 }
