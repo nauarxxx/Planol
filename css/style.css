@@ -632,3 +632,5 @@ ul.log li { padding: 5px 0; border-bottom: 1px dashed var(--line, #ddd); }
 #ar-overlay .ar-btns { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex; justify-content: center; gap: 10px; pointer-events: auto; }
 #ar-overlay .ar-btns button { pointer-events: auto; background: rgba(0,0,0,.6); color: #fff; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; padding: 12px 18px; font: inherit; }
 .ar-canvas { position: fixed; inset: 0; z-index: 9998; }
+#hint.lg-off { visibility: hidden; }
+#props.lg-off, #wallpanel.lg-off { visibility: hidden; }

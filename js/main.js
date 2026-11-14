@@ -1,27 +1,28 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=35';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=35';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=35';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=35';
-import { mergeStates } from './merge.js?v=35';
-import { prefs, applyPrefs, initSettings } from './settings.js?v=35';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=35';
-import { initAssistant } from './assistant.js?v=35';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=35';
-import { initMeasure } from './measure.js?v=35';
-import { initColorPicker } from './colorpicker.js?v=35';
-import { initPhotoAdd } from './photo.js?v=35';
-import { initTape } from './tape.js?v=35';
-import { checkZones } from './zones.js?v=35';
-import { fitCheck } from './fit.js?v=35';
-import { initShop, STATUS, statusOf } from './shop.js?v=35';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=35';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=35';
-import { drawPreview as drawRoomPreview } from './preview.js?v=35';
-import { arSupported, startAR as startARView } from './ar.js?v=35';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=35';
-import { corners, aabb, overlaps, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=35';
+import { DEFAULT_PLAN } from './plan.js?v=36';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=36';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=36';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=36';
+import { mergeStates } from './merge.js?v=36';
+import { prefs, applyPrefs, initSettings } from './settings.js?v=36';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=36';
+import { initAssistant } from './assistant.js?v=36';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=36';
+import { initMeasure } from './measure.js?v=36';
+import { initColorPicker } from './colorpicker.js?v=36';
+import { initPhotoAdd } from './photo.js?v=36';
+import { initTape } from './tape.js?v=36';
+import { checkZones } from './zones.js?v=36';
+import { fitCheck } from './fit.js?v=36';
+import { initShop, STATUS, statusOf } from './shop.js?v=36';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=36';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=36';
+import { drawPreview as drawRoomPreview } from './preview.js?v=36';
+import { arSupported, startAR as startARView } from './ar.js?v=36';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=36';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=36';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, swingArc, boxHitsSwing, doorSwing, structItems, DEG } from './geom.js?v=36';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -635,6 +636,7 @@ function wallPiece(axis, line, a, b, y0, y1, t, material, cap = true, inSide = 0
   // cara de dins: índex 4/5 (+z/−z) per a parets al llarg de x, 0/1 (+x/−x) per a les de z
   const inner = [material, material, top, material, material, material];
   inner[axis === 'x' ? (inSide > 0 ? 4 : 5) : (inSide > 0 ? 0 : 1)] = paint || material;
+  if (paint && cap) inner[2] = paintTop(paint); // la part de dalt també, perquè la paret pintada es vegi en planta i amb les parets baixes
   wallBox(axis, axis === 'x' ? line + inSide * t / 4 : line + inSide * t / 4, a, b, y0, y1, t / 2, inner, t / 2, t / 2);
   // meitat de fora, només on a l'altre costat no hi ha cap habitació que la dibuixi
   const covered = [];
@@ -655,6 +657,13 @@ function paintMat(hex) {
   if (!hex) return null;
   if (!paintCache.has(hex)) { const m = wallMat.clone(); m.color.set(hex); paintCache.set(hex, m); }
   return paintCache.get(hex);
+}
+// Cantell de dalt d'una paret pintada: el mateix color, sense ombres (en planta es veu com una línia del color triat).
+const paintTopCache = new Map();
+function paintTop(pm) {
+  const hex = '#' + pm.color.getHexString();
+  if (!paintTopCache.has(hex)) paintTopCache.set(hex, new THREE.MeshBasicMaterial({ color: pm.color.clone() }));
+  return paintTopCache.get(hex);
 }
 const WALL_KEY = { nord: 'N', sud: 'S', oest: 'W', est: 'E' };
 const WALL_TXT = { N: 'de dalt', S: 'de baix', W: 'de l’esquerra', E: 'de la dreta' };
@@ -803,6 +812,16 @@ function rebuildPlan() {
         continue;
       }
       for (const [a, b] of solid) wallPiece(e.axis, e.line, a, b, 0, H, t, wallMat, true, inSide, paint);
+      if (paint && (ui.view === 'top' || H < 60)) {
+        // en planta (o amb les parets amagades) la paret pintada es marca amb una franja del seu color a tocar de la paret
+        const bw = 12, off = e.line + inSide * (t / 2 + bw / 2), bm = paintTop(paint);
+        for (const [a, b] of solid) {
+          const m = new THREE.Mesh(e.axis === 'x' ? new THREE.BoxGeometry(b - a, 0.6, bw) : new THREE.BoxGeometry(bw, 0.6, b - a), bm);
+          if (e.axis === 'x') m.position.set((a + b) / 2, 0.5, off); else m.position.set(off, 0.5, (a + b) / 2);
+          m.userData.wall = tagEdge;
+          planGroup.add(m);
+        }
+      }
       for (const o of ops) {
         const a = Math.max(o.a, e.a), b = Math.min(o.b, e.b);
         const top = o.type === 'paso' ? 220 : o.type === 'ventanal' ? Math.min(H, 240) : 210;
@@ -911,12 +930,15 @@ function updateItem(it, rebuild = false) {
   updateOverlays();
 }
 
+// Contorn en planta (un sofà en L o en U es dibuixa amb la seva forma, no com un rectangle).
 function footprintLines(it, y, pad = 2) {
-  const cs = corners(it, pad);
   const pts = [];
-  for (let i = 0; i < 4; i++) {
-    const a = cs[i], b = cs[(i + 1) % 4];
-    pts.push(a[0], y, a[1], b[0], y, b[1]);
+  for (const p of parts(it)) {
+    const cs = corners(p, pad);
+    for (let i = 0; i < 4; i++) {
+      const a = cs[i], b = cs[(i + 1) % 4];
+      pts.push(a[0], y, a[1], b[0], y, b[1]);
+    }
   }
   return pts;
 }
@@ -1047,7 +1069,7 @@ function wallDistances(it) {
     if (o === it || o.type === 'alfombra') continue;
     const o0 = o.elev || 0; if (o0 + o.h <= y0 + 0.5 || y1 <= o0 + 0.5) continue;
     if ((it.type === 'silla' && ['mesa', 'escritorio'].includes(o.type)) || (o.type === 'silla' && ['mesa', 'escritorio'].includes(it.type))) continue;
-    obst.push({ box: aabb(o), what: o.name });
+    for (const p of parts(o)) obst.push({ box: aabb(p), what: o.name });
   }
   for (const st of structItems(state.rooms)) if (st.kind === 'pillar' || y1 > st.h0 + 0.5) obst.push({ box: aabb(st), what: st.name });
   const ov = (a0, a1, c0, c1) => Math.min(a1, c1) - Math.max(a0, c0) > 1;
@@ -1379,8 +1401,8 @@ function paintWall(w, hex, all) {
   r.walls ||= {};
   for (const k of keys) { if (hex) r.walls[k] = hex; else delete r.walls[k]; }
   if (!Object.keys(r.walls).length) delete r.walls;
-  save(); rebuildPlan(); renderWallPanel();
-  if (ui.view === 'top' || ui.wallMode !== 'full') toast(hex ? 'Pintada ✓ (es veu millor amb les parets completes o al passeig)' : 'Color tret');
+  save(); rebuildPlan(); renderWallPanel(); requestRender();
+  toast(hex ? 'Pintada ✓' : 'Color tret');
 }
 function renderWallPanel() {
   const el = $('#wallpanel');
@@ -2780,7 +2802,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v35',
+  version: 'v36',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -2846,7 +2868,7 @@ const api = {
 let toastT = 0;
 function toast(msg) {
   const el = document.getElementById('toast'); if (!el) return;
-  el.textContent = msg; el.hidden = false; clearTimeout(toastT);
+  el.textContent = msg; el.hidden = false; clearTimeout(toastT); relayout();
   toastT = setTimeout(() => { el.hidden = true; }, 3500);
 }
 // Aplica els ajustos avançats que no es llegeixen al moment.
@@ -2873,6 +2895,7 @@ document.getElementById('sim-close').addEventListener('click', () => { const m =
 api.dev = initDevCfg(api);
 const assistant = initAssistant(api);
 initColorPicker();
+initLayoutGuard();
 applyPrefs(api);
 initSettings(api);
 applyCfg();
@@ -2886,6 +2909,6 @@ window.planta3d = {
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];
   },
   get state() { return state; }, get conflicts() { return [...(ui.conflicts || new Map())]; }, generateLayouts, addItems, frameCamera, setView, ask: (q) => assistant.ask(q), rAsk: (q) => assistant.rAsk(q), prefs, api, cfgGet, generateProposal, roomKits, walk, minimap, rebuildItems, get tape() { return tape; }, ui,
-  showWall(roomId, key) { let w = null; planGroup.traverse((o) => { const u = o.userData.wall; if (!w && u && u.room.id === roomId && u.key === key) w = u; }); showWallMeasure(w); return !!w; },
+  showWall(roomId, key = 'N') { let w = null; planGroup.traverse((o) => { const u = o.userData.wall; if (!w && u && !u.whole && (!roomId || u.room.id === roomId) && u.key === key) w = u; }); showWallMeasure(w); return !!w; },
   get wallSel() { return ui.wallSel ? { room: ui.wallSel.room.id, key: ui.wallSel.key } : null; },
   camAz() { const c = ui.view === 'top' ? controlsTop : controls3d; const o = c.object.position.clone().sub(c.target); return Math.atan2(o.x, o.z); } };

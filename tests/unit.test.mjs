@@ -9,7 +9,7 @@ import { checkZones } from '../js/zones.js';
 import { fitScale, scaleSvg } from '../js/sheet.js';
 import { generateLayouts } from '../js/layout.js';
 import { evalGoals } from '../js/goals.js';
-import { aabb, overlaps, roomAt } from '../js/geom.js';
+import { aabb, overlaps, roomAt, parts } from '../js/geom.js';
 import { migratePlan } from '../js/state.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -34,6 +34,22 @@ test('geometria: caixa girada i encavalcaments', () => {
   assert.ok(!overlaps(a, { x: 200, z: 0, w: 20, d: 20, rot: 0 }));
   const st = plan(), m = room(st, 'Menjador');
   assert.equal(roomAt(st.rooms, m.x + 10, m.z + 10)?.id, m.id);
+});
+
+test('xocs: una tauleta dins de la U (o de la L) del sofà no hi xoca', () => {
+  for (const rot of [0, 90, 180, 270, 30]) {
+    const a = rot * Math.PI / 180;
+    const sofa = { type: 'sofa', shape: 'U', x: 100, z: 100, w: 300, d: 200, rot, sd: 90, lw: 80 };
+    const dins = { type: 'mesaCentro', x: 100 + 50 * Math.sin(a), z: 100 + 50 * Math.cos(a), w: 100, d: 60, rot };
+    const seient = { ...dins, x: 100 - 60 * Math.sin(a), z: 100 - 60 * Math.cos(a) };
+    assert.equal(parts(sofa).length, 3);
+    assert.ok(!overlaps(sofa, dins, -1), `girat ${rot}: no hauria de xocar`);
+    assert.ok(!overlaps(dins, sofa, -1));
+    assert.ok(overlaps(sofa, seient, -1), `girat ${rot}: damunt del seient sí que xoca`);
+  }
+  const L = { type: 'sofa', shape: 'Le', x: 0, z: 0, w: 260, d: 160, rot: 0, sd: 90, lw: 90 };
+  assert.ok(!overlaps(L, { x: 60, z: 40, w: 80, d: 60, rot: 0 }, -1)); // a la banda sense chaise
+  assert.ok(overlaps(L, { x: -90, z: 40, w: 60, d: 60, rot: 0 }, -1)); // damunt de la chaise
 });
 
 test('fusió: canvis de tots dos dispositius es conserven', () => {
