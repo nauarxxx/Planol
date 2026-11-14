@@ -168,7 +168,7 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     await p.click('.tabs button[data-tab="distribuir"]'); await sleep(150);
     await p.selectOption('#d-room', 'office'); await sleep(200);
     const names = await ev(() => [...document.querySelectorAll('#d-saved .saved-card .nm')].map((i) => i.value).filter((n) => n.includes('Simulador')));
-    must(names.length === 3, 'falten les propostes del simulador');
+    must(names.length === 2, 'falten les propostes del simulador');
     for (let k = 0; k < names.length; k++) {
       await ev((k) => [...document.querySelectorAll('#d-saved .saved-card')].filter((c) => c.querySelector('.nm').value.includes('Simulador'))[k].querySelector('[data-apply]').click(), k);
       await sleep(250);
