@@ -116,7 +116,7 @@ const must = (c, msg) => { if (!c) throw new Error(msg); };
     must(await ev(() => planta3d.state.items.length) === n0 + 1, '＋ no afegeix el moble');
     await p.keyboard.press('Escape'); await sleep(100);
     must(await ev(() => planta3d.ui.view === 'walk' && !planta3d.ui.selected), 'Esc ha de deixar el moble sense sortir del passeig');
-    const w = await ev(() => { const r = planta3d.state.rooms.find((x) => x.id === 'salon'); return planta3d.screenOf(r.x + r.w / 2, r.z + r.d, 150); });
+    const w = await ev(() => { const r = planta3d.state.rooms.find((x) => x.id === 'salon'); return planta3d.screenOf(r.x + 30, r.z + r.d - 5, 150); }); // tros de paret entre la cantonada i el finestral
     await p.mouse.click(w[0], w[1]); await sleep(200);
     must(await p.isVisible('#wallpanel'), 'tocar una paret al passeig no obre el panell');
     await ev(() => { planta3d.setView('3d'); }); await sleep(100);

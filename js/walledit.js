@@ -9,7 +9,7 @@
 // mou (p. ex. el racó al costat del menjador) s'allarguen amb ella.
 // side: +1 = cap a baix / la dreta (Z o X creixent), -1 = cap a dalt / l'esquerra. Mides en cm.
 
-import { openingSegment, aabb, roomAt } from './geom.js?v=46';
+import { openingSegment, aabb, roomAt } from './geom.js?v=47';
 
 const AXIS = { N: 'x', S: 'x', W: 'z', E: 'z' };
 const OPP = { N: 'S', S: 'N', W: 'E', E: 'W' };
@@ -54,6 +54,13 @@ export function wallSegments(rooms, r, key) {
   }
   if (e.b > p + 0.5) segs.push({ a: p, b: e.b, solid: true });
   return segs;
+}
+
+// Mida per dins d'un tros: a les cantonades de l'habitació la paret del costat se'n menja mig gruix (t/2).
+// Les obertures (portes, passos, finestres) es mesuren tal com són.
+export function segCut(seg, e, t) {
+  if (!seg || !seg.solid || !t) return 0;
+  return (Math.abs(seg.a - e.a) <= 1.5 ? t / 2 : 0) + (Math.abs(seg.b - e.b) <= 1.5 ? t / 2 : 0);
 }
 
 function findSeg(segs, w) {
@@ -210,15 +217,19 @@ function bandBlocked(rooms, R, key, lo, hi) {
 
 // Canvia la mida. mode 'piece' (el tros tocat) o 'whole' (la paret sencera).
 // Torna { ok, msg, kind: 'keep'|'grow', total, absorbed, moved, stretched, items, sel: {a, b} }.
+// opts.inner = gruix de paret: les mides que s'escriuen i les que es tornen són per dins (de paret a paret).
 export function editWall(state, w, mode, newLen, side, opts = {}) {
   const R = w.room, key = w.key, u = AXIS[key];
   newLen = Math.round(+newLen);
   if (!Number.isFinite(newLen)) return { ok: false, msg: 'Escriu una mida en centímetres.' };
+  const T = opts.inner || 0, typed = newLen;
   const e = edgeOf(R, key);
   const segs = wallSegments(state.rooms, R, key);
-  const finish = (res, sel) => ({ ok: true, ...res, total: Math.round(wallLen(R, key)), sel });
+  const finish = (res, sel) => ({ ok: true, ...res, total: Math.round(wallLen(R, key) - T), sel });
 
   if (mode === 'whole') {
+    if (typed < 20) return { ok: false, msg: 'La paret ha de fer com a mínim 20 cm.' };
+    newLen += T;
     const delta = newLen - (e.b - e.a);
     if (Math.abs(delta) < 0.5) return { ok: false, same: true };
     if (newLen < 20) return { ok: false, msg: 'La paret ha de fer com a mínim 20 cm.' };
@@ -236,6 +247,7 @@ export function editWall(state, w, mode, newLen, side, opts = {}) {
   const i = findSeg(segs, w);
   if (i < 0) return { ok: false, msg: 'No trobo aquest tros de paret.' };
   const sg = segs[i];
+  newLen += segCut(sg, e, T);
   const len = sg.b - sg.a, delta = newLen - len;
   if (Math.abs(delta) < 0.5) return { ok: false, same: true };
   if (!sg.solid) {
@@ -243,12 +255,12 @@ export function editWall(state, w, mode, newLen, side, opts = {}) {
     if (o.full) {
       // el buit és tota la paret d'una altra habitació (p. ex. el racó): es canvia la paret d'aquella habitació
       const res = editWall(state, { room: o.room, key: o.room.openings[o.idx].wall, a: o.a, b: o.b }, 'whole', wallLen(o.room, o.room.openings[o.idx].wall) + delta, side);
-      if (res.ok) res.total = Math.round(wallLen(R, key));
+      if (res.ok) res.total = Math.round(wallLen(R, key) - T);
       if (res.ok) res.sel = side > 0 ? { a: sg.a, b: sg.b + delta } : { a: sg.a - delta, b: sg.b };
       return res;
     }
     if (newLen < 20) return { ok: false, msg: 'Una obertura ha de fer com a mínim 20 cm.' };
-  } else if (newLen < 1) return { ok: false, msg: 'El tros ha de fer com a mínim 1 cm.' };
+  } else if (typed < 1) return { ok: false, msg: 'El tros ha de fer com a mínim 1 cm.' };
   const sel = side > 0 ? { a: sg.a, b: sg.b + delta } : { a: sg.a - delta, b: sg.b };
 
   // hi ha un tros sòlid per aquell costat? llavors la paret sencera no canvia
@@ -257,7 +269,7 @@ export function editWall(state, w, mode, newLen, side, opts = {}) {
   while (j >= 0 && j < segs.length && !segs[j].solid) { between.push(segs[j]); j += side; }
   if (!opts.grow && j >= 0 && j < segs.length) {
     const abs = segs[j], left = abs.b - abs.a - delta;
-    if (left < 0) return { ok: false, canGrow: true, growTotal: Math.round(e.b - e.a + delta), msg: `No hi cap: el tros del costat només fa ${Math.round(abs.b - abs.a)} cm. Si de debò fa ${newLen}, la paret sencera ha de ser més llarga.` };
+    if (left < 0) return { ok: false, canGrow: true, growTotal: Math.round(e.b - e.a + delta - T), msg: `No hi cap: el tros del costat només fa ${Math.round(abs.b - abs.a - segCut(abs, e, T))} cm. Si de debò fa ${typed}, la paret sencera ha de ser més llarga.` };
     for (const s2 of between) for (const o of s2.ops) {
       if (o.full && !o.own) { // l'obertura és tota una habitació: es mou l'habitació sencera, amb el que té a dins
         const q = o.room, [pu] = P(u), d = side * delta;
@@ -267,7 +279,7 @@ export function editWall(state, w, mode, newLen, side, opts = {}) {
       } else moveOpening(o, side * delta);
     }
     if (!sg.solid) for (const o of sg.ops) growOpening(o, delta, side);
-    return finish({ kind: 'keep', absorbed: Math.round(left), moved: [], stretched: [], items: 0 }, sel);
+    return finish({ kind: 'keep', absorbed: Math.round(left - segCut(abs, e, T)), moved: [], stretched: [], items: 0 }, sel);
   }
 
   // no n'hi ha: s'arriba a la cantonada i l'habitació creix

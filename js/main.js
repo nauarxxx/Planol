@@ -1,29 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { DEFAULT_PLAN } from './plan.js?v=46';
-import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=46';
-import { generateLayouts, generateLayoutsAsync } from './layout.js?v=46';
-import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=46';
-import { mergeStates } from './merge.js?v=46';
-import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=46';
-import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=46';
-import { initAssistant } from './assistant.js?v=46';
-import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=46';
-import { initMeasure } from './measure.js?v=46';
-import { initColorPicker } from './colorpicker.js?v=46';
-import { initPhotoAdd } from './photo.js?v=46';
-import { initTape } from './tape.js?v=46';
-import { checkZones } from './zones.js?v=46';
-import { fitCheck } from './fit.js?v=46';
-import { initShop, STATUS, statusOf } from './shop.js?v=46';
-import { GOALS, GOAL_DEFAULT } from './goals.js?v=46';
-import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=46';
-import { drawPreview as drawRoomPreview } from './preview.js?v=46';
-import { arSupported, startAR as startARView } from './ar.js?v=46';
-import { initLayoutGuard, relayout } from './layoutguard.js?v=46';
-import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=46';
-import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=46';
-import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=46';
+import { DEFAULT_PLAN } from './plan.js?v=47';
+import { CATALOG, SHAPES, SHAPE_SIZES, hasWing, shapeParams, buildFurniture, newItem, onPhotoLoaded } from './furniture.js?v=47';
+import { generateLayouts, generateLayoutsAsync } from './layout.js?v=47';
+import { cloudEnabled, initCloud, signIn, signOutUser, saveRemote, loadRemote, setSaveDelay, currentUserEmail, currentUser, backupList, backupSave, backupLoad, backupDelete } from './cloud.js?v=47';
+import { mergeStates } from './merge.js?v=47';
+import { prefs, applyPrefs, initSettings, savePrefs } from './settings.js?v=47';
+import { CFGD, CFGR, cfgClean, initDevCfg } from './devcfg.js?v=47';
+import { initAssistant } from './assistant.js?v=47';
+import { drawPlan, printSheet, printScale, fitScale } from './sheet.js?v=47';
+import { initMeasure } from './measure.js?v=47';
+import { initColorPicker } from './colorpicker.js?v=47';
+import { initPhotoAdd } from './photo.js?v=47';
+import { initTape } from './tape.js?v=47';
+import { checkZones } from './zones.js?v=47';
+import { fitCheck } from './fit.js?v=47';
+import { initShop, STATUS, statusOf } from './shop.js?v=47';
+import { GOALS, GOAL_DEFAULT } from './goals.js?v=47';
+import { STORE_KEY, clone, loadState, migratePlan } from './state.js?v=47';
+import { drawPreview as drawRoomPreview } from './preview.js?v=47';
+import { arSupported, startAR as startARView } from './ar.js?v=47';
+import { initLayoutGuard, relayout } from './layoutguard.js?v=47';
+import { editWall, edgeOf, wallSegments, sideInfo, defaultSide } from './walledit.js?v=47';
+import { initLog, logHtml, itemSocialHtml, bindItemSocial, saveProposal, savedHtml, bindSaved } from './social.js?v=47';
+import { corners, aabb, overlaps, parts, innerRect, outsideAmount, roomAt, allOpenings, allSwings, boxHitsSwing, doorFrame, doorKind, doorFace, doorSymbols, doorSwings, DOOR_KINDS, slideFits, structItems, DEG } from './geom.js?v=47';
 
 // ---------------------------------------------------------------- estado
 let state = migratePlan(loadState());
@@ -886,7 +886,7 @@ function rebuildPlan() {
       for (const [a, b] of freeOfWalls('z', r.x + r.w, r.z + r.d - r.d2, r.z + r.d, r)) rail(r.x + r.w, a, r.x + r.w, b);
       for (const [a, b] of freeOfWalls('x', r.z + r.d, r.x, r.x + r.w, r)) rail(a, r.z + r.d, b, r.z + r.d);
       if (ui.labels) {
-        const l = makeLabel([r.name, `${fmtLen(r.w, 0)} × ${fmtLen(r.d, 0)} / ${fmtLen(r.d2, 1)}`, 'vora en diagonal'], r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.8, r.d * 0.6);
+        const l = makeLabel([r.name, `${fmtLen(r.w - t, 0)} × ${fmtLen(r.d - t, 0)} / ${fmtLen(r.d2, 1)}`, 'vora en diagonal'], r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.8, r.d * 0.6);
         l.position.set(r.x + r.w * 0.45, 0.6, r.z + r.d * 0.6);
         planGroup.add(l);
       }
@@ -972,7 +972,7 @@ function rebuildPlan() {
     (r.openings || []).forEach((op, idx) => { if (op.type === 'puerta') buildDoor(r, op, idx, H); });
 
     if (ui.labels) {
-      const lines = [r.name, `${fmtLen(r.w, 0)} × ${fmtLen(r.d, 1)}`];
+      const lines = [r.name, `${fmtLen(r.w - t, 0)} × ${fmtLen(r.d - t, 1)}`]; // per dins, de paret a paret
       if (r.estimated) lines.push('mides estimades');
       const l = makeLabel(lines, r.estimated ? '#9a5d10' : '#2b2926', 'rgba(255,255,255,0.82)', r.w * 0.85, r.d * 0.6);
       l.position.set(r.x + r.w / 2, 0.6, r.z + r.d / 2);
@@ -1475,18 +1475,27 @@ function clearWallMeasure() {
   for (const o of wallMeasureGroup.children) { o.geometry?.dispose(); if (o.material && o.material !== wmLineMat) { o.material.map?.dispose(); o.material.dispose(); } }
   wallMeasureGroup.clear(); wallSprite = null;
 }
+// Mides de paret per dins (de paret a paret, com amb una cinta): el plànol va fins al mig de les parets,
+// així que a cada cantonada de l'habitació se'n treu mig gruix. Les obertures es mesuren tal com són.
+const wallT = () => state.wallThickness || 10;
+function pieceIn(w, a = w.a, b = w.b) {
+  if (w.over || w.edgeA === undefined) return Math.round(b - a);
+  const t = wallT();
+  return Math.round(b - a - (Math.abs(a - w.edgeA) <= 1.5 ? t / 2 : 0) - (Math.abs(b - w.edgeB) <= 1.5 ? t / 2 : 0));
+}
+const wholeIn = (w) => Math.round((w.edgeB ?? w.b) - (w.edgeA ?? w.a) - (w.edgeA === undefined ? 0 : wallT()));
 function drawWallMeasure() {
   clearWallMeasure();
   const w = ui.wallSel;
   if (!w || !state.rooms.includes(w.room)) { ui.wallSel = null; return; }
-  const len = Math.round(w.b - w.a), H = state.ceiling || 250, t = state.wallThickness || 10;
+  const len = pieceIn(w), H = state.ceiling || 250, t = state.wallThickness || 10;
   const ops = allOpenings(state.rooms).filter((o) => o.axis === w.axis && Math.abs(o.line - w.line) <= 1 && o.b > w.a && o.a < w.b);
   const OPN = { puerta: 'porta', paso: 'pas', ventanal: 'finestral', ventana: 'finestra' };
   const lines = [fmtLen(len, 1), `${w.room.name} · ${fmtLen(H, 1)} d’alt`];
-  const whole = w.edgeB !== undefined ? Math.round(w.edgeB - w.edgeA) : null;
+  const whole = w.edgeB !== undefined ? wholeIn(w) : null;
   if (w.over) lines[0] = `${OPN[w.over] || w.over} de ${fmtLen(len, 1)}`; // s'ha tocat la paret de damunt d'una porta o d'una finestra
-  else if (whole && whole - len > 1) lines.push(`tros de la paret ${WALL_TXT[w.key] || ''} (sencera: ${fmtLen(whole, 1)})`);
-  if (ops.length && !w.over && !(whole && whole - len > 1)) lines.push(ops.map((o) => `${OPN[o.type] || o.type} de ${fmtLen(Math.round(Math.min(o.b, w.b) - Math.max(o.a, w.a)), 1)}`).join(' · '));
+  else if (!wallSingle(w)) lines.push(`tros de la paret ${WALL_TXT[w.key] || ''} (sencera: ${fmtLen(whole, 1)})`);
+  if (ops.length && !w.over && wallSingle(w)) lines.push(ops.map((o) => `${OPN[o.type] || o.type} de ${fmtLen(Math.round(Math.min(o.b, w.b) - Math.max(o.a, w.a)), 1)}`).join(' · '));
   // costat des d'on es mira: el de la càmera (en planta, el de dins de l'habitació)
   const camPos = camera.position;
   let side = w.inSide || 1;
@@ -1495,8 +1504,11 @@ function drawWallMeasure() {
   const y = ui.view === 'top' ? Hn + 2 : Math.max(25, Math.min(Hn - 15, ui.view === 'walk' ? 140 : Hn * 0.55));
   const P = (u, yy) => (w.axis === 'x' ? [u, yy, w.line + side * off] : [w.line + side * off, yy, u]);
   const tick = ui.view === 'top' ? 0 : 18;
-  const pts = [...P(w.a, y), ...P(w.b, y)];
-  for (const u of [w.a, w.b]) { if (tick) pts.push(...P(u, y - tick), ...P(u, y + tick)); else { const q = w.axis === 'x' ? [[u, y, w.line + side * (off - 8)], [u, y, w.line + side * (off + 8)]] : [[w.line + side * (off - 8), y, u], [w.line + side * (off + 8), y, u]]; pts.push(...q[0], ...q[1]); } }
+  // la cota va de cara a cara de les parets (per dins), igual que el número
+  const ua = w.over || w.edgeA === undefined || Math.abs(w.a - w.edgeA) > 1.5 ? w.a : w.a + t / 2;
+  const ub = w.over || w.edgeB === undefined || Math.abs(w.b - w.edgeB) > 1.5 ? w.b : w.b - t / 2;
+  const pts = [...P(ua, y), ...P(ub, y)];
+  for (const u of [ua, ub]) { if (tick) pts.push(...P(u, y - tick), ...P(u, y + tick)); else { const q = w.axis === 'x' ? [[u, y, w.line + side * (off - 8)], [u, y, w.line + side * (off + 8)]] : [[w.line + side * (off - 8), y, u], [w.line + side * (off + 8), y, u]]; pts.push(...q[0], ...q[1]); } }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   const ln = new THREE.LineSegments(geo, wmLineMat); ln.renderOrder = 9; wallMeasureGroup.add(ln);
   const { tex, aspect } = wallLabelTexture(lines);
@@ -1557,7 +1569,7 @@ function renderWallPanel() {
   el.hidden = false;
   el.innerHTML = `
     <h3><span class="sw" style="width:14px;height:14px;border-radius:3px;background:${esc(cur || '#f3f1ec')}"></span>${w.whole ? esc(w.room.name) : `Paret ${WALL_TXT[w.key] || ''} · ${esc(w.room.name)}`}<button class="close" id="wp-close" title="Tanca">×</button></h3>
-    <div class="dist">${w.over ? 'Damunt d’un buit de ' : 'Aquest tros: '}<b>${fmtLen(Math.round(w.b - w.a), 1)}</b> de llarg · ${fmtLen(state.ceiling || 250, 1)} d’alt${w.edgeB !== undefined && Math.round(w.edgeB - w.edgeA) - Math.round(w.b - w.a) > 1 ? ` · paret sencera ${fmtLen(Math.round(w.edgeB - w.edgeA), 1)}` : ''}</div>
+    <div class="dist">${w.over ? 'Damunt d’un buit de ' : 'Aquest tros: '}<b>${fmtLen(pieceIn(w), 1)}</b> de llarg · ${fmtLen(state.ceiling || 250, 1)} d’alt${w.edgeB !== undefined && !wallSingle(w) ? ` · paret sencera ${fmtLen(wholeIn(w), 1)}` : ''} <small class="muted">(per dins)</small></div>
     ${w.over === 'puerta' ? '<div class="btns wp-door"><button type="button" class="btn small" id="wp-door">🚪 Tipus i sentit de la porta</button></div>' : ''}
     ${wallSizeHtml(w)}
     <h4 class="wp-sub">🎨 Color</h4>
@@ -1695,8 +1707,8 @@ function wallSideHtml(w) {
 function wallSizeHtml(w) {
   const r = w.room;
   if (w.whole || (r.kind === 'terrace' && r.d2 > 0 && r.d2 < r.d)) return '';
-  const len = Math.round(w.b - w.a), whole = Math.round((w.edgeB ?? w.b) - (w.edgeA ?? w.a)), single = wallSingle(w);
-  return `<h4 class="wp-sub">📏 Mida</h4>
+  const len = pieceIn(w), whole = wholeIn(w), single = wallSingle(w);
+  return `<h4 class="wp-sub">📏 Mida <small>per dins, de paret a paret</small></h4>
     <div class="wsize">
       <div class="row ${single ? '' : 'c2'}">
         ${single ? '' : `<label>${w.over ? 'Aquest buit' : 'Aquest tros'} (cm)<input type="number" id="wp-len" inputmode="numeric" min="1" step="1" value="${len}" /></label>`}
@@ -1744,8 +1756,8 @@ function applyWallSize(opts = {}) {
   const mode = ws.mode, inp = $(mode === 'piece' ? '#wp-len' : '#wp-whole');
   if (!inp) return;
   const before = JSON.stringify(state);
-  const totalBefore = Math.round((w.edgeB ?? w.b) - (w.edgeA ?? w.a));
-  const res = editWall(state, w, mode, inp.value, ws.side[mode], opts);
+  const totalBefore = wholeIn(w);
+  const res = editWall(state, w, mode, inp.value, ws.side[mode], { ...opts, inner: wallT() });
   const gr = $('#wp-grow');
   if (!res.ok) {
     if (res.same) return;
@@ -1769,7 +1781,7 @@ function applyWallSize(opts = {}) {
   renderWallPanel();
   const L = (v) => fmtLen(v, 1);
   let msg;
-  if (res.kind === 'keep') msg = `Fet ✓ Aquest tros fa ${L(Math.round(nw.b - nw.a))}. La paret sencera continua fent ${L(res.total)} i el tros del costat ara en fa ${L(res.absorbed)}.`;
+  if (res.kind === 'keep') msg = `Fet ✓ Aquest tros fa ${L(pieceIn(nw))}. La paret sencera continua fent ${L(res.total)} i el tros del costat ara en fa ${L(res.absorbed)}.`;
   else {
     const grow = res.total >= totalBefore;
     msg = `Fet ✓ La paret sencera ara fa ${L(res.total)} (abans ${L(totalBefore)}).`;
@@ -2891,9 +2903,11 @@ function renderPlano() {
     save(); rebuildPlan(); renderAll();
   });
   const wrapR = $('#rooms');
+  // habitacions i terrasses: amplada i fons per dins, de paret a paret (el rectangle del plànol va fins al mig de les parets)
+  const inT = (r) => (r.kind === 'room' || r.kind === 'terrace' ? (state.wallThickness || 10) : 0);
   wrapR.innerHTML = state.rooms.map((r) => `
     <details class="room-card ${r.estimated ? 'est' : ''}" data-id="${r.id}" ${ui.addRoom === r.id ? 'open' : ''}>
-      <summary><span class="sw" style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${esc(r.color)}"></span>${esc(r.name)} ${r.estimated ? '<span class="badge">estimada</span>' : ''}<span class="dm">${r.w} × ${r.d}</span></summary>
+      <summary><span class="sw" style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${esc(r.color)}"></span>${esc(r.name)} ${r.estimated ? '<span class="badge">estimada</span>' : ''}<span class="dm">${r.w - inT(r)} × ${r.d - inT(r)}</span></summary>
       <div style="margin-top:10px">
         <div class="row c2">
           <label>Nom<input type="text" data-k="name" value="${esc(r.name)}" /></label>
@@ -2906,8 +2920,8 @@ function renderPlano() {
           </select></label>
         </div>
         <div class="row c4">
-          <label>Amplada<input type="number" data-k="w" min="20" value="${r.w}" /></label>
-          <label>Fons<input type="number" data-k="d" min="20" value="${r.d}" /></label>
+          <label ${inT(r) ? 'title="Per dins, de paret a paret"' : ''}>Amplada${inT(r) ? ' <small>per dins</small>' : ''}<input type="number" data-k="w" min="20" value="${r.w - inT(r)}" /></label>
+          <label ${inT(r) ? 'title="Per dins, de paret a paret"' : ''}>Fons${inT(r) ? ' <small>per dins</small>' : ''}<input type="number" data-k="d" min="20" value="${r.d - inT(r)}" /></label>
           ${r.kind === 'terrace' ? `<label title="Fons a l’extrem dret si la vora exterior va en diagonal (0 = recta)">Fons dreta<input type="number" data-k="d2" min="0" value="${r.d2 || 0}" /></label>` : ''}
           ${r.kind === 'beam' ? `<label title="Alçada de la part de sota de la biga">Alçada de sota<input type="number" data-k="h0" min="100" value="${r.h0 || 210}" /></label>` : ''}
           <label>X<input type="number" data-k="x" value="${r.x}" /></label>
@@ -2952,7 +2966,7 @@ function renderPlano() {
       if (k === 'estimated') r.estimated = inp.checked;
       else if (k === 'floor') { if (inp.value) r.floor = inp.value; else delete r.floor; }
       else if (['w', 'd', 'd2', 'x', 'z'].includes(k)) {
-        r[k] = +inp.value || 0;
+        r[k] = (+inp.value || 0) + (k === 'w' || k === 'd' ? inT(r) : 0);
         state.roomsEdited = true;
         if (k === 'w' || k === 'd') r.estimated = card.querySelector('[data-k=estimated]').checked;
       } else r[k] = inp.value;
@@ -3280,7 +3294,7 @@ updateInstallUI();
 
 // ---------------------------------------------------------------- configuració i assistent
 const api = {
-  version: 'v46',
+  version: 'v47',
   get standalone() { return isStandalone(); },
   rooms: () => state.rooms,
   items: () => state.items,
@@ -3314,7 +3328,7 @@ const api = {
   cfgGet,
   setCfg: (obj) => { commit(); const c = cfgClean(obj); if (Object.keys(c).length) state.cfg = c; else delete state.cfg; save(); applyCfg(); },
   replaceState: (s) => { commit(); state = migratePlan(s); afterStateReplace(); applyCfg(); frameCamera(); },
-  remigrate: () => { commit(); state.version = 0; delete state.removedFixed; state = migratePlan(state); afterStateReplace(); },
+  remigrate: () => { commit(); state.version = 0; delete state.removedFixed; state = migratePlan(state, { reset: true }); afterStateReplace(); },
   save: () => save(true),
   log: () => logBuf,
   toast: (m) => toast(m),

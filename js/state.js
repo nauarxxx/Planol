@@ -1,6 +1,6 @@
 // Estat desat: càrrega des del dispositiu i actualització quan el plànol per defecte és més nou.
-import { DEFAULT_PLAN } from './plan.js?v=46';
-import { roomAt } from './geom.js?v=46';
+import { DEFAULT_PLAN } from './plan.js?v=47';
+import { roomAt } from './geom.js?v=47';
 
 export const STORE_KEY = 'planta3d-v1';
 export const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -18,10 +18,65 @@ export function loadState() {
 
 // Si el plano por defecto es más nuevo que el guardado, se actualizan las habitaciones
 // y se conservan los muebles (se reasignan a la habitación donde caen).
-export function migratePlan(s) {
+// v28: les mides de la persona són per dins (de paret a paret). Fins a la v27 eren fins al mig de la paret,
+// així que cada habitació mesurada creix el gruix d'una paret (10) i les que hi ha darrere es desplacen.
+// Rectangles de la v27 (fins al mig de les parets), per saber a quina paret era a prop cada moble.
+const V27 = {
+  'terraza-cocina': [0, 0, 335, 120], cocina: [0, 120, 270, 260], salon: [0, 380, 270, 530], raco: [270, 786, 50, 124],
+  'pilar-mirall': [285, 786, 35, 40], 'biga-raco': [270, 786, 50, 124], terraza: [0, 910, 268, 130], bano: [705, 495, 190, 190],
+  bano2: [895, 650, 107, 145], distribuidor: [270, 685, 625, 100], office: [320, 785, 205, 275], 'armario-dorm': [525, 785, 60, 195],
+  'armario-office': [525, 980, 60, 80], dormitorio: [585, 785, 310, 310],
+};
+// línies de paret de la v27 que es desplacen: tot el que hi ha a partir de cadascuna es mou 10 més enllà
+const X28 = [270, 525, 585, 895, 1002];
+export const shiftX28 = (v) => v + 10 * X28.filter((l) => l <= v + 0.5).length;
+export const shiftZ28 = (v) => v + (v >= 1039.5 ? 10 : 0);
+const rectOf = (r) => (Array.isArray(r) ? { x: r[0], z: r[1], w: r[2], d: r[3] } : r);
+const inR = (r, x, z) => x >= r.x - 0.5 && x <= r.x + r.w + 0.5 && z >= r.z - 0.5 && z <= r.z + r.d + 0.5;
+// mou un punt (moble) amb la paret de la seva habitació que té més a prop, perquè no quedi separat ni ficat a la paret
+function movePoint28(p, olds, news) {
+  let id = p.roomId && olds[p.roomId] && inR(rectOf(olds[p.roomId]), p.x, p.z) ? p.roomId : null;
+  if (!id) id = Object.keys(olds).find((k) => news[k] && inR(rectOf(olds[k]), p.x, p.z) && !/pilar|biga/.test(k)) || null;
+  if (!id || !news[id]) { p.x = shiftX28(p.x); p.z = shiftZ28(p.z); return; }
+  const a = rectOf(olds[id]); const b = rectOf(news[id]);
+  p.x += (p.x - a.x <= a.x + a.w - p.x) ? b.x - a.x : (b.x + b.w) - (a.x + a.w);
+  p.z += (p.z - a.z <= a.z + a.d - p.z) ? b.z - a.z : (b.z + b.d) - (a.z + a.d);
+}
+function toInner28(s, fresh) {
+  const oldRects = {};
+  if (s.roomsEdited && Array.isArray(s.rooms)) for (const r of s.rooms) oldRects[r.id] = { x: r.x, z: r.z, w: r.w, d: r.d };
+  else Object.assign(oldRects, V27);
+  const freshBy = Object.fromEntries(fresh.rooms.map((r) => [r.id, r]));
+  if (s.roomsEdited && Array.isArray(s.rooms)) {
+    // habitacions que l'usuari ha editat: s'eixamplen igual que les del plànol (les que no ha tocat prenen les noves)
+    for (const r of s.rooms) {
+      const v = V27[r.id]; const f = freshBy[r.id];
+      if (v && f && r.x === v[0] && r.z === v[1] && r.w === v[2] && r.d === v[3]) {
+        Object.assign(r, { x: f.x, z: f.z, w: f.w, d: f.d });
+        const same = (r.openings || []).length === (f.openings || []).length && (r.openings || []).every((o, k) => o.wall === f.openings[k].wall && o.type === f.openings[k].type);
+        if (same) r.openings.forEach((o, k) => { o.offset = f.openings[k].offset; });
+        continue;
+      }
+      const x0 = shiftX28(r.x); const x1 = shiftX28(r.x + r.w); const z0 = shiftZ28(r.z); const z1 = shiftZ28(r.z + r.d);
+      for (const o of r.openings || []) {
+        if (o.wall === 'N' || o.wall === 'S') o.offset = Math.max(0, shiftX28(r.x + o.offset) - x0);
+        else o.offset = Math.max(0, shiftZ28(r.z + o.offset) - z0);
+      }
+      Object.assign(r, { x: x0, z: z0, w: x1 - x0, d: z1 - z0 });
+    }
+  }
+  const newRects = {};
+  for (const r of (s.roomsEdited && Array.isArray(s.rooms) ? s.rooms : fresh.rooms)) newRects[r.id] = { x: r.x, z: r.z, w: r.w, d: r.d };
+  for (const it of s.items || []) movePoint28(it, oldRects, newRects);
+  for (const sc of s.scenes || []) for (const it of sc.items || []) movePoint28(it, oldRects, newRects);
+}
+
+// opts.reset: torna a posar el plànol per defecte (eina de desenvolupador) sense moure els mobles com si vinguessin d'una versió antiga
+export function migratePlan(s, opts = {}) {
   if (!s || (s.version || 1) >= DEFAULT_PLAN.version) return s;
   const fresh = clone(DEFAULT_PLAN);
-  const from = s.version || 1;
+  const from = opts.reset ? DEFAULT_PLAN.version : (s.version || 1);
+  if (opts.reset) delete s.roomsEdited;
   // v26 corregeix la paret de la porta d'entrada i baixa 90 el passadís i les habitacions: és una correcció de la persona,
   // per tant passa per davant de les mides que s'haguessin editat abans (els colors de les parets es conserven)
   if (from < 26) {
@@ -30,6 +85,7 @@ export function migratePlan(s) {
     // (la taula, les cadires i la tele, a prop de la cuina i de la porta, es queden on són)
     for (const it of s.items || []) if (it.z > 380 && !(it.x < 270 && it.z < 640)) it.z += 90;
   }
+  if (from < 28) toInner28(s, fresh);
   if (s.roomsEdited && Array.isArray(s.rooms) && s.rooms.length) {
     // l'usuari ha canviat mides de parets o d'habitacions: es conserven i només s'hi afegeixen les habitacions noves
     const have = new Set(s.rooms.map((r) => r.id));

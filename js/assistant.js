@@ -5,10 +5,10 @@
 //  - «treu la taula», «mou el sofà al dormitori», «què hi ha al dormitori?», «desfés»…
 // No fa servir cap servei extern: tot passa al navegador.
 
-import { CATALOG } from './furniture.js?v=46';
-import { innerRect, overlaps, aabb } from './geom.js?v=46';
-import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=46';
-import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=46';
+import { CATALOG } from './furniture.js?v=47';
+import { innerRect, overlaps, aabb } from './geom.js?v=47';
+import { prefs, savePrefs, applyPrefs, PREFS_DEFAULT } from './settings.js?v=47';
+import { CFGD, CFGR, CFG_LABEL, cfgClean, bkWhen } from './devcfg.js?v=47';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/·/g, '').replace(/[’'`´]/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -662,7 +662,7 @@ Les mides van en cm (o en metres si són petites, com 2x1).`;
       const r = room || api.currentRoom();
       if (!r) { bot(`${prefix}Quina habitació?`); return; }
       const R = innerRect(r, api.wallThickness());
-      bot(`${prefix}${fmtRoom(r)} fa ${r.w}×${r.d} cm (${(r.w * r.d / 10000).toFixed(1)} m²)${r.estimated ? ', mides estimades' : ''}; l’interior útil és de ${Math.round(R.x1 - R.x0)}×${Math.round(R.z1 - R.z0)} cm.`);
+      bot(`${prefix}${fmtRoom(r)} fa ${Math.round(R.x1 - R.x0)}×${Math.round(R.z1 - R.z0)} cm per dins, de paret a paret (${((R.x1 - R.x0) * (R.z1 - R.z0) / 10000).toFixed(1)} m²)${r.estimated ? ', mides estimades' : ''}.`);
       api.frame(r);
       return;
     }
