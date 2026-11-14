@@ -1,6 +1,6 @@
 // Plànol en 2D sobre un canvas (per comparar escenes i per imprimir / desar en PDF), amb cotes.
-import { corners, allOpenings, allSwings, swingArc, DEG } from './geom.js?v=34';
-import { CATALOG } from './furniture.js?v=34';
+import { corners, allOpenings, allSwings, swingArc, DEG } from './geom.js?v=35';
+import { CATALOG } from './furniture.js?v=35';
 
 // Dibuixa el plànol complet. opts: { items, cotes, labels, furnitureDims, pad, bg, highlight }
 export function drawPlan(cv, st, opts = {}) {
@@ -145,4 +145,110 @@ export function printSheet(st, opts = {}) {
   const done = () => { document.body.classList.remove('printing'); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   setTimeout(() => { try { window.print(); } catch (e) { done(); } setTimeout(done, 60000); }, 150);
+}
+
+// ---------------------------------------------------------------- plànol a escala (1:50, 1:75, 1:100) per imprimir
+// Fa un SVG amb mides reals en mil·límetres: a 1:50, 1 m del pis = 2 cm al paper. Porta un regle per comprovar-ho.
+const PAPER = { A4: [297, 210], A3: [420, 297] };
+const MARGIN = 10, TITLE_H = 16;
+function bounds(st, roomId) {
+  const rs = roomId ? st.rooms.filter((r) => r.id === roomId) : st.rooms;
+  return { x0: Math.min(...rs.map((r) => r.x)), x1: Math.max(...rs.map((r) => r.x + r.w)), z0: Math.min(...rs.map((r) => r.z)), z1: Math.max(...rs.map((r) => r.z + r.d)) };
+}
+// Escala més gran (més detall) que hi cap al paper triat; torna també l'orientació.
+export function fitScale(st, paper = 'A4', roomId = null) {
+  const b = bounds(st, roomId), W = b.x1 - b.x0 + 120, D = b.z1 - b.z0 + 120; // marge per a les cotes
+  for (const k of [20, 25, 50, 75, 100, 150, 200]) {
+    for (const land of [true, false]) {
+      const [pw, ph] = land ? PAPER[paper] : [...PAPER[paper]].reverse();
+      if (W * 10 / k <= pw - 2 * MARGIN && D * 10 / k <= ph - 2 * MARGIN - TITLE_H) return { scale: k, landscape: land };
+    }
+  }
+  return { scale: 200, landscape: true };
+}
+export function scaleSvg(st, { scale = 50, paper = 'A4', landscape = true, roomId = null, items = true } = {}) {
+  const b = bounds(st, roomId), pad = 60;
+  const x0 = b.x0 - pad, z0 = b.z0 - pad, W = b.x1 - b.x0 + 2 * pad, D = b.z1 - b.z0 + 2 * pad;
+  const mm = (cm) => (cm * 10 / scale).toFixed(2);
+  const fs = (pt) => (pt * 0.3528 * scale / 10).toFixed(1); // mida de lletra en cm reals per a «pt» punts al paper
+  const t = st.wallThickness || 10, out = [];
+  const rooms = st.rooms.filter((r) => !roomId || r.id === roomId || (r.kind === 'pillar' || r.kind === 'beam'));
+  const inView = (r) => r.x < b.x1 + pad && r.x + r.w > b.x0 - pad && r.z < b.z1 + pad && r.z + r.d > b.z0 - pad;
+  for (const r of rooms.filter(inView)) {
+    if (r.kind === 'pillar') { out.push(`<rect x="${r.x}" y="${r.z}" width="${r.w}" height="${r.d}" fill="#2b2926"/>`); continue; }
+    if (r.kind === 'beam') { out.push(`<rect x="${r.x}" y="${r.z}" width="${r.w}" height="${r.d}" fill="none" stroke="#2b2926" stroke-width="1.5" stroke-dasharray="8 6"/>`); continue; }
+    if (r.kind === 'void') { out.push(`<rect x="${r.x}" y="${r.z}" width="${r.w}" height="${r.d}" fill="#c8c8c8"/>`); continue; }
+    const terr = r.kind === 'terrace';
+    const shape = terr && r.d2 > 0 && r.d2 < r.d ? `<polygon points="${r.x},${r.z} ${r.x + r.w},${r.z + r.d - r.d2} ${r.x + r.w},${r.z + r.d} ${r.x},${r.z + r.d}"` : `<rect x="${r.x}" y="${r.z}" width="${r.w}" height="${r.d}"`;
+    out.push(`${shape} fill="${terr ? '#f4e6dc' : '#f7f4ee'}" stroke="#2b2926" stroke-width="${terr ? 1.5 : t}" ${terr ? 'stroke-dasharray="10 6"' : ''}/>`);
+  }
+  for (const o of allOpenings(st.rooms)) {
+    const win = o.type === 'ventana' || o.type === 'ventanal';
+    const [ax, az, bx, bz] = o.axis === 'x' ? [o.a, o.line, o.b, o.line] : [o.line, o.a, o.line, o.b];
+    if (!(Math.max(ax, bx) > b.x0 - pad && Math.min(ax, bx) < b.x1 + pad && Math.max(az, bz) > b.z0 - pad && Math.min(az, bz) < b.z1 + pad)) continue;
+    out.push(`<line x1="${ax}" y1="${az}" x2="${bx}" y2="${bz}" stroke="${win ? '#cfe6f5' : '#ffffff'}" stroke-width="${t + 1.5}"/>`);
+    if (win) out.push(`<line x1="${ax}" y1="${az}" x2="${bx}" y2="${bz}" stroke="#2b2926" stroke-width="1"/>`);
+  }
+  for (const sw of allSwings(st.rooms)) {
+    const arc = swingArc(sw, 16);
+    out.push(`<path d="M${sw.hx},${sw.hz} ${arc.map(([x, z]) => `L${x.toFixed(1)},${z.toFixed(1)}`).join(' ')} Z" fill="none" stroke="#6b5234" stroke-width="0.8"/>`);
+  }
+  if (items) {
+    const its = [...st.items].filter((i) => !roomId || i.roomId === roomId).sort((a, c) => (a.type === 'alfombra' ? -1 : 0) - (c.type === 'alfombra' ? -1 : 0) || (a.elev || 0) - (c.elev || 0));
+    for (const it of its) {
+      const cs = corners(it);
+      out.push(`<polygon points="${cs.map(([x, z]) => `${x.toFixed(1)},${z.toFixed(1)}`).join(' ')}" fill="${esc(it.color || '#999')}" fill-opacity="${it.type === 'alfombra' ? 0.25 : 0.35}" stroke="#222" stroke-width="0.8" ${(it.elev || 0) >= 100 ? 'stroke-dasharray="4 3"' : ''}/>`);
+      const f = { x: Math.sin((it.rot || 0) * DEG), z: Math.cos((it.rot || 0) * DEG) };
+      out.push(`<line x1="${it.x}" y1="${it.z}" x2="${(it.x + f.x * it.d / 2).toFixed(1)}" y2="${(it.z + f.z * it.d / 2).toFixed(1)}" stroke="#d9864d" stroke-width="1"/>`);
+      const big = Math.max(it.w, it.d), small = Math.min(it.w, it.d), fsz = +fs(6);
+      if (big > fsz * 4 && small > fsz * 1.6) {
+        const rot = it.d > it.w * 1.3 ? ((it.rot || 0) % 180 === 0 ? -90 : 0) : ((it.rot || 0) % 180 === 0 ? 0 : -90);
+        out.push(`<g transform="translate(${it.x},${it.z}) rotate(${rot})" font-size="${fsz}" text-anchor="middle"><text y="${-fsz * 0.15}" font-weight="600">${esc(it.name)}</text><text y="${fsz * 1.05}">${it.w}×${it.d}×${it.h}</text></g>`);
+      }
+    }
+  }
+  // noms, superfície i cotes de les habitacions
+  const f9 = fs(9), f7 = fs(7);
+  for (const r of rooms.filter(inView)) {
+    if (['void', 'pillar', 'beam'].includes(r.kind)) continue;
+    out.push(`<g text-anchor="middle"><text x="${r.x + r.w / 2}" y="${r.z + 14 + +f9}" font-size="${f9}" font-weight="700">${esc(r.name)}</text><text x="${r.x + r.w / 2}" y="${r.z + 16 + 2 * +f9}" font-size="${f7}" fill="#555">${r.w} × ${r.d} cm · ${(r.w * r.d / 10000).toFixed(2)} m²</text></g>`);
+  }
+  const dim = (ax, az, bx, bz, label, nx, nz) => {
+    const off = 22, tk = 6, x1 = ax + nx * off, y1 = az + nz * off, x2 = bx + nx * off, y2 = bz + nz * off;
+    const vert = ax === bx;
+    return `<g stroke="#1e66b0" stroke-width="0.8"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><line x1="${x1 - nz * tk}" y1="${y1 - nx * tk}" x2="${x1 + nz * tk}" y2="${y1 + nx * tk}"/><line x1="${x2 - nz * tk}" y1="${y2 - nx * tk}" x2="${x2 + nz * tk}" y2="${y2 + nx * tk}"/></g><text font-size="${f7}" fill="#1e66b0" text-anchor="middle" transform="translate(${(x1 + x2) / 2 + nx * 6},${(y1 + y2) / 2 + nz * 6}) ${vert ? 'rotate(-90)' : ''}">${label}</text>`;
+  };
+  const done = new Set();
+  for (const r of rooms.filter(inView)) {
+    if (['void', 'pillar', 'beam'].includes(r.kind)) continue;
+    const kw = `w${r.x},${r.z},${r.w}`, kd = `d${r.x},${r.z},${r.d}`;
+    if (!done.has(kw)) { done.add(kw); out.push(dim(r.x, r.z, r.x + r.w, r.z, r.w, 0, -1)); }
+    if (!done.has(kd)) { done.add(kd); out.push(dim(r.x, r.z, r.x, r.z + r.d, r.d, -1, 0)); }
+  }
+  // regle: 0 - 1 m - 2 m
+  const rx = x0 + 20, rz = z0 + D - 20, seg = 50;
+  for (let i = 0; i < 4; i++) out.push(`<rect x="${rx + i * seg}" y="${rz - 6}" width="${seg}" height="6" fill="${i % 2 ? '#fff' : '#222'}" stroke="#222" stroke-width="0.6"/>`);
+  out.push(`<g font-size="${f7}" text-anchor="middle"><text x="${rx}" y="${rz - 10}">0</text><text x="${rx + 100}" y="${rz - 10}">1 m</text><text x="${rx + 200}" y="${rz - 10}">2 m</text></g>`);
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${mm(W)}mm" height="${mm(D)}mm" viewBox="${x0} ${z0} ${W} ${D}" font-family="system-ui, sans-serif" fill="#222">${out.join('')}</svg>`, wmm: +mm(W), hmm: +mm(D), paper, landscape, scale };
+}
+export function printScale(st, opts = {}) {
+  const auto = fitScale(st, opts.paper || 'A4', opts.roomId);
+  const o = { paper: 'A4', ...opts, scale: opts.scale || auto.scale, landscape: opts.landscape ?? auto.landscape };
+  const r = scaleSvg(st, o);
+  const room = opts.roomId ? st.rooms.find((x) => x.id === opts.roomId)?.name : null;
+  const date = new Date().toLocaleDateString('ca', { day: 'numeric', month: 'long', year: 'numeric' });
+  const [pw, ph] = o.landscape ? PAPER[o.paper] : [...PAPER[o.paper]].reverse();
+  const fits = r.wmm <= pw - 2 * MARGIN && r.hmm <= ph - 2 * MARGIN - TITLE_H;
+  const w = window.open('', '_blank');
+  if (!w) return { error: 'popup' };
+  w.document.write(`<!doctype html><html lang="ca"><head><meta charset="utf-8"><title>Plànol 1:${o.scale}${room ? ' · ' + esc(room) : ''}</title>
+    <style>@page { size: ${o.paper} ${o.landscape ? 'landscape' : 'portrait'}; margin: ${MARGIN}mm; } html, body { margin: 0; background: #fff; color: #222; font: 11px system-ui, sans-serif; }
+    .hd { display: flex; justify-content: space-between; align-items: baseline; height: ${TITLE_H - 4}mm; border-bottom: 0.3mm solid #222; margin-bottom: 2mm; }
+    .hd b { font-size: 14px; } .warn { color: #c62828; font-weight: 700; } @media screen { body { padding: 10mm; } .tip { background: #fff6d6; padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; } } @media print { .tip { display: none; } }</style></head><body>
+    <div class="tip">Imprimeix-lo a <b>mida real (100 %)</b>, sense «Ajusta a la pàgina». Després comprova amb un regle que la barra «0 – 1 m» del plànol fa ${(1000 / o.scale / 10).toFixed(1)} cm.${fits ? '' : ' <span class="warn">A aquesta escala no hi cap: tria un paper més gran o una escala més petita.</span>'}</div>
+    <div class="hd"><b>Planta 3D${room ? ' · ' + esc(room) : ''}</b><span>Escala 1:${o.scale} · ${o.paper} · mides en cm · sostre ${st.ceiling || 250} cm · ${date}</span></div>
+    ${r.svg}
+    <script>setTimeout(() => print(), 400)<\/script></body></html>`);
+  w.document.close();
+  return { ...r, fits };
 }

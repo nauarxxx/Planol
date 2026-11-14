@@ -1,0 +1,26 @@
+name: Proves
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  proves:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sintaxi de tots els mòduls
+        run: for f in js/*.js sw.js; do cp "$f" /tmp/chk.mjs; node --check /tmp/chk.mjs || exit 1; done
+      - name: Proves de lògica
+        run: npm test
+      - name: Instal·la el navegador
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Prova al navegador
+        run: npm run test:e2e

@@ -23,6 +23,13 @@ L'app queda a https://nauarxxx.github.io/Planol/
 - `js/layout.js`: generador de distribucions
 - `js/geom.js`: geometria 2D (xocs, buits)
 - `js/main.js`: escena 3D, interacció i interfície
+- `js/state.js`: càrrega de l'estat i migració del plànol
+- `js/preview.js`: miniatures en planta (propostes)
+- `js/goals.js`: objectius de les propostes i la seva explicació
+- `js/social.js`: notes, vots, propostes per votar i historial de canvis
+- `js/ar.js`: realitat augmentada (WebXR, Chrome d'Android)
+- `js/sheet.js`: fitxa en PDF i plànol a escala (1:50…)
+- `js/tape.js`, `js/zones.js`, `js/fit.js`, `js/shop.js`: cinta mètrica, zones d'ús, «hi passa?» i llista de compra
 - `vendor/`: Three.js r169 (llicència MIT)
 
 ## Inici de sessió (Firebase)
@@ -35,3 +42,9 @@ Mentre `js/config.js` no tingui el `firebaseConfig`, l'app funciona sense inici 
 ## App instal·lable (PWA)
 
 L’app té `manifest.webmanifest` i `sw.js`: es pot instal·lar al PC (Chrome/Edge → Instal·la), a Android (botó Instal·la) i a l’iPhone (Safari → Compartir → Afegeix a la pantalla d’inici), i obre sense connexió. Els fitxers propis es guarden a la memòria cau i s’actualitzen en segon pla; Firebase sempre va per xarxa.
+
+## Proves automàtiques
+
+- `npm test`: proves de la lògica (fusió de canvis, historial, «hi passa?», zones, escala, propostes, migració), sense navegador.
+- `npm run test:e2e`: obre l'app en un Chromium (Playwright) i comprova les funcions principals sense errors.
+- A GitHub, `.github/workflows/proves.yml` les executa a cada canvi i a cada pull request.
